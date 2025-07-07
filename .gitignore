@@ -15,8 +15,8 @@
 # Note: mix.exs is kept in version control
 
 # Phoenix artifacts
-**/priv/static/
-**/priv/static/**
+**/priv/
+**/priv/**
 
 # Node.js artifacts (for assets)
 **/node_modules/

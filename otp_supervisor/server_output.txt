@@ -1,0 +1,43 @@
+[error] Running OtpSupervisorWeb.Endpoint with Bandit 1.7.0 at http failed, port 4000 already in use
+[notice] Application otp_supervisor exited: OtpSupervisor.Application.start(:normal, []) returned an error: shutdown: failed to start child: OtpSupervisorWeb.Endpoint
+    ** (EXIT) shutdown: failed to start child: {OtpSupervisorWeb.Endpoint, :http}
+        ** (EXIT) shutdown: failed to start child: :listener
+            ** (EXIT) :eaddrinuse
+[notice] Application dns_cluster exited: :stopped
+[notice] Application gettext exited: :stopped
+[notice] Application expo exited: :stopped
+[notice] Application telemetry_poller exited: :stopped
+[notice] Application swoosh exited: :stopped
+[notice] Application finch exited: :stopped
+[notice] Application nimble_options exited: :stopped
+[notice] Application nimble_pool exited: :stopped
+[notice] Application mint exited: :stopped
+[notice] Application xmerl exited: :stopped
+[notice] Application tailwind exited: :stopped
+[notice] Application esbuild exited: :stopped
+[notice] Application phoenix_live_dashboard exited: :stopped
+[notice] Application telemetry_metrics exited: :stopped
+[notice] Application phoenix_live_view exited: :stopped
+[notice] Application phoenix_live_reload exited: :stopped
+[notice] Application file_system exited: :stopped
+[notice] Application phoenix exited: :stopped
+[notice] Application jason exited: :stopped
+[notice] Application castore exited: :stopped
+[notice] Application websock_adapter exited: :stopped
+[notice] Application bandit exited: :stopped
+[notice] Application hpax exited: :stopped
+[notice] Application thousand_island exited: :stopped
+[notice] Application websock exited: :stopped
+[notice] Application phoenix_template exited: :stopped
+[notice] Application phoenix_html exited: :stopped
+[notice] Application phoenix_pubsub exited: :stopped
+[notice] Application plug exited: :stopped
+[notice] Application telemetry exited: :stopped
+[notice] Application plug_crypto exited: :stopped
+[notice] Application mime exited: :stopped
+[notice] Application eex exited: :stopped
+[notice] Application runtime_tools exited: :stopped
+** (Mix) Could not start application otp_supervisor: OtpSupervisor.Application.start(:normal, []) returned an error: shutdown: failed to start child: OtpSupervisorWeb.Endpoint
+    ** (EXIT) shutdown: failed to start child: {OtpSupervisorWeb.Endpoint, :http}
+        ** (EXIT) shutdown: failed to start child: :listener
+            ** (EXIT) :eaddrinuse
