@@ -324,44 +324,11 @@ Get supervisor analytics data.
 ```json
 {
   "data": {
-    "restart_history": [...],
-    "restart_intensity": 2.5,
-    "restart_storm_risk": {...},
-    "performance_metrics": {...}
-  }
-}
-```
-
-#### POST /api/v1/supervisors/:name/pause
-
-Pause supervisor (prevents restarts).
-
-**URL Parameters:**
-- `name` (string): Supervisor name
-
-**Response:**
-```json
-{
-  "data": {
-    "status": "paused",
-    "supervisor": "my_supervisor"
-  }
-}
-```
-
-#### POST /api/v1/supervisors/:name/resume
-
-Resume supervisor operations.
-
-**URL Parameters:**
-- `name` (string): Supervisor name
-
-**Response:**
-```json
-{
-  "data": {
-    "status": "resumed",
-    "supervisor": "my_supervisor"
+    "performance_metrics": {
+      "memory_usage": 2832,
+      "message_queue_len": 0,
+      "reductions": 1000
+    }
   }
 }
 ```
