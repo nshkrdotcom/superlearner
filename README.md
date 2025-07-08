@@ -6,6 +6,8 @@ A comprehensive, production-grade educational platform for learning OTP (Open Te
 
 This project provides an advanced learning environment for OTP concepts, combining theoretical knowledge with practical implementation. Built with Phoenix LiveView, it offers:
 
+![OTP Supervisor Platform](img/superlearner_2025-07-07_202347.png)
+
 - **🔬 Interactive Sandbox Environments** - Isolated experimentation without system risk
 - **📊 Real-time Analytics** - Production-grade telemetry and monitoring systems
 - **🎯 Educational Focus** - Progressive complexity with comprehensive documentation
