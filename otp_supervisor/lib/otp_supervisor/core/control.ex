@@ -633,5 +633,91 @@ defmodule OTPSupervisor.Core.Control do
     :ok
   end
 
+  # Sandbox Management Functions
+
+  @doc """
+  Creates a new sandbox supervisor with the given supervisor module and options.
+
+  Returns a unique sandbox ID and sandbox information. The sandbox ID can be used
+  to manage the sandbox lifecycle (restart, destroy, etc.).
+
+  ## Examples
+
+      iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
+      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor,
+      ...>   [strategy: :one_for_one]
+      ...> )
+      iex> info.supervisor_module
+      OTPSupervisor.Sandbox.TestDemoSupervisor
+  """
+  def create_sandbox(supervisor_module, opts \\ []) do
+    sandbox_id = "sandbox_#{:erlang.unique_integer([:positive])}"
+    OTPSupervisor.Core.SandboxManager.create_sandbox(sandbox_id, supervisor_module, opts)
+  end
+
+  @doc """
+  Destroys a sandbox by stopping its supervisor and cleaning up all resources.
+
+  ## Examples
+
+      iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
+      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor
+      ...> )
+      iex> :ok = OTPSupervisor.Core.Control.destroy_sandbox(info.id)
+  """
+  def destroy_sandbox(sandbox_id) do
+    OTPSupervisor.Core.SandboxManager.destroy_sandbox(sandbox_id)
+  end
+
+  @doc """
+  Restarts a sandbox with the same configuration.
+
+  The supervisor is stopped and a new one is started with the same options.
+  The restart count is incremented.
+
+  ## Examples
+
+      iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
+      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor
+      ...> )
+      iex> {:ok, restarted} = OTPSupervisor.Core.Control.restart_sandbox(info.id)
+      iex> restarted.restart_count
+      1
+  """
+  def restart_sandbox(sandbox_id) do
+    OTPSupervisor.Core.SandboxManager.restart_sandbox(sandbox_id)
+  end
+
+  @doc """
+  Lists all active sandboxes.
+
+  Returns a list of sandbox information maps.
+
+  ## Examples
+
+      iex> sandboxes = OTPSupervisor.Core.Control.list_sandboxes()
+      iex> is_list(sandboxes)
+      true
+  """
+  def list_sandboxes do
+    OTPSupervisor.Core.SandboxManager.list_sandboxes()
+  end
+
+  @doc """
+  Gets information about a specific sandbox.
+
+  ## Examples
+
+      iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
+      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor
+      ...> )
+      iex> {:ok, retrieved} = OTPSupervisor.Core.Control.get_sandbox_info(info.id)
+      iex> retrieved.id == info.id
+      true
+  """
+  def get_sandbox_info(sandbox_id) do
+    OTPSupervisor.Core.SandboxManager.get_sandbox_info(sandbox_id)
+  end
+
   # Private helper functions
 end

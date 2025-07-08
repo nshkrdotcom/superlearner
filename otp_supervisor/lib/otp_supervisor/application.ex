@@ -16,8 +16,9 @@ defmodule OtpSupervisor.Application do
       # Start the TracerRegistry for message tracing
       {Registry, keys: :unique, name: TracerRegistry},
 
-      # Add AnalyticsServer to collect supervisor events
+      # Analytics and sandbox management
       OTPSupervisor.Core.AnalyticsServer,
+      OTPSupervisor.Core.SandboxManager,
 
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},

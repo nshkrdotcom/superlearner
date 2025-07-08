@@ -806,7 +806,7 @@ defmodule OTPSupervisor.Core.ControlTest do
       Control.kill_process(counter_pid)
 
       # Wait for restart using proper synchronization
-      :ok = wait_for_restart(sup_pid)
+      :ok = wait_for_child_restart(sup_pid, :counter_1, counter_pid)
 
       # Perform operations again
       {:ok, children2} = Control.get_supervision_tree(supervisor)
@@ -981,6 +981,100 @@ defmodule OTPSupervisor.Core.ControlTest do
       memory = Process.info(child_pid, :memory) |> elem(1)
       assert is_integer(memory)
       assert memory > 0
+    end
+  end
+
+  describe "sandbox management" do
+    test "creates sandbox with automatic ID generation" do
+      {:ok, sandbox_info} =
+        Control.create_sandbox(
+          OTPSupervisor.Sandbox.TestDemoSupervisor,
+          strategy: :one_for_one
+        )
+
+      assert is_binary(sandbox_info.id)
+      assert sandbox_info.supervisor_module == OTPSupervisor.Sandbox.TestDemoSupervisor
+      assert is_pid(sandbox_info.supervisor_pid)
+      assert Process.alive?(sandbox_info.supervisor_pid)
+
+      # Cleanup - suppress expected supervisor death warning
+      capture_log(fn -> :ok = Control.destroy_sandbox(sandbox_info.id) end)
+    end
+
+    test "destroys sandbox by ID" do
+      {:ok, sandbox_info} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+      supervisor_pid = sandbox_info.supervisor_pid
+
+      # Monitor for death
+      ref = Process.monitor(supervisor_pid)
+
+      capture_log(fn -> :ok = Control.destroy_sandbox(sandbox_info.id) end)
+
+      # Wait for supervisor to die
+      receive do
+        {:DOWN, ^ref, :process, ^supervisor_pid, _reason} -> :ok
+      after
+        1000 -> flunk("Supervisor did not terminate")
+      end
+
+      refute Process.alive?(supervisor_pid)
+    end
+
+    test "restarts sandbox preserving configuration" do
+      {:ok, original_info} =
+        Control.create_sandbox(
+          OTPSupervisor.Sandbox.TestDemoSupervisor,
+          strategy: :rest_for_one,
+          test_opt: :value
+        )
+
+      original_pid = original_info.supervisor_pid
+
+      {:ok, restarted_info} =
+        ExUnit.CaptureLog.with_log(fn -> Control.restart_sandbox(original_info.id) end) |> elem(0)
+
+      assert restarted_info.supervisor_pid != original_pid
+      assert restarted_info.opts[:strategy] == :rest_for_one
+      assert restarted_info.opts[:test_opt] == :value
+      assert restarted_info.restart_count == 1
+
+      # Cleanup - suppress expected supervisor death warning
+      capture_log(fn -> :ok = Control.destroy_sandbox(restarted_info.id) end)
+    end
+
+    test "lists active sandboxes" do
+      {:ok, sandbox1} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+      {:ok, sandbox2} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+
+      sandboxes = Control.list_sandboxes()
+      sandbox_ids = Enum.map(sandboxes, & &1.id)
+
+      assert sandbox1.id in sandbox_ids
+      assert sandbox2.id in sandbox_ids
+
+      # Cleanup - suppress expected supervisor death warnings
+      capture_log(fn ->
+        :ok = Control.destroy_sandbox(sandbox1.id)
+        :ok = Control.destroy_sandbox(sandbox2.id)
+      end)
+    end
+
+    test "gets sandbox information" do
+      {:ok, created_info} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+
+      {:ok, retrieved_info} = Control.get_sandbox_info(created_info.id)
+
+      assert retrieved_info.id == created_info.id
+      assert retrieved_info.supervisor_pid == created_info.supervisor_pid
+
+      # Cleanup - suppress expected supervisor death warning
+      capture_log(fn -> :ok = Control.destroy_sandbox(created_info.id) end)
+    end
+
+    test "handles non-existent sandbox gracefully" do
+      assert {:error, :not_found} = Control.destroy_sandbox("non_existent")
+      assert {:error, :not_found} = Control.restart_sandbox("non_existent")
+      assert {:error, :not_found} = Control.get_sandbox_info("non_existent")
     end
   end
 end
