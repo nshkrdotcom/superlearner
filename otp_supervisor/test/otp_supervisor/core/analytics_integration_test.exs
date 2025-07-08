@@ -16,26 +16,24 @@ defmodule OTPSupervisor.Core.AnalyticsIntegrationTest do
     end
 
     test "complete restart tracking flow", %{supervisor: supervisor, sup_pid: sup_pid} do
-      # 1. Verify initial state
+      # 1. Establish baseline for supervisor monitoring
+      :ok = AnalyticsServer.establish_baseline(sup_pid)
+
+      # 2. Verify initial state
       {:ok, initial_history} = Control.get_restart_history(supervisor)
       initial_count = length(initial_history)
 
-      # 2. Simulate a telemetry event (demonstrating the telemetry pattern)
-      metadata = %{
-        supervisor_pid: sup_pid,
-        child_id: :integration_test_child,
-        child_pid: spawn(fn -> :ok end),
-        reason: :killed,
-        shutdown: nil
-      }
+      # 3. Trigger a REAL supervisor restart by killing a child
+      children = Supervisor.which_children(sup_pid)
+      {child_id, child_pid, _, _} = hd(children)
 
-      # 3. Send telemetry event to AnalyticsServer
-      GenServer.cast(
-        AnalyticsServer,
-        {:supervisor_event, [:supervisor, :child, :terminate], %{}, metadata}
-      )
+      # Kill the child to trigger supervisor restart
+      Process.exit(child_pid, :kill)
 
-      # 4. Verify analytics captured the event
+      # Wait for restart to complete
+      :ok = wait_for_child_restart(sup_pid, child_id, child_pid)
+
+      # 4. Verify analytics captured the real event
       :ok = AnalyticsServer.sync(sup_pid)
       {:ok, final_history} = Control.get_restart_history(supervisor)
 
@@ -58,23 +56,25 @@ defmodule OTPSupervisor.Core.AnalyticsIntegrationTest do
   end
 
   describe "performance characteristics" do
-    test "telemetry handlers are fast" do
-      # Telemetry handlers should complete quickly
-      # This test ensures no blocking operations in handlers
+    setup do
+      setup_isolated_supervisor("perf_test")
+    end
+
+    test "supervisor scanning is efficient", %{sup_pid: sup_pid} do
+      # Register supervisor
+      :ok = AnalyticsServer.register_supervisor(sup_pid)
+
+      # Measure scan time
       start_time = System.monotonic_time(:microsecond)
 
-      # Generate telemetry event manually
-      :telemetry.execute(
-        [:test, :event],
-        %{},
-        %{supervisor_pid: self(), child_id: :test}
-      )
+      # Force scan 
+      :ok = AnalyticsServer.sync(sup_pid)
 
       end_time = System.monotonic_time(:microsecond)
       duration_us = end_time - start_time
 
-      # Should complete in microseconds, not milliseconds
-      assert duration_us < 1000, "Telemetry handler too slow: #{duration_us}μs"
+      # Should complete quickly
+      assert duration_us < 10_000, "Supervisor scanning too slow: #{duration_us}μs"
     end
   end
 end

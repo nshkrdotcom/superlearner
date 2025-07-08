@@ -37,7 +37,21 @@ defmodule OTPSupervisor.Core.AnalyticsServer do
   end
 
   def sync(supervisor_pid) do
+    # Ensure supervisor is registered first
+    register_supervisor(supervisor_pid)
+    # Force an immediate scan of the supervisor before synchronizing
+    GenServer.call(__MODULE__, {:force_scan, supervisor_pid})
     GenServer.call(__MODULE__, {:sync, supervisor_pid})
+  end
+
+  def establish_baseline(supervisor_pid) do
+    # Register supervisor and do initial scan to establish baseline
+    register_supervisor(supervisor_pid)
+    GenServer.call(__MODULE__, {:force_scan, supervisor_pid})
+  end
+
+  def register_supervisor(supervisor_pid, supervisor_name \\ nil) do
+    GenServer.call(__MODULE__, {:register_supervisor, supervisor_pid, supervisor_name})
   end
 
   # GenServer Callbacks
@@ -52,12 +66,14 @@ defmodule OTPSupervisor.Core.AnalyticsServer do
       restart_history: %{},
       # Map of supervisor_pid -> supervisor metadata  
       supervisor_info: %{},
+      # Map of supervisor_pid -> map of child_id -> child_pid (for restart detection)
+      supervisor_children: %{},
       # Global stats
       total_restarts: 0,
       start_time: System.system_time(:millisecond)
     }
 
-    Logger.info("AnalyticsServer started - monitoring all supervisor events")
+    Logger.info("AnalyticsServer started - using process monitoring for supervisor events")
     {:ok, state}
   end
 
@@ -95,25 +111,53 @@ defmodule OTPSupervisor.Core.AnalyticsServer do
   end
 
   @impl true
+  def handle_call({:force_scan, supervisor_pid}, _from, state) do
+    # Force immediate scan of a specific supervisor
+    new_state =
+      if Map.has_key?(state.supervisor_info, supervisor_pid) do
+        scan_supervisor_children(supervisor_pid, state)
+      else
+        state
+      end
+
+    {:reply, :ok, new_state}
+  end
+
+  @impl true
   def handle_call({:sync, _supervisor_pid}, _from, state) do
     # Synchronization point for tests - ensures all messages processed
     {:reply, :ok, state}
   end
 
   @impl true
-  def handle_cast({:supervisor_event, event_name, measurements, metadata}, state) do
-    new_state = process_supervisor_event(event_name, measurements, metadata, state)
-    {:noreply, new_state}
+  def handle_call({:register_supervisor, supervisor_pid, supervisor_name}, _from, state) do
+    # Register a supervisor for monitoring
+    if Process.alive?(supervisor_pid) do
+      supervisor_info = %{
+        name: supervisor_name || inspect(supervisor_pid),
+        registered_at: System.system_time(:millisecond)
+      }
+
+      new_state = %{
+        state
+        | supervisor_info: Map.put(state.supervisor_info, supervisor_pid, supervisor_info)
+      }
+
+      Logger.info("Registered supervisor #{inspect(supervisor_pid)} for monitoring")
+      {:reply, :ok, new_state}
+    else
+      {:reply, {:error, :dead_process}, state}
+    end
   end
 
   @impl true
-  def handle_info(:check_supervisors, state) do
-    # Schedule next check
-    Process.send_after(self(), :check_supervisors, 5000)
+  def handle_info(:scan_supervisors, state) do
+    # Schedule next scan
+    Process.send_after(self(), :scan_supervisors, 2000)
 
-    # For now, just maintain state
-    # In a full implementation, we would monitor supervisor children here
-    {:noreply, state}
+    # Scan all known supervisors for child changes
+    new_state = scan_all_supervisors(state)
+    {:noreply, new_state}
   end
 
   @impl true
@@ -125,113 +169,104 @@ defmodule OTPSupervisor.Core.AnalyticsServer do
   # Private Functions
 
   defp attach_telemetry_handlers do
-    # In OTP 26+, supervisors emit telemetry events
-    # For earlier versions, we use a different approach
-    try do
-      :ok =
-        :telemetry.attach_many(
-          "analytics-supervisor-events",
-          [
-            [:supervisor, :init],
-            [:supervisor, :child, :start],
-            [:supervisor, :child, :start_error],
-            [:supervisor, :child, :terminate],
-            [:supervisor, :child, :restart]
-          ],
-          &__MODULE__.handle_telemetry_event/4,
-          self()
-        )
+    # OTP 27 supervisors do not emit built-in telemetry events for child restarts
+    # Use process monitoring approach instead
+    Logger.info(
+      "AnalyticsServer: Using process monitoring (OTP supervisor telemetry events not available)"
+    )
 
-      Logger.info("AnalyticsServer: Attached to OTP telemetry events")
-    rescue
-      ArgumentError ->
-        Logger.info(
-          "AnalyticsServer: OTP telemetry events not available, using process monitoring"
-        )
-
-        start_process_monitoring()
-    end
+    start_process_monitoring()
   end
 
   defp start_process_monitoring do
-    # Fallback implementation using process monitoring
-    # This monitors the application supervisor
-    case Process.whereis(OtpSupervisor.Supervisor) do
-      nil ->
-        Logger.warning("Could not find main application supervisor")
+    # Use process monitoring to detect supervisor child restarts
+    # Start periodic scanning for supervisor changes
+    Process.send_after(self(), :scan_supervisors, 1000)
+    Logger.info("AnalyticsServer: Started supervisor monitoring")
+  end
 
-      pid ->
-        Process.monitor(pid)
-        monitor_all_supervisors()
+  defp scan_all_supervisors(state) do
+    # Scan all registered supervisors for child changes
+    Enum.reduce(state.supervisor_info, state, fn {supervisor_pid, _info}, acc_state ->
+      if Process.alive?(supervisor_pid) do
+        scan_supervisor_children(supervisor_pid, acc_state)
+      else
+        # Remove dead supervisor
+        %{
+          acc_state
+          | supervisor_info: Map.delete(acc_state.supervisor_info, supervisor_pid),
+            supervisor_children: Map.delete(acc_state.supervisor_children, supervisor_pid),
+            restart_history: Map.delete(acc_state.restart_history, supervisor_pid)
+        }
+      end
+    end)
+  end
+
+  defp scan_supervisor_children(supervisor_pid, state) do
+    try do
+      # Get current children
+      current_children = Supervisor.which_children(supervisor_pid)
+
+      current_child_map =
+        Enum.into(current_children, %{}, fn {child_id, child_pid, _type, _modules} ->
+          {child_id, child_pid}
+        end)
+
+      # Get previous children state
+      previous_child_map = Map.get(state.supervisor_children, supervisor_pid, %{})
+
+      # Detect restarts (child_id exists but PID changed)
+      restart_events =
+        Enum.reduce(current_child_map, [], fn {child_id, current_pid}, events ->
+          case Map.get(previous_child_map, child_id) do
+            ^current_pid ->
+              # Same PID, no restart
+              events
+
+            nil ->
+              # New child, not a restart
+              events
+
+            old_pid when is_pid(old_pid) ->
+              # PID changed, this is a restart
+              event = %{
+                timestamp: System.system_time(:millisecond),
+                event_type: :restarted,
+                child_id: child_id,
+                child_pid: current_pid,
+                old_pid: old_pid,
+                reason: :process_exit,
+                supervisor_name: get_supervisor_name(supervisor_pid, state)
+              }
+
+              [event | events]
+
+            _ ->
+              # Unknown previous state
+              events
+          end
+        end)
+
+      # Record restart events
+      new_state =
+        Enum.reduce(restart_events, state, fn event, acc_state ->
+          record_restart_event_direct(supervisor_pid, event, acc_state)
+        end)
+
+      # Update children state
+      %{
+        new_state
+        | supervisor_children:
+            Map.put(new_state.supervisor_children, supervisor_pid, current_child_map)
+      }
+    rescue
+      _error ->
+        # If supervisor died or can't be queried, just return state unchanged
+        state
     end
   end
 
-  defp monitor_all_supervisors do
-    # Start a periodic check for new supervisors to monitor
-    Process.send_after(self(), :check_supervisors, 1000)
-  end
-
-  # This function is called by telemetry when events occur
-  def handle_telemetry_event(event_name, measurements, metadata, analytics_server_pid) do
-    GenServer.cast(analytics_server_pid, {:supervisor_event, event_name, measurements, metadata})
-  end
-
-  defp process_supervisor_event([:supervisor, :init], _measurements, metadata, state) do
-    supervisor_pid = metadata.supervisor_pid
-
-    info = %{
-      name: metadata.name,
-      strategy: metadata.strategy,
-      max_restarts: metadata.max_restarts,
-      max_seconds: metadata.max_seconds,
-      init_time: System.system_time(:millisecond)
-    }
-
-    %{state | supervisor_info: Map.put(state.supervisor_info, supervisor_pid, info)}
-  end
-
-  defp process_supervisor_event([:supervisor, :child, :start], _measurements, _metadata, state) do
-    # Child started successfully - could track this for health metrics
-    state
-  end
-
-  defp process_supervisor_event(
-         [:supervisor, :child, :start_error],
-         _measurements,
-         metadata,
-         state
-       ) do
-    # Child failed to start - this is a restart failure
-    record_restart_event(metadata, :start_error, state)
-  end
-
-  defp process_supervisor_event([:supervisor, :child, :terminate], _measurements, metadata, state) do
-    # Child terminated - check if it will be restarted
-    if metadata.shutdown != :shutdown do
-      record_restart_event(metadata, :terminated, state)
-    else
-      state
-    end
-  end
-
-  defp process_supervisor_event([:supervisor, :child, :restart], _measurements, metadata, state) do
-    # Child successfully restarted
-    record_restart_event(metadata, :restarted, state)
-  end
-
-  defp record_restart_event(metadata, event_type, state) do
-    supervisor_pid = metadata.supervisor_pid
-
-    event = %{
-      timestamp: System.system_time(:millisecond),
-      event_type: event_type,
-      child_id: metadata.child_id,
-      child_pid: metadata.child_pid,
-      reason: Map.get(metadata, :reason),
-      shutdown: Map.get(metadata, :shutdown),
-      supervisor_name: get_supervisor_name(supervisor_pid, state)
-    }
-
+  defp record_restart_event_direct(supervisor_pid, event, state) do
     # Add to history (keep last 1000 events per supervisor)
     current_history = Map.get(state.restart_history, supervisor_pid, [])
     new_history = [event | current_history] |> Enum.take(1000)

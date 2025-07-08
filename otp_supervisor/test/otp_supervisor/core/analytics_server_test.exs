@@ -45,6 +45,9 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
       supervisor: _supervisor,
       sup_pid: sup_pid
     } do
+      # Establish baseline - this registers the supervisor and captures initial child state
+      :ok = AnalyticsServer.establish_baseline(sup_pid)
+
       # Get initial restart history
       initial_history = AnalyticsServer.get_restart_history(sup_pid)
       initial_count = length(initial_history)
@@ -71,8 +74,7 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
       # Verify restart event details
       latest_event = hd(new_history)
       assert latest_event.child_id == child_id
-      # The event type could be :terminated or :restarted depending on timing
-      assert latest_event.event_type in [:terminated, :restarted]
+      assert latest_event.event_type == :restarted
       assert is_integer(latest_event.timestamp)
     end
 
@@ -80,6 +82,9 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
       supervisor: _supervisor,
       sup_pid: sup_pid
     } do
+      # Establish baseline first
+      :ok = AnalyticsServer.establish_baseline(sup_pid)
+
       # Generate multiple real restart events by killing children
       children = Supervisor.which_children(sup_pid)
 
@@ -122,6 +127,10 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
           end
         end
       end)
+
+      # Establish baseline for both supervisors
+      :ok = AnalyticsServer.establish_baseline(sup_pid1)
+      :ok = AnalyticsServer.establish_baseline(sup_pid2)
 
       # Generate real restart event for first supervisor only
       children1 = Supervisor.which_children(sup_pid1)
