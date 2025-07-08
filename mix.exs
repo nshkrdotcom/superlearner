@@ -56,7 +56,7 @@ defmodule OtpSupervisor.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:dialyxir, "~> 1.0", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false}
     ]
   end
 

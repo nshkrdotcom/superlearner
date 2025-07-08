@@ -1,220 +1,424 @@
-<div class="fixed inset-0 bg-gray-50 z-10 overflow-auto">
-  <div class="px-6 py-8">
-    <div class="mb-8 flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900">System Dashboard</h1>
-        <p class="text-gray-600">Real-time system analysis and debugging</p>
-      </div>
-      <div class="flex items-center space-x-4">
-        <a
-          href="/"
-          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-        >
-          ← Home
-        </a>
-        <a
-          href="/supervisors"
-          class="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-        >
-          Supervisors
-        </a>
-      </div>
+<div class="fixed inset-0 bg-black text-green-400 font-mono text-xs overflow-hidden">
+  <!-- Top Status Bar -->
+  <div class="h-6 bg-gray-900 border-b border-green-500/30 flex items-center px-2">
+    <div class="flex items-center space-x-3">
+      <span class="text-green-300 font-bold">SYS-DASH</span>
+      <span class="text-yellow-400">{@system_metrics.total_processes}p</span>
+      <span class="text-cyan-400">
+        {Float.round(@system_metrics.memory_total / 1024 / 1024, 1)}MB
+      </span>
+      <span class="text-blue-400">{@system_metrics.schedulers}sch</span>
+      <span class="text-purple-400">{Float.round(@system_metrics.uptime / 1000, 1)}s</span>
+      <div class="text-green-500 animate-pulse">●</div>
+      <span class="text-gray-400">MONITORING</span>
     </div>
-    
-<!-- System Metrics Overview -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-              <span class="text-white font-bold">P</span>
-            </div>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Total Processes</p>
-            <p class="text-2xl font-semibold text-gray-900">{@system_metrics.total_processes}</p>
-          </div>
-        </div>
+    <div class="ml-auto flex items-center space-x-3">
+      <a href="/arsenal" class="text-cyan-400 hover:text-cyan-300 transition-colors font-bold">
+        ARSENAL
+      </a>
+      <a href="/docs" class="text-cyan-400 hover:text-cyan-300 transition-colors">DOCS</a>
+      <a href="/supervisors" class="text-cyan-400 hover:text-cyan-300 transition-colors">SUP</a>
+      <a href="/" class="text-cyan-400 hover:text-cyan-300 transition-colors">HOME</a>
+    </div>
+  </div>
+  
+<!-- Main Grid -->
+  <div class="grid grid-cols-4 h-full gap-1 p-1">
+    <!-- System Metrics -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        SYSTEM METRICS
       </div>
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-              <span class="text-white font-bold">M</span>
-            </div>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Memory Usage</p>
-            <p class="text-2xl font-semibold text-gray-900">
-              {format_bytes(@system_metrics.memory_usage)}
-            </p>
-          </div>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Total Processes:</span>
+          <span class="text-yellow-400">{@system_metrics.total_processes}</span>
         </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
-              <span class="text-white font-bold">Q</span>
-            </div>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Message Queues</p>
-            <p class="text-2xl font-semibold text-gray-900">
-              {@system_metrics.message_queue_lengths}
-            </p>
-          </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Memory Usage:</span>
+          <span class="text-cyan-400">{format_bytes(@system_metrics.memory_total)}</span>
         </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
-              <span class="text-white font-bold">C</span>
-            </div>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">CPU Usage</p>
-            <p class="text-2xl font-semibold text-gray-900">
-              {Float.round(@system_metrics.cpu_usage, 1)}%
-            </p>
-          </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Schedulers:</span>
+          <span class="text-blue-400">{@system_metrics.schedulers}</span>
         </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-              <span class="text-white font-bold">S</span>
-            </div>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Supervision Health</p>
-            <p class="text-2xl font-semibold text-gray-900">
-              {Float.round(@system_metrics.supervision_health, 1)}%
-            </p>
-          </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Uptime:</span>
+          <span class="text-purple-400">{format_uptime(@system_metrics.uptime)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">CPU Usage:</span>
+          <span class="text-red-400">
+            {Float.round(@system_metrics.scheduler_utilization, 2)}%
+          </span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Message Queues:</span>
+          <span class="text-orange-400">{@system_metrics.message_queue_lengths}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Supervision Health:</span>
+          <span class="text-purple-400">
+            {Float.round(@system_metrics.supervision_health, 1)}%
+          </span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Atoms:</span>
+          <span class="text-green-400">{@system_metrics.atom_count}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Modules:</span>
+          <span class="text-cyan-400">{@system_metrics.module_count}</span>
         </div>
       </div>
     </div>
     
-<!-- Anomaly Detection -->
-    <div class="bg-white rounded-lg shadow mb-8">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Anomaly Detection</h2>
+<!-- Process Analysis -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        PROCESS ANALYSIS
       </div>
-      <div class="p-6">
-        <%= if length(@anomalies) > 0 do %>
-          <div class="space-y-4">
-            <%= for anomaly <- @anomalies do %>
-              <div class="flex items-start space-x-3">
-                <div class="flex-shrink-0">
-                  <div class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
-                    <span class="text-red-600 text-sm">!</span>
-                  </div>
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm font-medium text-gray-900">{anomaly.type}</p>
-                  <p class="text-sm text-gray-500">{anomaly.description}</p>
-                </div>
-              </div>
-            <% end %>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Total:</span>
+          <span class="text-green-400">{@process_analysis.total_processes}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Supervisors:</span>
+          <span class="text-blue-400">{@process_analysis.supervisors}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">GenServers:</span>
+          <span class="text-cyan-400">{@process_analysis.genservers}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Workers:</span>
+          <span class="text-yellow-400">{@process_analysis.workers}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Other:</span>
+          <span class="text-purple-400">{@process_analysis.other}</span>
+        </div>
+        <div class="border-t border-green-500/30 pt-1 mt-2">
+          <div class="flex justify-between">
+            <span class="text-gray-400">High Mem:</span>
+            <span class="text-red-400">{@process_analysis.high_memory_count}</span>
           </div>
-        <% else %>
-          <p class="text-gray-500">No anomalies detected</p>
-        <% end %>
+          <div class="flex justify-between">
+            <span class="text-gray-400">High Queue:</span>
+            <span class="text-orange-400">{@process_analysis.high_queue_count}</span>
+          </div>
+        </div>
       </div>
     </div>
     
-<!-- Process Search and Operations -->
-    <div class="bg-white rounded-lg shadow mb-8">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Process Search</h2>
+<!-- Performance Metrics -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        PERFORMANCE
       </div>
-      <div class="p-6">
-        <.form for={%{}} id="process-search" phx-submit="search_processes">
-          <div class="flex space-x-4">
-            <div class="flex-1">
-              <input
-                type="text"
-                name="search"
-                placeholder="Search processes..."
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <button
-              type="submit"
-              class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-            >
-              Search
-            </button>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">CPU:</span>
+          <span class="text-red-400">{Float.round(@system_metrics.cpu_usage, 1)}%</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">IO Wait:</span>
+          <span class="text-orange-400">{Float.round(@system_metrics.io_wait, 1)}%</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">GC Count:</span>
+          <span class="text-yellow-400">{@system_metrics.gc_count}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">GC Time:</span>
+          <span class="text-cyan-400">{@system_metrics.gc_time}ms</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Reductions:</span>
+          <span class="text-green-400">{format_number(@system_metrics.reductions)}</span>
+        </div>
+        <div class="border-t border-green-500/30 pt-1 mt-2">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Runqueue:</span>
+            <span class="text-purple-400">{@system_metrics.run_queue}</span>
           </div>
-        </.form>
-
+        </div>
+      </div>
+    </div>
+    
+<!-- Supervisor Health -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        SUPERVISOR HEALTH
+      </div>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Total:</span>
+          <span class="text-green-400">{@supervisor_health.total_supervisors}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Healthy:</span>
+          <span class="text-green-400">{@supervisor_health.healthy}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Warning:</span>
+          <span class="text-yellow-400">{@supervisor_health.warning}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Critical:</span>
+          <span class="text-red-400">{@supervisor_health.critical}</span>
+        </div>
+        <div class="border-t border-green-500/30 pt-1 mt-2">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Restarts:</span>
+            <span class="text-orange-400">{@supervisor_health.recent_restarts}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Failures:</span>
+            <span class="text-red-400">{@supervisor_health.failure_rate}/min</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Process List -->
+    <div class="col-span-2 bg-black border border-green-500/30 flex flex-col">
+      <div class="border-b border-green-500/30 p-2">
+        <div class="text-green-300 font-bold text-xs mb-1">
+          PROCESS LIST [TOP {length(@top_processes)}]
+        </div>
+        <div class="text-gray-400 text-xs mb-1">Process Search</div>
+        <div class="mb-2">
+          <form id="process-search" phx-submit="search_processes">
+            <input
+              name="search"
+              type="text"
+              placeholder="Search processes..."
+              class="w-full bg-black text-green-400 border border-green-500/30 px-2 py-1 text-xs"
+            />
+          </form>
+        </div>
         <%= if length(@search_results) > 0 do %>
-          <div class="mt-6">
-            <h3 class="text-sm font-medium text-gray-900 mb-4">Search Results</h3>
-            <div class="space-y-2">
-              <%= for process <- @search_results do %>
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div class="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      phx-click="toggle_process_selection"
-                      phx-value-pid={inspect(process.pid)}
-                      checked={inspect(process.pid) in @selected_processes}
-                    />
-                    <div>
-                      <p class="text-sm font-medium text-gray-900">{process.name || "Unnamed"}</p>
-                      <p class="text-sm text-gray-500">PID: {inspect(process.pid)}</p>
-                    </div>
-                  </div>
-                  <div class="text-sm text-gray-500">
-                    {process.type}
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          </div>
+          <div class="mb-2 text-green-300 text-xs">Search Results</div>
         <% end %>
-
-        <%= if length(@selected_processes) > 0 do %>
-          <div class="mt-6 flex space-x-4" id="bulk-operations">
-            <button
-              phx-click="bulk_kill_processes"
-              class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
-            >
-              Kill Selected ({length(@selected_processes)})
-            </button>
-          </div>
-        <% end %>
-      </div>
-    </div>
-    
-<!-- Export Controls -->
-    <div class="bg-white rounded-lg shadow">
-      <div class="px-6 py-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-900">Export & Reports</h2>
-      </div>
-      <div class="p-6">
-        <div class="flex space-x-4">
-          <button
-            phx-click="export_system_report"
-            id="export-json"
-            class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
-          >
-            Export System Report (JSON)
+        <div class="flex space-x-2 text-xs">
+          <button class="text-green-400 hover:text-green-300 border border-green-500/30 px-2 py-1">
+            MEMORY
+          </button>
+          <button class="text-yellow-400 hover:text-yellow-300 border border-yellow-500/30 px-2 py-1">
+            QUEUE
+          </button>
+          <button class="text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 px-2 py-1">
+            REDUCTIONS
+          </button>
+          <button class="text-red-400 hover:text-red-300 border border-red-500/30 px-2 py-1">
+            REFRESH
           </button>
           <button
-            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-            id="relationship-explorer"
+            id="export-json"
+            phx-click="export_system_report"
+            class="text-purple-400 hover:text-purple-300 border border-purple-500/30 px-2 py-1"
           >
+            EXPORT JSON
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto p-1">
+        <table class="w-full text-xs">
+          <thead class="text-green-300 border-b border-green-500/30">
+            <tr>
+              <th class="text-left p-1">PID</th>
+              <th class="text-left p-1">NAME</th>
+              <th class="text-right p-1">MEM</th>
+              <th class="text-right p-1">QUEUE</th>
+              <th class="text-right p-1">RED</th>
+              <th class="text-left p-1">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for process <- @top_processes do %>
+              <tr class="border-b border-green-500/20 hover:bg-green-900/20 cursor-pointer">
+                <td class="p-1 text-gray-400 font-mono">{String.slice(process.pid, -8, 8)}</td>
+                <td class="p-1 text-green-400">{process.name || "unnamed"}</td>
+                <td class="p-1 text-right text-yellow-400">{format_bytes(process.memory)}</td>
+                <td class="p-1 text-right text-cyan-400">{process.message_queue_len}</td>
+                <td class="p-1 text-right text-blue-400">{format_number(process.reductions)}</td>
+                <td class="p-1">
+                  <span class={"text-xs px-1 #{status_color(process.status)}"}>
+                    {process.status}
+                  </span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+<!-- System Bottlenecks -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        BOTTLENECKS
+      </div>
+      <div class="space-y-1">
+        <%= for bottleneck <- @bottlenecks do %>
+          <div class="border border-red-500/30 p-1 bg-red-900/20">
+            <div class="text-red-300 font-bold text-xs">{bottleneck.type}</div>
+            <div class="text-red-400 text-xs">{bottleneck.description}</div>
+            <div class="text-gray-400 text-xs">Severity: {bottleneck.severity}/10</div>
+          </div>
+        <% end %>
+        <%= if length(@bottlenecks) == 0 do %>
+          <div class="text-green-500 text-xs text-center">NO CRITICAL BOTTLENECKS</div>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Anomalies -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        Anomaly Detection
+      </div>
+      <div class="space-y-1">
+        <%= for anomaly <- @anomalies do %>
+          <div class="border border-orange-500/30 p-1 bg-orange-900/20">
+            <div class="text-orange-300 font-bold text-xs">{anomaly.type}</div>
+            <div class="text-orange-400 text-xs">{anomaly.description}</div>
+            <div class="text-gray-400 text-xs">{anomaly.timestamp}</div>
+          </div>
+        <% end %>
+        <%= if length(@anomalies) == 0 do %>
+          <div class="text-green-500 text-xs text-center">No anomalies detected</div>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- System Graph -->
+    <div class="col-span-2 row-span-2 bg-black border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        SYSTEM GRAPH
+      </div>
+      <div class="h-full flex items-center justify-center">
+        <div class="text-center text-gray-500">
+          <div class="text-xs">PROCESS RELATIONSHIP GRAPH</div>
+          <div class="text-xs mt-1">Visualization would render here</div>
+          <button class="text-blue-400 hover:text-blue-300 border border-blue-500/30 px-2 py-1 mt-2 text-xs">
             Process Relationships
           </button>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-gray-400">Nodes:</span>
+              <span class="text-green-400">{@process_graph.node_count}</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-gray-400">Edges:</span>
+              <span class="text-cyan-400">{@process_graph.edge_count}</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-gray-400">Clusters:</span>
+              <span class="text-yellow-400">{@process_graph.cluster_count}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Memory Analysis -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        MEMORY ANALYSIS
+      </div>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Total:</span>
+          <span class="text-cyan-400">{format_bytes(@memory_analysis.total)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Processes:</span>
+          <span class="text-green-400">{format_bytes(@memory_analysis.processes)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">System:</span>
+          <span class="text-yellow-400">{format_bytes(@memory_analysis.system)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Atom:</span>
+          <span class="text-blue-400">{format_bytes(@memory_analysis.atom)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Binary:</span>
+          <span class="text-purple-400">{format_bytes(@memory_analysis.binary)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Code:</span>
+          <span class="text-orange-400">{format_bytes(@memory_analysis.code)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">ETS:</span>
+          <span class="text-red-400">{format_bytes(@memory_analysis.ets)}</span>
+        </div>
+      </div>
+    </div>
+    
+<!-- Network Status -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        NETWORK STATUS
+      </div>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Node:</span>
+          <span class="text-green-400">{@network_status.node_name}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Cookie:</span>
+          <span class="text-cyan-400">{String.slice(@network_status.cookie, 0, 8)}...</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Connections:</span>
+          <span class="text-yellow-400">{@network_status.connected_nodes}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Ports:</span>
+          <span class="text-blue-400">{@network_status.open_ports}</span>
+        </div>
+        <div class="border-t border-green-500/30 pt-1 mt-2">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Status:</span>
+            <span class="text-green-400">HEALTHY</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- OTP Info -->
+    <div class="bg-gray-900 border border-green-500/30 p-2">
+      <div class="text-green-300 font-bold text-xs mb-2 border-b border-green-500/30 pb-1">
+        OTP INFO
+      </div>
+      <div class="space-y-1">
+        <div class="flex justify-between">
+          <span class="text-gray-400">Version:</span>
+          <span class="text-green-400">{@otp_info.version}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Elixir:</span>
+          <span class="text-cyan-400">{@otp_info.elixir_version}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">ERTS:</span>
+          <span class="text-yellow-400">{@otp_info.erts_version}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">Started:</span>
+          <span class="text-blue-400">{@otp_info.start_time}</span>
+        </div>
+        <div class="border-t border-green-500/30 pt-1 mt-2">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Mode:</span>
+            <span class="text-purple-400">{@otp_info.mode}</span>
+          </div>
         </div>
       </div>
     </div>

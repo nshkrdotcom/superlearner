@@ -15,38 +15,58 @@ defmodule OtpSupervisorWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  pipeline :arsenal do
+    plug :accepts, ["json"]
+    plug :put_secure_browser_headers
+    plug OtpSupervisorWeb.ArsenalPlug
+  end
+
   scope "/", OtpSupervisorWeb do
     pipe_through :browser
 
     get "/", PageController, :home
     live "/supervisors", SupervisorLive
     live "/system", SystemDashboardLive
+    live "/arsenal", ArsenalLive
+    live "/docs", DocsLive
   end
 
-  # API routes
-  scope "/api", OtpSupervisorWeb.Api, as: :api do
+  # Arsenal API documentation endpoints
+  scope "/api/v1/arsenal", OtpSupervisorWeb do
     pipe_through :api
 
-    scope "/v1", V1, as: :v1 do
-      get "/processes", ProcessController, :index
-      get "/processes/:pid", ProcessController, :show
-      get "/processes/:pid/state", ProcessController, :get_state
-      get "/processes/:pid/messages", ProcessController, :get_messages
-      post "/processes/:pid/trace", ProcessController, :start_trace
-      delete "/processes/:pid/trace", ProcessController, :stop_trace
-      post "/processes/:pid/message", ProcessController, :send_message
+    get "/docs", ArsenalController, :docs
+    get "/operations", ArsenalController, :list_operations
+  end
 
-      get "/system/health", SystemController, :health
-      get "/system/graph", SystemController, :graph
-      get "/system/bottlenecks", SystemController, :bottlenecks
-      get "/system/anomalies", SystemController, :anomalies
+  # Arsenal operation routes - ArsenalPlug tries first, then falls through to legacy
+  scope "/api/v1", OtpSupervisorWeb.Api.V1, as: :api_v1 do
+    pipe_through [:api, OtpSupervisorWeb.ArsenalPlug]
 
-      get "/supervisors", SupervisorController, :index
-      get "/supervisors/:name", SupervisorController, :show
-      get "/supervisors/:name/analytics", SupervisorController, :analytics
-      put "/supervisors/:name/strategy", SupervisorController, :change_strategy
-      post "/supervisors/:name/simulate-failure", SupervisorController, :simulate_failure
-    end
+    # Non-conflicting manual implementations - ArsenalPlug will pass through if no operation matches
+    get "/processes", ProcessController, :index
+    get "/processes/:pid/state", ProcessController, :get_state
+    get "/processes/:pid/messages", ProcessController, :get_messages
+    post "/processes/:pid/trace", ProcessController, :start_trace
+    delete "/processes/:pid/trace", ProcessController, :stop_trace
+
+    get "/system/health", SystemController, :health
+    get "/system/graph", SystemController, :graph
+    get "/system/bottlenecks", SystemController, :bottlenecks
+    get "/system/anomalies", SystemController, :anomalies
+
+    get "/supervisors/:name", SupervisorController, :show
+    get "/supervisors/:name/analytics", SupervisorController, :analytics
+    put "/supervisors/:name/strategy", SupervisorController, :change_strategy
+    post "/supervisors/:name/simulate-failure", SupervisorController, :simulate_failure
+  end
+
+  # Arsenal catch-all outside the scoped alias
+  scope "/api/v1", OtpSupervisorWeb do
+    pipe_through [:api, OtpSupervisorWeb.ArsenalPlug]
+
+    # Catch-all for remaining paths - will hit ArsenalPlug for any unmatched route
+    match :*, "/*path", ArsenalController, :operation_handler
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

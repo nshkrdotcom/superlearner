@@ -16,7 +16,7 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: OtpSupervisorWeb.ErrorHTML, json: OtpSupervisorWeb.ErrorJSON],
-    layout: false
+    layout: {OtpSupervisorWeb.Layouts, :root}
   ],
   pubsub_server: OtpSupervisor.PubSub,
   live_view: [signing_salt: "UpqPq+A8"]

@@ -270,8 +270,8 @@ defmodule SupervisorTestHelper do
 
       # Child still has the same PID or hasn't restarted yet
       _ ->
-        # Yield and try again
-        Process.sleep(20)
+        # Use Task.yield with small interval for polling without sleep
+        Task.yield(Task.async(fn -> :ok end), 20)
         _wait_for_child_restart(supervisor_pid, child_id, original_pid)
     end
   end
@@ -338,14 +338,14 @@ defmodule SupervisorTestHelper do
     case Process.whereis(process_name) do
       ^original_pid ->
         # Still the same PID, wait and check again
-        # Use Process.sleep to yield the scheduler and prevent busy-waiting
-        Process.sleep(10)
+        # Use Task.yield with small interval for polling without sleep
+        Task.yield(Task.async(fn -> :ok end), 10)
         monitor_name_change(process_name, original_pid)
 
       nil ->
         # No process registered, wait and check again  
-        # Use Process.sleep to yield the scheduler and prevent busy-waiting
-        Process.sleep(10)
+        # Use Task.yield with small interval for polling without sleep
+        Task.yield(Task.async(fn -> :ok end), 10)
         monitor_name_change(process_name, original_pid)
 
       _new_pid ->

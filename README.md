@@ -8,6 +8,8 @@ This project provides an advanced learning environment for OTP concepts, combini
 
 ![OTP Supervisor Platform](img/superlearner_2025-07-07_202347.png)
 
+![OTP Supervisor Platform - Advanced View](img/superlearner_2025-07-07_234900.png)
+
 - **🔬 Interactive Sandbox Environments** - Isolated experimentation without system risk
 - **📊 Real-time Analytics** - Production-grade telemetry and monitoring systems
 - **🎯 Educational Focus** - Progressive complexity with comprehensive documentation

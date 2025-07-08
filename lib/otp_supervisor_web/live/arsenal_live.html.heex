@@ -1,0 +1,344 @@
+<div class="fixed inset-0 bg-gray-900 text-green-400 font-mono text-xs overflow-hidden">
+  <!-- Top Status Bar -->
+  <div class="h-6 bg-black border-b border-green-500 flex items-center px-2 text-xs">
+    <div class="flex items-center space-x-4">
+      <span class="text-green-300">ARSENAL-CMD</span>
+      <span class="text-yellow-400">#{@system_metrics.processes}p</span>
+      <span class="text-cyan-400">#{format_bytes(@system_metrics.memory_total)}</span>
+      <span class="text-red-400">#{@system_metrics.schedulers}s</span>
+      <span class="text-blue-400">#{Float.round(@system_metrics.uptime / 1000, 1)}s</span>
+      <div class="text-green-500 animate-pulse">●</div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <a href="/supervisors" class="text-cyan-400 hover:text-cyan-300 transition-colors">SUP</a>
+      <a href="/system" class="text-cyan-400 hover:text-cyan-300 transition-colors">SYS</a>
+      <a href="/" class="text-cyan-400 hover:text-cyan-300 transition-colors">HOME</a>
+    </div>
+    <div class="ml-auto flex items-center space-x-2">
+      <span class="text-gray-400">ACTIVE:</span>
+      <span class="text-green-400">
+        {Enum.count(@operations, &(&1.status == :active))}
+      </span>
+      <span class="text-gray-400">PLANNED:</span>
+      <span class="text-yellow-400">
+        {Enum.count(@operations, &(&1.status == :planned))}
+      </span>
+    </div>
+  </div>
+
+  <div class="h-[calc(100vh-1.5rem)] flex">
+    <!-- Left Panel: Controls & Metrics -->
+    <div class="w-64 bg-gray-950 border-r border-green-600 flex flex-col">
+      <!-- Search & Filters -->
+      <div class="p-2 border-b border-gray-700 space-y-1">
+        <input
+          type="text"
+          placeholder="SEARCH..."
+          value={@search_filter}
+          phx-change="search"
+          name="search"
+          class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs focus:border-green-300 focus:outline-none"
+        />
+        <div phx-update="ignore" id="category-select-container">
+          <select
+            phx-change="filter_category"
+            name="category"
+            class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs focus:border-green-300 focus:outline-none"
+          >
+            <option value="all">ALL CATEGORIES</option>
+            <option value="lifecycle">LIFECYCLE</option>
+            <option value="control">CONTROL</option>
+            <option value="supervisor">SUPERVISOR</option>
+            <option value="introspection">INTROSPECTION</option>
+            <option value="messaging">MESSAGING</option>
+            <option value="tracing">TRACING</option>
+            <option value="state">STATE</option>
+            <option value="error">ERROR</option>
+            <option value="application">APPLICATION</option>
+            <option value="resources">RESOURCES</option>
+            <option value="performance">PERFORMANCE</option>
+            <option value="security">SECURITY</option>
+            <option value="testing">TESTING</option>
+            <option value="patterns">PATTERNS</option>
+            <option value="distributed">DISTRIBUTED</option>
+            <option value="events">EVENTS</option>
+            <option value="hotcode">HOTCODE</option>
+            <option value="integration">INTEGRATION</option>
+          </select>
+        </div>
+      </div>
+      
+<!-- System Metrics -->
+      <div class="p-2 border-b border-gray-700 space-y-1">
+        <div class="text-cyan-300 font-bold">SYS.METRICS</div>
+        <div class="grid grid-cols-2 gap-1 text-xs">
+          <div>PROC: <span class="text-yellow-400">{@system_metrics.processes}</span></div>
+          <div>SCHED: <span class="text-cyan-400">{@system_metrics.schedulers}</span></div>
+          <div>
+            MEM.T: <span class="text-red-400">{format_bytes(@system_metrics.memory_total)}</span>
+          </div>
+          <div>
+            MEM.P:
+            <span class="text-orange-400">{format_bytes(@system_metrics.memory_processes)}</span>
+          </div>
+          <div>
+            MEM.S:
+            <span class="text-purple-400">{format_bytes(@system_metrics.memory_system)}</span>
+          </div>
+          <div>REDC: <span class="text-green-400">{@system_metrics.reductions}</span></div>
+        </div>
+      </div>
+      
+<!-- Process Tree -->
+      <div class="p-2 border-b border-gray-700 flex-1 flex flex-col">
+        <div class="text-cyan-300 font-bold mb-1">PROC.TREE</div>
+        <div class="space-y-1 text-xs overflow-y-auto flex-1">
+          <%= for tree <- @process_tree.trees do %>
+            <div class="border-l border-green-600 pl-1">
+              <div class="text-yellow-400">{tree.supervisor.name}</div>
+              <%= for child <- tree.children do %>
+                <div class="text-gray-400 ml-2">└ {inspect(child.id)}</div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Scheduler Utilization -->
+      <div class="p-2 border-b border-gray-700">
+        <div class="text-cyan-300 font-bold mb-1">SCHED.UTIL</div>
+        <div class="space-y-1">
+          <%= for {id, util} <- Enum.take(@system_metrics.scheduler_utilization, 4) do %>
+            <div class="flex items-center text-xs">
+              <span class="w-8">S{id}:</span>
+              <div class="flex-1 bg-gray-800 h-2 mr-2">
+                <div
+                  class="bg-green-500 h-full transition-all duration-300"
+                  style={"width: #{util}%"}
+                >
+                </div>
+              </div>
+              <span class="text-yellow-400">{util}%</span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Legend -->
+      <div class="p-2 space-y-1">
+        <div class="text-cyan-300 font-bold">LEGEND</div>
+        <div class="text-xs space-y-0.5">
+          <div><span class="text-green-400">●</span> ACTIVE</div>
+          <div><span class="text-yellow-400">●</span> PLANNED</div>
+          <div><span class="text-red-400">●</span> HIGH PRI</div>
+          <div><span class="text-orange-400">●</span> MED PRI</div>
+          <div><span class="text-gray-400">●</span> LOW PRI</div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Center Panel: Arsenal Operations Grid -->
+    <div class="flex-1 p-2 overflow-hidden">
+      <div class="grid grid-cols-6 gap-1 h-full">
+        <%= for operation <- get_filtered_operations(@operations, @search_filter, @category_filter) do %>
+          <button
+            phx-click="select_operation"
+            phx-value-operation={operation.name}
+            class={[
+              "text-left p-1 border transition-all duration-150 text-xs leading-tight",
+              case operation.status do
+                :active -> "border-green-500 bg-green-950 text-green-300 hover:bg-green-900"
+                :planned -> "border-yellow-600 bg-yellow-950 text-yellow-300 hover:bg-yellow-900"
+              end,
+              case operation.priority do
+                "high" -> "border-l-4 border-l-red-500"
+                "medium" -> "border-l-4 border-l-orange-500"
+                "low" -> "border-l-4 border-l-gray-500"
+              end
+            ]}
+            title={operation.description}
+          >
+            <div class="font-bold truncate" style="font-size: 10px; line-height: 12px;">
+              {String.upcase(operation.name)}
+            </div>
+            <div class="text-gray-400 truncate" style="font-size: 8px; line-height: 10px;">
+              {operation.category}
+            </div>
+            <div class="flex items-center justify-between mt-0.5">
+              <span class={[
+                "w-1 h-1 rounded-full",
+                case operation.status do
+                  :active -> "bg-green-400"
+                  :planned -> "bg-yellow-400"
+                end
+              ]}>
+              </span>
+              <span class={[
+                "text-xs",
+                case operation.priority do
+                  "high" -> "text-red-400"
+                  "medium" -> "text-orange-400"
+                  "low" -> "text-gray-400"
+                end
+              ]}>
+                {String.first(operation.priority)}
+              </span>
+            </div>
+          </button>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Right Panel: Live Execution -->
+    <%= if @execution_panel_open do %>
+      <div class="w-80 bg-gray-950 border-l border-green-600 flex flex-col">
+        <div class="p-2 border-b border-gray-700 flex items-center justify-between">
+          <span class="text-cyan-300 font-bold">EXEC.PANEL</span>
+          <button phx-click="close_execution_panel" class="text-red-400 hover:text-red-300">
+            ✕
+          </button>
+        </div>
+
+        <%= if @selected_operation do %>
+          <div class="p-2 border-b border-gray-700">
+            <div class="text-yellow-400 font-bold text-sm">
+              {String.upcase(@selected_operation.name)}
+            </div>
+            <div class="text-gray-400 text-xs">{@selected_operation.description}</div>
+            <div class="mt-1">
+              <span class={[
+                "px-2 py-0.5 text-xs rounded",
+                case @selected_operation.status do
+                  :active -> "bg-green-900 text-green-300"
+                  :planned -> "bg-yellow-900 text-yellow-300"
+                end
+              ]}>
+                {String.upcase(to_string(@selected_operation.status))}
+              </span>
+              <span class="ml-2 text-gray-400">
+                PRI: {String.upcase(@selected_operation.priority)}
+              </span>
+            </div>
+          </div>
+
+          <%= if @selected_operation.status == :active do %>
+            <div class="p-2 border-b border-gray-700">
+              <form phx-submit="execute_operation" class="space-y-2">
+                <%= if @selected_operation.name == "get_process_info" do %>
+                  <input
+                    type="text"
+                    name="pid"
+                    placeholder="PID (e.g., <0.123.0>)"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                    required
+                  />
+                <% end %>
+
+                <%= if @selected_operation.name == "kill_process" do %>
+                  <input
+                    type="text"
+                    name="pid"
+                    placeholder="PID (e.g., <0.123.0>)"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                    required
+                  />
+                  <select
+                    name="reason"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                  >
+                    <option value="normal">normal</option>
+                    <option value="kill">kill</option>
+                    <option value="shutdown">shutdown</option>
+                  </select>
+                <% end %>
+
+                <%= if @selected_operation.name == "send_message" do %>
+                  <input
+                    type="text"
+                    name="pid"
+                    placeholder="PID (e.g., <0.123.0>)"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                    required
+                  />
+                  <textarea
+                    name="message"
+                    placeholder='Message JSON (e.g., {"content": "test"})'
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                    rows="3"
+                    required
+                  ></textarea>
+                  <select
+                    name="message_type"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                  >
+                    <option value="send">send</option>
+                    <option value="cast">cast</option>
+                    <option value="call">call</option>
+                  </select>
+                <% end %>
+
+                <%= if @selected_operation.name == "trace_process" do %>
+                  <input
+                    type="text"
+                    name="pid"
+                    placeholder="PID (e.g., <0.123.0>)"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                    required
+                  />
+                  <select
+                    name="trace_type"
+                    class="w-full bg-black text-green-400 border border-green-600 px-2 py-1 text-xs"
+                  >
+                    <option value="calls">calls</option>
+                    <option value="messages">messages</option>
+                    <option value="all">all</option>
+                  </select>
+                <% end %>
+
+                <button
+                  type="submit"
+                  disabled={@execution_loading}
+                  class="w-full bg-green-600 text-black px-2 py-1 text-xs font-bold hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400"
+                >
+                  <%= if @execution_loading do %>
+                    EXECUTING...
+                  <% else %>
+                    EXECUTE
+                  <% end %>
+                </button>
+              </form>
+            </div>
+          <% else %>
+            <div class="p-2 border-b border-gray-700">
+              <div class="text-yellow-400 text-xs">OPERATION NOT IMPLEMENTED</div>
+              <div class="text-gray-400 text-xs mt-1">
+                This operation is planned but not yet available.
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+        
+<!-- Execution Results -->
+        <div class="flex-1 p-2 overflow-y-auto">
+          <%= if @execution_result do %>
+            <div class="text-cyan-300 font-bold mb-2">RESULT:</div>
+            <div class="bg-black p-2 border border-gray-600 text-xs">
+              <pre class="whitespace-pre-wrap text-green-300">{inspect(@execution_result, pretty: true)}</pre>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  
+<!-- Bottom Command Line -->
+  <div class="absolute bottom-0 left-0 right-0 h-6 bg-black border-t border-green-500 flex items-center px-2 text-xs">
+    <span class="text-green-400">arsenal@otp:~$</span>
+    <span class="text-gray-400 ml-2">
+      {length(get_filtered_operations(@operations, @search_filter, @category_filter))} operations visible
+    </span>
+    <div class="ml-auto text-gray-400">
+      ESC: clear | CTRL+F: search | ENTER: execute
+    </div>
+  </div>
+</div>

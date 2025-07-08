@@ -719,5 +719,26 @@ defmodule OTPSupervisor.Core.Control do
     OTPSupervisor.Core.SandboxManager.get_sandbox_info(sandbox_id)
   end
 
+  @doc """
+  Lists all processes in the system (simplified version of list_all_processes).
+
+  Returns a list of process information maps without filtering.
+  """
+  def list_processes do
+    list_all_processes()
+  end
+
+  @doc """
+  Gets children for a specific supervisor by name.
+
+  Returns a list of child process information.
+  """
+  def get_supervisor_children(supervisor_name) do
+    case get_supervision_tree(supervisor_name) do
+      {:ok, children} -> children
+      {:error, _} -> []
+    end
+  end
+
   # Private helper functions
 end

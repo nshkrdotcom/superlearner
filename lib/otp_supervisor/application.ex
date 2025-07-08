@@ -20,6 +20,9 @@ defmodule OtpSupervisor.Application do
       OTPSupervisor.Core.AnalyticsServer,
       OTPSupervisor.Core.SandboxManager,
 
+      # Arsenal operation registry
+      OTPSupervisor.Core.Arsenal.Registry,
+
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
       # Start to serve requests, typically the last entry
