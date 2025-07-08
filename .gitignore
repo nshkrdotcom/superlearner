@@ -101,3 +101,5 @@
 # Temporary folders
 **/tmp/
 **/temp/
+
+repomix*.xml

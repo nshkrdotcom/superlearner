@@ -8,6 +8,9 @@ These prompts (11-15) enhance Phase 1 to deliver real debugging and analysis val
 
 ## Prompt 11: Enhanced Process Introspection
 
+**Required Reading:**
+- `/docs/code-standards/otp-testing-standards.md` (OTP compliance and testing patterns)
+
 **Prompt:**
 ```
 Enhance lib/otp_supervisor/core/control.ex with professional debugging capabilities:
@@ -39,6 +42,9 @@ Include proper error handling and make functions work with both registered names
 
 ## Prompt 12: Message Flow Analysis
 
+**Required Reading:**
+- `/docs/code-standards/otp-testing-standards.md` (OTP compliance and testing patterns)
+
 **Prompt:**
 ```
 Create lib/otp_supervisor/core/message_tracer.ex for debugging message flow:
@@ -65,6 +71,9 @@ This module enables real debugging of message-passing issues in production syste
 ---
 
 ## Prompt 13: Advanced Supervisor Control
+
+**Required Reading:**
+- `/docs/code-standards/otp-testing-standards.md` (OTP compliance and testing patterns)
 
 **Prompt:**
 ```
@@ -95,6 +104,9 @@ These tools help test supervision strategies in development and debug issues in 
 ---
 
 ## Prompt 14: System Analysis Dashboard
+
+**Required Reading:**
+- `/docs/code-standards/otp-testing-standards.md` (OTP compliance and testing patterns)
 
 **Prompt:**
 ```
@@ -133,6 +145,9 @@ Add route "/system" to router.ex for this dashboard.
 ---
 
 ## Prompt 15: REST API for Debugging Tools
+
+**Required Reading:**
+- `/docs/code-standards/otp-testing-standards.md` (OTP compliance and testing patterns)
 
 **Prompt:**
 ```

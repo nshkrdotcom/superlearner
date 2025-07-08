@@ -202,6 +202,7 @@ Use proper ExUnit patterns with setup blocks and descriptive test names.
 - `/home/home/p/g/n/superlearner/otp_supervisor/lib/otp_supervisor_web/live/supervisor_live.ex`
 - `/home/home/p/g/n/superlearner/otp_supervisor/test/otp_supervisor_web/live/supervisor_live_test.exs`
 - `/home/home/p/g/n/superlearner/docs/comprehensive-test-plan.md` (Phase 1.3)
+- `/home/home/p/g/n/superlearner/docs/code-standards/otp-testing-standards.md`
 
 **Context:**
 The SupervisorLive module has basic tests but lacks comprehensive coverage of real-time functionality, error handling, and user interactions. Current coverage is 42.86%.
@@ -274,6 +275,8 @@ Use Phoenix.LiveViewTest utilities for proper LiveView testing.
 **Required Reading:**
 - `/home/home/p/g/n/superlearner/otp_supervisor/lib/otp_supervisor/sandbox/supervisors/demo_supervisor.ex`
 - `/home/home/p/g/n/superlearner/docs/comprehensive-test-plan.md` (Phase 2.1)
+- `/home/home/p/g/n/superlearner/docs/code-standards/otp-testing-standards.md`
+- `/home/home/p/g/n/superlearner/docs/test-isolation-guide.md` (Critical for supervisor tests)
 - Elixir Supervisor documentation for restart strategies
 
 **Context:**
@@ -347,6 +350,8 @@ Use proper ExUnit setup/teardown for supervisor lifecycle management.
 - `/home/home/p/g/n/superlearner/otp_supervisor/lib/otp_supervisor/core/control.ex`
 - `/home/home/p/g/n/superlearner/otp_supervisor/lib/otp_supervisor_web/live/supervisor_live.ex`
 - `/home/home/p/g/n/superlearner/docs/comprehensive-test-plan.md` (Phase 2.2)
+- `/home/home/p/g/n/superlearner/docs/code-standards/otp-testing-standards.md`
+- `/home/home/p/g/n/superlearner/docs/test-isolation-guide.md` (Critical for integration tests)
 
 **Context:**
 The system lacks integration tests that verify cross-module interactions and end-to-end workflows. These tests are crucial for ensuring the educational tool works as a complete system.
@@ -418,6 +423,8 @@ Use proper test isolation and cleanup to avoid test interference.
 - `/home/home/p/g/n/superlearner/otp_supervisor/lib/otp_supervisor/core/control.ex`
 - `/home/home/p/g/n/superlearner/otp_supervisor/lib/otp_supervisor_web/live/supervisor_live.ex`
 - `/home/home/p/g/n/superlearner/docs/comprehensive-test-plan.md` (Phase 3.1)
+- `/home/home/p/g/n/superlearner/docs/code-standards/otp-testing-standards.md`
+- `/home/home/p/g/n/superlearner/docs/test-isolation-guide.md` (Critical for load tests)
 
 **Context:**
 The system needs performance testing to ensure it remains responsive under educational load scenarios with multiple students and high-frequency operations.
@@ -483,6 +490,8 @@ Add @tag :performance to tests for optional execution.
 - All existing source files in `/home/home/p/g/n/superlearner/otp_supervisor/lib/`
 - All existing test files in `/home/home/p/g/n/superlearner/otp_supervisor/test/`
 - `/home/home/p/g/n/superlearner/docs/comprehensive-test-plan.md` (Phase 3.2)
+- `/home/home/p/g/n/superlearner/docs/code-standards/otp-testing-standards.md`
+- `/home/home/p/g/n/superlearner/docs/test-isolation-guide.md` (Critical for edge cases)
 
 **Context:**
 The system needs comprehensive edge case testing to handle malformed input, extreme values, and unusual scenarios that students might encounter during exploration.
@@ -551,6 +560,8 @@ Use property-based testing where appropriate for exploring edge cases.
 **Required Reading:**
 - All test files in `/home/home/p/g/n/superlearner/otp_supervisor/test/`
 - `/home/home/p/g/n/superlearner/docs/comprehensive-test-plan.md`
+- `/home/home/p/g/n/superlearner/docs/code-standards/otp-testing-standards.md`
+- `/home/home/p/g/n/superlearner/docs/test-isolation-guide.md` (Ensure all tests follow isolation patterns)
 
 **Context:**
 This final prompt ensures comprehensive test coverage is achieved, performs cleanup, and validates the entire test suite.
