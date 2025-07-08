@@ -112,4 +112,12 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
     # Simulate a crash
     raise "Intentional crash for demonstration"
   end
+
+  @impl true
+  def handle_info(_msg, state) do
+    # Silently ignore unexpected messages to prevent log spam
+    # This is common practice for GenServers that might receive
+    # messages from various sources (monitoring, custom sends, etc.)
+    {:noreply, state}
+  end
 end

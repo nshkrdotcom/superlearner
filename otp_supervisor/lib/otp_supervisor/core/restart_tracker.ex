@@ -49,6 +49,18 @@ defmodule OTPSupervisor.Core.RestartTracker do
     end
   end
 
+  @doc """
+  A synchronous call that ensures all prior messages have been processed.
+  This is a robust way to synchronize state in tests without using sleep.
+  """
+  def sync(supervisor_pid) when is_pid(supervisor_pid) do
+    try do
+      GenServer.call(tracker_name(supervisor_pid), :sync, 5000)
+    catch
+      :exit, _ -> :ok
+    end
+  end
+
   # GenServer Callbacks
 
   @impl true
@@ -71,6 +83,14 @@ defmodule OTPSupervisor.Core.RestartTracker do
   @impl true
   def handle_call(:get_history, _from, state) do
     {:reply, Enum.reverse(state.history), state}
+  end
+
+  @impl true
+  def handle_call(:sync, _from, state) do
+    # This call does nothing but reply. Its purpose is to act as a
+    # synchronization point, ensuring all previous async messages
+    # (like :DOWN) have been processed before the call returns.
+    {:reply, :ok, state}
   end
 
   @impl true

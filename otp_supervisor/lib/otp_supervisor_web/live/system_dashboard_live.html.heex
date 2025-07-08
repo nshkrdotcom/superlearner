@@ -1,0 +1,222 @@
+<div class="fixed inset-0 bg-gray-50 z-10 overflow-auto">
+  <div class="px-6 py-8">
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">System Dashboard</h1>
+        <p class="text-gray-600">Real-time system analysis and debugging</p>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a
+          href="/"
+          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          ← Home
+        </a>
+        <a
+          href="/supervisors"
+          class="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+        >
+          Supervisors
+        </a>
+      </div>
+    </div>
+    
+<!-- System Metrics Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <span class="text-white font-bold">P</span>
+            </div>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Processes</p>
+            <p class="text-2xl font-semibold text-gray-900">{@system_metrics.total_processes}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+              <span class="text-white font-bold">M</span>
+            </div>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Memory Usage</p>
+            <p class="text-2xl font-semibold text-gray-900">
+              {format_bytes(@system_metrics.memory_usage)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
+              <span class="text-white font-bold">Q</span>
+            </div>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Message Queues</p>
+            <p class="text-2xl font-semibold text-gray-900">
+              {@system_metrics.message_queue_lengths}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+              <span class="text-white font-bold">C</span>
+            </div>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">CPU Usage</p>
+            <p class="text-2xl font-semibold text-gray-900">
+              {Float.round(@system_metrics.cpu_usage, 1)}%
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center">
+          <div class="flex-shrink-0">
+            <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+              <span class="text-white font-bold">S</span>
+            </div>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Supervision Health</p>
+            <p class="text-2xl font-semibold text-gray-900">
+              {Float.round(@system_metrics.supervision_health, 1)}%
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Anomaly Detection -->
+    <div class="bg-white rounded-lg shadow mb-8">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Anomaly Detection</h2>
+      </div>
+      <div class="p-6">
+        <%= if length(@anomalies) > 0 do %>
+          <div class="space-y-4">
+            <%= for anomaly <- @anomalies do %>
+              <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                  <div class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
+                    <span class="text-red-600 text-sm">!</span>
+                  </div>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-gray-900">{anomaly.type}</p>
+                  <p class="text-sm text-gray-500">{anomaly.description}</p>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <p class="text-gray-500">No anomalies detected</p>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Process Search and Operations -->
+    <div class="bg-white rounded-lg shadow mb-8">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Process Search</h2>
+      </div>
+      <div class="p-6">
+        <.form for={%{}} id="process-search" phx-submit="search_processes">
+          <div class="flex space-x-4">
+            <div class="flex-1">
+              <input
+                type="text"
+                name="search"
+                placeholder="Search processes..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              type="submit"
+              class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            >
+              Search
+            </button>
+          </div>
+        </.form>
+
+        <%= if length(@search_results) > 0 do %>
+          <div class="mt-6">
+            <h3 class="text-sm font-medium text-gray-900 mb-4">Search Results</h3>
+            <div class="space-y-2">
+              <%= for process <- @search_results do %>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div class="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      phx-click="toggle_process_selection"
+                      phx-value-pid={inspect(process.pid)}
+                      checked={inspect(process.pid) in @selected_processes}
+                    />
+                    <div>
+                      <p class="text-sm font-medium text-gray-900">{process.name || "Unnamed"}</p>
+                      <p class="text-sm text-gray-500">PID: {inspect(process.pid)}</p>
+                    </div>
+                  </div>
+                  <div class="text-sm text-gray-500">
+                    {process.type}
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <%= if length(@selected_processes) > 0 do %>
+          <div class="mt-6 flex space-x-4" id="bulk-operations">
+            <button
+              phx-click="bulk_kill_processes"
+              class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
+            >
+              Kill Selected ({length(@selected_processes)})
+            </button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Export Controls -->
+    <div class="bg-white rounded-lg shadow">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Export & Reports</h2>
+      </div>
+      <div class="p-6">
+        <div class="flex space-x-4">
+          <button
+            phx-click="export_system_report"
+            id="export-json"
+            class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+          >
+            Export System Report (JSON)
+          </button>
+          <button
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            id="relationship-explorer"
+          >
+            Process Relationships
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

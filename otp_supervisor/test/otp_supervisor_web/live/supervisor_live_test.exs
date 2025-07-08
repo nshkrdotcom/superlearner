@@ -170,7 +170,7 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
 
       assert html =~ "OTP Supervisor Control Panel"
       assert html =~ "Supervisors"
-      assert html =~ "How Supervisors Work"
+      assert html =~ "System Active"
     end
 
     test "can select a supervisor", %{conn: conn, supervisor: supervisor} do

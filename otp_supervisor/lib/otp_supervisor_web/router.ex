@@ -19,6 +19,7 @@ defmodule OtpSupervisorWeb.Router do
 
     get "/", PageController, :home
     live "/supervisors", SupervisorLive
+    live "/system", SystemDashboardLive
   end
 
   # Other scopes may use custom stacks.

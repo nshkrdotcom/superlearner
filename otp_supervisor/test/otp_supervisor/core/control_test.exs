@@ -245,8 +245,8 @@ defmodule OTPSupervisor.Core.ControlTest do
       # Kill the process
       Control.kill_process(initial_pid)
 
-      # Use supervisor's which_children to wait for restart completion
-      :ok = wait_for_restart(sup_pid)
+      # Wait for the specific child to be restarted with a different PID
+      :ok = wait_for_child_restart(sup_pid, :counter_1, initial_pid)
 
       # Get the new PID from supervisor children (more reliable than name lookup)
       children = Supervisor.which_children(sup_pid)
@@ -934,10 +934,14 @@ defmodule OTPSupervisor.Core.ControlTest do
       # Wait for restart using proper helper
       :ok = wait_for_restart(sup_pid)
 
+      # Synchronize with the RestartTracker to ensure it processed the :DOWN message
+      {:ok, supervisor_pid} = Control.to_pid(supervisor)
+      :ok = OTPSupervisor.Core.RestartTracker.sync(supervisor_pid)
+
       history = Control.get_restart_history(supervisor)
 
       assert is_list(history)
-      assert length(history) > 0
+      assert length(history) >= 1
 
       restart_event = List.first(history)
       assert Map.has_key?(restart_event, :timestamp)
