@@ -2,7 +2,7 @@ defmodule OtpSupervisorWeb.SystemDashboardLive do
   use OtpSupervisorWeb, :live_view
 
   alias OTPSupervisor.Core.Control
-  alias OtpSupervisor.Core.SystemAnalyzer
+  alias OTPSupervisor.Core.SystemAnalyzer
 
   @impl true
   def mount(_params, _session, socket) do

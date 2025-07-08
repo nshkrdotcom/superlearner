@@ -12,6 +12,7 @@ defmodule OtpSupervisorWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :put_secure_browser_headers
   end
 
   scope "/", OtpSupervisorWeb do
@@ -22,10 +23,33 @@ defmodule OtpSupervisorWeb.Router do
     live "/system", SystemDashboardLive
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", OtpSupervisorWeb do
-  #   pipe_through :api
-  # end
+  # API routes
+  scope "/api", OtpSupervisorWeb.Api, as: :api do
+    pipe_through :api
+
+    scope "/v1", V1, as: :v1 do
+      get "/processes", ProcessController, :index
+      get "/processes/:pid", ProcessController, :show
+      get "/processes/:pid/state", ProcessController, :get_state
+      get "/processes/:pid/messages", ProcessController, :get_messages
+      post "/processes/:pid/trace", ProcessController, :start_trace
+      delete "/processes/:pid/trace", ProcessController, :stop_trace
+      post "/processes/:pid/message", ProcessController, :send_message
+
+      get "/system/health", SystemController, :health
+      get "/system/graph", SystemController, :graph
+      get "/system/bottlenecks", SystemController, :bottlenecks
+      get "/system/anomalies", SystemController, :anomalies
+
+      get "/supervisors", SupervisorController, :index
+      get "/supervisors/:name", SupervisorController, :show
+      get "/supervisors/:name/analytics", SupervisorController, :analytics
+      post "/supervisors/:name/pause", SupervisorController, :pause
+      post "/supervisors/:name/resume", SupervisorController, :resume
+      put "/supervisors/:name/strategy", SupervisorController, :change_strategy
+      post "/supervisors/:name/simulate-failure", SupervisorController, :simulate_failure
+    end
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:otp_supervisor, :dev_routes) do
