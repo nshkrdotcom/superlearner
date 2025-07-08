@@ -40,6 +40,10 @@ defmodule OTPSupervisor.Core.SandboxManager do
     GenServer.call(__MODULE__, {:get_sandbox_pid, sandbox_id})
   end
 
+  def sync do
+    GenServer.call(__MODULE__, :sync)
+  end
+
   # GenServer Callbacks
 
   @impl true
@@ -198,6 +202,11 @@ defmodule OTPSupervisor.Core.SandboxManager do
     sandboxes = :ets.tab2list(:sandboxes)
     sandbox_list = Enum.map(sandboxes, fn {_id, info} -> info end)
     {:reply, sandbox_list, state}
+  end
+
+  @impl true
+  def handle_call(:sync, _from, state) do
+    {:reply, :ok, state}
   end
 
   @impl true

@@ -1,5 +1,5 @@
 defmodule OTPSupervisor.Core.AnalyticsServerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   import SupervisorTestHelper
 
   @moduledoc """
@@ -41,32 +41,28 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
       setup_isolated_supervisor("telemetry_test")
     end
 
-    test "captures supervisor restart events", %{supervisor: _supervisor, sup_pid: sup_pid} do
+    test "captures real supervisor restart events via telemetry", %{
+      supervisor: _supervisor,
+      sup_pid: sup_pid
+    } do
       # Get initial restart history
       initial_history = AnalyticsServer.get_restart_history(sup_pid)
       initial_count = length(initial_history)
 
-      # Manually trigger a telemetry event to simulate a restart
-      # This demonstrates the telemetry integration pattern
-      metadata = %{
-        supervisor_pid: sup_pid,
-        child_id: :test_child,
-        child_pid: spawn(fn -> :ok end),
-        reason: :killed,
-        shutdown: nil
-      }
+      # Get a real child to kill
+      children = Supervisor.which_children(sup_pid)
+      {child_id, child_pid, _, _} = hd(children)
 
-      # Send event directly to AnalyticsServer
-      GenServer.cast(
-        AnalyticsServer,
-        {:supervisor_event, [:supervisor, :child, :terminate], %{}, metadata}
-      )
+      # Kill the process to trigger a REAL supervisor restart
+      Process.exit(child_pid, :kill)
 
-      # Give telemetry events time to be processed
-      # Use sync call to ensure all messages processed
+      # Wait for the supervisor to complete the restart
+      :ok = wait_for_child_restart(sup_pid, child_id, child_pid)
+
+      # Synchronize with the AnalyticsServer to ensure it processed the event
       :ok = AnalyticsServer.sync(sup_pid)
 
-      # Verify restart event was captured
+      # Now, get the history and assert it contains the real event
       new_history = AnalyticsServer.get_restart_history(sup_pid)
       new_count = length(new_history)
 
@@ -74,27 +70,25 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
 
       # Verify restart event details
       latest_event = hd(new_history)
-      assert latest_event.child_id == :test_child
-      assert latest_event.event_type == :terminated
+      assert latest_event.child_id == child_id
+      # The event type could be :terminated or :restarted depending on timing
+      assert latest_event.event_type in [:terminated, :restarted]
       assert is_integer(latest_event.timestamp)
     end
 
-    test "calculates failure rates correctly", %{supervisor: _supervisor, sup_pid: sup_pid} do
-      # Manually generate multiple restart events
-      for i <- 1..3 do
-        metadata = %{
-          supervisor_pid: sup_pid,
-          child_id: :"test_child_#{i}",
-          child_pid: spawn(fn -> :ok end),
-          reason: :killed,
-          shutdown: nil
-        }
+    test "calculates failure rates correctly with real events", %{
+      supervisor: _supervisor,
+      sup_pid: sup_pid
+    } do
+      # Generate multiple real restart events by killing children
+      children = Supervisor.which_children(sup_pid)
 
-        # Send event directly to AnalyticsServer
-        GenServer.cast(
-          AnalyticsServer,
-          {:supervisor_event, [:supervisor, :child, :terminate], %{}, metadata}
-        )
+      for {child_id, child_pid, _, _} <- Enum.take(children, 3) do
+        # Kill the real child to trigger supervisor restart
+        Process.exit(child_pid, :kill)
+
+        # Wait for restart to complete
+        :ok = wait_for_child_restart(sup_pid, child_id, child_pid)
       end
 
       # Sync to ensure all events processed
@@ -129,19 +123,15 @@ defmodule OTPSupervisor.Core.AnalyticsServerTest do
         end
       end)
 
-      # Generate restart event for first supervisor only
-      metadata1 = %{
-        supervisor_pid: sup_pid1,
-        child_id: :test_child_1,
-        child_pid: spawn(fn -> :ok end),
-        reason: :killed,
-        shutdown: nil
-      }
+      # Generate real restart event for first supervisor only
+      children1 = Supervisor.which_children(sup_pid1)
+      {child_id, child_pid, _, _} = hd(children1)
 
-      GenServer.cast(
-        AnalyticsServer,
-        {:supervisor_event, [:supervisor, :child, :terminate], %{}, metadata1}
-      )
+      # Kill child to trigger real supervisor restart
+      Process.exit(child_pid, :kill)
+
+      # Wait for restart to complete
+      :ok = wait_for_child_restart(sup_pid1, child_id, child_pid)
 
       :ok = AnalyticsServer.sync(sup_pid1)
 

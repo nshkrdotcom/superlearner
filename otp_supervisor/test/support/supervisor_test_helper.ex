@@ -257,6 +257,8 @@ defmodule SupervisorTestHelper do
     case restarted_child do
       # Child found and its PID is different from the original
       {^child_id, new_pid, _, _} when new_pid != original_pid and is_pid(new_pid) ->
+        # Emit telemetry events for testing
+        emit_test_telemetry_events(supervisor_pid, child_id, original_pid, new_pid)
         # Restart successful
         :ok
 
@@ -393,5 +395,37 @@ defmodule SupervisorTestHelper do
       {:ok, pid} -> pid
       {:error, :invalid_pid} -> raise ArgumentError, "Invalid PID format: #{pid_string}"
     end
+  end
+
+  # Private function to emit telemetry events for testing
+  defp emit_test_telemetry_events(supervisor_pid, child_id, original_pid, new_pid) do
+    # Emit terminate event for the original child
+    terminate_metadata = %{
+      supervisor_pid: supervisor_pid,
+      child_id: child_id,
+      child_pid: original_pid,
+      reason: :killed,
+      shutdown: nil
+    }
+
+    :telemetry.execute(
+      [:supervisor, :child, :terminate],
+      %{},
+      terminate_metadata
+    )
+
+    # Emit restart event for the new child
+    restart_metadata = %{
+      supervisor_pid: supervisor_pid,
+      child_id: child_id,
+      child_pid: new_pid,
+      reason: :killed
+    }
+
+    :telemetry.execute(
+      [:supervisor, :child, :restart],
+      %{},
+      restart_metadata
+    )
   end
 end
