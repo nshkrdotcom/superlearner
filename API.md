@@ -68,12 +68,15 @@ Lists all processes in the system with optional filtering and pagination.
 }
 ```
 
-#### GET /api/v1/processes/:pid
+#### GET /api/v1/processes/:pid/info
 
-Get detailed information about a specific process.
+Get comprehensive information about a specific process (Arsenal Operation).
 
 **URL Parameters:**
 - `pid` (string): Process ID (URL encoded)
+
+**Query Parameters:**
+- `keys` (array, optional): Specific info keys to retrieve
 
 **Response:**
 ```json
@@ -85,7 +88,8 @@ Get detailed information about a specific process.
     "memory": 2832,
     "message_queue_len": 0,
     "links": ["#PID<0.124.0>"],
-    "monitors": []
+    "monitors": [],
+    "status": "running"
   }
 }
 ```
@@ -112,7 +116,7 @@ Get the internal state of a GenServer process.
 
 #### POST /api/v1/processes/:pid/trace
 
-Start message tracing for a process.
+Start process tracing (Arsenal Operation).
 
 **URL Parameters:**
 - `pid` (string): Process ID (URL encoded)
@@ -120,8 +124,10 @@ Start message tracing for a process.
 **Request Body:**
 ```json
 {
-  "max_messages": 100,
-  "duration": 60
+  "trace_flags": ["send", "receive", "call"],
+  "duration_ms": 60000,
+  "max_events": 1000,
+  "filter_patterns": ["*cast*"]
 }
 ```
 
@@ -130,9 +136,10 @@ Start message tracing for a process.
 {
   "data": {
     "status": "tracing_started",
-    "tracer_pid": "#PID<0.125.0>",
-    "max_messages": 100,
-    "duration": 60
+    "trace_session_id": "trace_12345",
+    "trace_flags": ["send", "receive", "call"],
+    "duration_ms": 60000,
+    "max_events": 1000
   }
 }
 ```
@@ -178,7 +185,7 @@ Get message history for a traced process.
 
 #### POST /api/v1/processes/:pid/message
 
-Send a message to a process.
+Send a message to a process (Arsenal Operation).
 
 **URL Parameters:**
 - `pid` (string): Process ID (URL encoded)
@@ -186,10 +193,10 @@ Send a message to a process.
 **Request Body:**
 ```json
 {
-  "message": {
-    "type": "cast",
-    "content": "increment"
-  }
+  "message": "increment",
+  "message_type": "cast",
+  "timeout_ms": 5000,
+  "track_response": true
 }
 ```
 
@@ -198,7 +205,36 @@ Send a message to a process.
 {
   "data": {
     "status": "message_sent",
-    "message_type": "cast"
+    "message_type": "cast",
+    "delivery_time": 1234567890,
+    "response": null
+  }
+}
+```
+
+#### DELETE /api/v1/processes/:pid
+
+Kill/terminate a process (Arsenal Operation).
+
+**URL Parameters:**
+- `pid` (string): Process ID (URL encoded)
+
+**Request Body:**
+```json
+{
+  "reason": "killed",
+  "force": false
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "status": "process_killed",
+    "pid": "#PID<0.123.0>",
+    "reason": "killed",
+    "termination_time": 1234567890
   }
 }
 ```
@@ -272,7 +308,13 @@ Detect system anomalies.
 
 #### GET /api/v1/supervisors
 
-List all supervisors in the system.
+List all supervisors in the system (Arsenal Operation).
+
+**Query Parameters:**
+- `include_children` (boolean, optional): Include children information
+- `filter_application` (string, optional): Filter by application name  
+- `page` (integer, optional): Page number (default: 1)
+- `per_page` (integer, optional): Items per page (default: 50, max: 100)
 
 **Response:**
 ```json
@@ -282,11 +324,17 @@ List all supervisors in the system.
       "name": "my_supervisor",
       "pid": "#PID<0.123.0>",
       "alive": true,
-      "child_count": 3
+      "child_count": 3,
+      "application": "my_app",
+      "strategy": "one_for_one",
+      "restart_intensity": 3,
+      "restart_period": 5
     }
   ],
   "meta": {
     "total": 5,
+    "page": 1,
+    "per_page": 50,
     "timestamp": 1234567890
   }
 }
@@ -335,7 +383,7 @@ Get supervisor analytics data.
 
 #### PUT /api/v1/supervisors/:name/strategy
 
-Change supervisor restart strategy.
+Change supervisor restart strategy (Traditional API).
 
 **URL Parameters:**
 - `name` (string): Supervisor name
@@ -360,7 +408,7 @@ Change supervisor restart strategy.
 
 #### POST /api/v1/supervisors/:name/simulate-failure
 
-Simulate failures for testing.
+Simulate failures for testing (Traditional API).
 
 **URL Parameters:**
 - `name` (string): Supervisor name
@@ -381,6 +429,55 @@ Simulate failures for testing.
     "status": "failure_simulated",
     "failure_type": "child_crash",
     "supervisor": "my_supervisor"
+  }
+}
+```
+
+## Arsenal Documentation Endpoints
+
+#### GET /api/v1/arsenal/docs
+
+Get OpenAPI documentation for all Arsenal operations.
+
+**Response:**
+```json
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Arsenal Operations API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/processes/{pid}/info": {
+      "get": {
+        "summary": "Get comprehensive process information",
+        "parameters": [...],
+        "responses": {...}
+      }
+    }
+  }
+}
+```
+
+#### GET /api/v1/arsenal/operations
+
+List all available Arsenal operations with metadata.
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "module": "OTPSupervisor.Core.Arsenal.Operations.GetProcessInfo",
+      "method": "get",
+      "path": "/api/v1/processes/:pid/info",
+      "summary": "Get comprehensive process information",
+      "parameters": [...]
+    }
+  ],
+  "meta": {
+    "total": 5,
+    "timestamp": 1234567890
   }
 }
 ```

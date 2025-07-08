@@ -304,43 +304,46 @@ The platform is designed for step-by-step OTP mastery:
 - Export capabilities (JSON/CSV)
 
 ### API Endpoints (`/api/v1/`)
-**Comprehensive RESTful API:**
+**Comprehensive RESTful API with Arsenal Operations:**
 
-#### Process Management (`/api/v1/processes`)
+#### Arsenal Operations (Dynamic API)
 ```bash
-# Process Listing & Details
-GET    /api/v1/processes                    # List all processes (with pagination & filtering)
-GET    /api/v1/processes/:pid               # Get detailed process information
-GET    /api/v1/processes/:pid/state         # Get GenServer internal state
+# Process Information & Control
+GET    /api/v1/processes/:pid/info          # Get comprehensive process information (Arsenal)
+DELETE /api/v1/processes/:pid               # Kill/terminate process (Arsenal)
+POST   /api/v1/processes/:pid/message       # Send message to process (Arsenal)
+POST   /api/v1/processes/:pid/trace         # Start process tracing (Arsenal)
 
-# Message Tracing
+# Supervisor Management
+GET    /api/v1/supervisors                  # List all supervisors with metadata (Arsenal)
+```
+
+#### Traditional API Endpoints
+```bash
+# Process Management
+GET    /api/v1/processes                    # List all processes (with pagination & filtering)
+GET    /api/v1/processes/:pid/state         # Get GenServer internal state
 GET    /api/v1/processes/:pid/messages      # Get captured message history
-POST   /api/v1/processes/:pid/trace         # Start message tracing
 DELETE /api/v1/processes/:pid/trace         # Stop message tracing
 
-# Process Communication
-POST   /api/v1/processes/:pid/message       # Send message to process (cast/call/send)
-```
-
-#### Supervisor Management (`/api/v1/supervisors`)
-```bash
-# Supervisor Operations
-GET    /api/v1/supervisors                  # List all supervisors
+# Supervisor Operations  
 GET    /api/v1/supervisors/:name            # Get supervisor details & children
 GET    /api/v1/supervisors/:name/analytics  # Get supervisor performance metrics
+PUT    /api/v1/supervisors/:name/strategy   # Change supervision strategy
+POST   /api/v1/supervisors/:name/simulate-failure # Simulate failures
 
-# Supervisor Configuration
-POST   /api/v1/supervisors/:name/strategy   # Change supervision strategy
-POST   /api/v1/supervisors/:name/simulate   # Simulate failures (child/supervisor)
-```
-
-#### System Analysis (`/api/v1/system`)
-```bash
-# System Health
+# System Analysis
 GET    /api/v1/system/health                # System health metrics & status
 GET    /api/v1/system/graph                 # Process relationship graph
 GET    /api/v1/system/bottlenecks           # Identify system bottlenecks
 GET    /api/v1/system/anomalies             # Detect system anomalies
+```
+
+#### Arsenal Documentation
+```bash
+# Arsenal Metadata
+GET    /api/v1/arsenal/docs                 # OpenAPI documentation for Arsenal operations
+GET    /api/v1/arsenal/operations           # List all available Arsenal operations
 ```
 
 ## 🧪 Testing & Quality
