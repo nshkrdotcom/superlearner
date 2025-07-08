@@ -89,6 +89,9 @@ defmodule OTPSupervisor.Core.MessageTracer do
               {:error, {:trace_failed, error}}
           end
 
+        {:error, {:already_traced, _}} ->
+          {:error, :already_traced}
+
         error ->
           error
       end
@@ -251,20 +254,9 @@ defmodule OTPSupervisor.Core.MessageTracer do
 
         {:ok, state}
 
-      {:error, {:already_registered, existing_pid}} ->
-        # Stop the existing tracer and try again
-        GenServer.stop(existing_pid)
-        Process.sleep(10)
-        Registry.register(TracerRegistry, traced_pid, nil)
-
-        state = %{
-          traced_pid: traced_pid,
-          messages: [],
-          max_messages: max_messages,
-          start_time: System.system_time(:millisecond)
-        }
-
-        {:ok, state}
+      {:error, {:already_registered, _pid}} ->
+        # The safe option is to fail here.
+        {:stop, :already_traced}
     end
   end
 

@@ -893,16 +893,164 @@ defmodule OTPSupervisor.Core.ControlTest do
       end)
     end
 
-    test "get_process_state/1 is safe to call repeatedly" do
-      unique_id = :erlang.unique_integer([:positive])
-      counter_name = :"test_counter_#{unique_id}"
-      {:ok, counter_pid} = start_supervised({Counter, name: counter_name})
+    test "get_process_state/1 is safe to call repeatedly", %{supervisor: supervisor} do
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      counter_child = Enum.find(children, &(&1.id == :counter_1))
+      counter_pid = extract_pid_from_string(counter_child.pid)
 
-      # Call multiple times - should be safe and consistent
+      # Call multiple times on the same process from the setup
       for _i <- 1..5 do
         result = Control.get_process_state(counter_pid)
         assert {:ok, _state} = result
       end
+    end
+  end
+
+  describe "supervisor analytics" do
+    setup do
+      setup_isolated_supervisor("analytics")
+    end
+
+    test "start_restart_tracking/1 initializes tracking for supervisor", %{supervisor: supervisor} do
+      result = Control.start_restart_tracking(supervisor)
+      assert :ok = result
+    end
+
+    test "get_restart_history/1 tracks all restarts with details", %{
+      supervisor: supervisor,
+      sup_pid: sup_pid
+    } do
+      # Initialize history tracking
+      Control.start_restart_tracking(supervisor)
+
+      # Get initial children
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      child_pid_string = children |> List.first() |> Map.get(:pid)
+      {:ok, child_pid} = Control.to_pid(child_pid_string)
+
+      # Kill process to generate restart
+      Control.kill_process(child_pid)
+
+      # Wait for restart using proper helper
+      :ok = wait_for_restart(sup_pid)
+
+      history = Control.get_restart_history(supervisor)
+
+      assert is_list(history)
+      assert length(history) > 0
+
+      restart_event = List.first(history)
+      assert Map.has_key?(restart_event, :timestamp)
+      assert Map.has_key?(restart_event, :child_id)
+      assert Map.has_key?(restart_event, :reason)
+      assert Map.has_key?(restart_event, :old_pid)
+      assert Map.has_key?(restart_event, :new_pid)
+    end
+
+    test "calculate_restart_intensity/1 computes current intensity", %{supervisor: supervisor} do
+      # Initialize tracking first
+      Control.start_restart_tracking(supervisor)
+
+      intensity = Control.calculate_restart_intensity(supervisor)
+
+      assert is_number(intensity)
+      assert intensity >= 0.0
+    end
+
+    test "predict_restart_storm/1 warns of approaching limits", %{supervisor: supervisor} do
+      # Initialize tracking
+      Control.start_restart_tracking(supervisor)
+
+      prediction = Control.predict_restart_storm(supervisor)
+
+      assert is_map(prediction)
+      assert Map.has_key?(prediction, :risk_level)
+      assert Map.has_key?(prediction, :current_intensity)
+      assert Map.has_key?(prediction, :threshold)
+    end
+  end
+
+  describe "runtime supervisor manipulation" do
+    setup do
+      setup_isolated_supervisor("manipulation")
+    end
+
+    test "pause_supervisor/1 terminates all children", %{supervisor: supervisor} do
+      # Get initial children count
+      {:ok, initial_children} = Control.get_supervision_tree(supervisor)
+      initial_count = length(initial_children)
+      assert initial_count > 0
+
+      # Pause the supervisor - should terminate all children
+      result = Control.pause_supervisor(supervisor)
+      assert :ok = result
+
+      # Verify all children were terminated
+      {:ok, paused_children} = Control.get_supervision_tree(supervisor)
+      assert length(paused_children) == 0
+
+      # Verify the supervisor is marked as paused
+      {:ok, supervisor_pid} = Control.to_pid(supervisor)
+      assert OTPSupervisor.Core.SupervisorController.paused?(supervisor_pid)
+    end
+
+    test "resume_supervisor/1 restarts all children", %{supervisor: supervisor} do
+      # Get initial children count
+      {:ok, initial_children} = Control.get_supervision_tree(supervisor)
+      initial_count = length(initial_children)
+
+      # Pause then resume
+      Control.pause_supervisor(supervisor)
+
+      # Verify children were terminated during pause
+      {:ok, paused_children} = Control.get_supervision_tree(supervisor)
+      assert length(paused_children) == 0
+
+      # Resume supervisor
+      result = Control.resume_supervisor(supervisor)
+      assert :ok = result
+
+      # Verify children were restarted
+      {:ok, resumed_children} = Control.get_supervision_tree(supervisor)
+      assert length(resumed_children) == initial_count
+
+      # Verify supervisor is no longer paused
+      {:ok, supervisor_pid} = Control.to_pid(supervisor)
+      refute OTPSupervisor.Core.SupervisorController.paused?(supervisor_pid)
+    end
+  end
+
+  describe "failure simulation" do
+    setup do
+      setup_isolated_supervisor("simulation")
+    end
+
+    test "simulate_crash/3 crashes child with specific reason", %{supervisor: supervisor} do
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      child_pid_string = children |> List.first() |> Map.get(:pid)
+      {:ok, child_pid} = Control.to_pid(child_pid_string)
+
+      capture_log(fn ->
+        result = Control.simulate_crash(child_pid, :custom_reason, delay: 0)
+        assert :ok = result
+      end)
+
+      # Verify process was killed
+      refute Process.alive?(child_pid)
+    end
+
+    test "process memory info can be retrieved", %{supervisor: supervisor} do
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      child_pid_string = children |> List.first() |> Map.get(:pid)
+      {:ok, child_pid} = Control.to_pid(child_pid_string)
+
+      # Force garbage collection to simulate memory operations
+      :erlang.garbage_collect(child_pid)
+
+      # Memory info should be retrievable
+      memory = Process.info(child_pid, :memory) |> elem(1)
+      assert is_integer(memory)
+      assert memory > 0
     end
   end
 end

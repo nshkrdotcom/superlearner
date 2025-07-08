@@ -1,20 +1,10 @@
 defmodule OTPSupervisor.Core.MessageTracerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias OTPSupervisor.Core.MessageTracer
   alias OTPSupervisor.Core.Control
 
   import SupervisorTestHelper
-
-  setup_all do
-    # Ensure TracerRegistry is started
-    case Registry.start_link(keys: :unique, name: TracerRegistry) do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
-    :ok
-  end
 
   describe "message tracing" do
     setup do
@@ -210,7 +200,7 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       # Verify cleanup happens
       refute Process.alive?(tracer_pid)
 
-      # Should be able to start a new tracer
+      # Should be able to start a new tracer after cleanup
       {:ok, new_tracer} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
       assert Process.alive?(new_tracer)
 
@@ -226,6 +216,23 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
 
       messages = MessageTracer.get_message_history(counter_pid)
       assert messages == []
+    end
+
+    test "handles attempt to trace already traced process", %{supervisor: supervisor} do
+      # Get a child process from the isolated supervisor
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      counter_child = Enum.find(children, &(&1.id == :counter_1))
+      counter_pid = extract_pid_from_string(counter_child.pid)
+
+      # Start first tracer
+      {:ok, _tracer1} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
+
+      # Attempt to start second tracer should fail
+      result = MessageTracer.trace_messages(counter_pid, max_messages: 5)
+      assert {:error, :already_traced} = result
+
+      # Cleanup
+      MessageTracer.stop_tracing(counter_pid)
     end
   end
 end
