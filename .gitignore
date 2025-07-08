@@ -67,6 +67,9 @@
 **/logs/
 **/*.log
 
+# Erlang crash dumps
+**/erl_crash.dump
+
 # Runtime data
 **/pids/
 **/*.pid
