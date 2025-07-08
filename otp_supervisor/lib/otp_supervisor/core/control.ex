@@ -1,7 +1,7 @@
 defmodule OTPSupervisor.Core.Control do
   @moduledoc """
   Core API for controlling and inspecting Elixir supervisors.
-  
+
   This module provides functions to:
   - List all supervisors in the system
   - Inspect supervision trees
@@ -11,15 +11,15 @@ defmodule OTPSupervisor.Core.Control do
 
   @doc """
   Lists all registered supervisors in the system.
-  
+
   Returns a list of maps containing supervisor information:
   - `:name` - The registered name of the supervisor
   - `:pid` - The PID as a string
   - `:alive` - Whether the process is alive
   - `:child_count` - Number of active children
-  
+
   ## Examples
-  
+
       iex> OTPSupervisor.Core.Control.list_supervisors()
       [
         %{
@@ -38,14 +38,14 @@ defmodule OTPSupervisor.Core.Control do
 
   @doc """
   Gets the supervision tree for a given supervisor.
-  
+
   Can accept either a supervisor name (atom) or PID.
-  
+
   Returns `{:ok, children}` where children is a list of maps, or
   `{:error, reason}` if the supervisor cannot be found or accessed.
-  
+
   ## Examples
-  
+
       iex> {:ok, children} = OTPSupervisor.Core.Control.get_supervision_tree(:my_supervisor)
       iex> hd(children)
       %{
@@ -69,6 +69,7 @@ defmodule OTPSupervisor.Core.Control do
       case Supervisor.which_children(supervisor_pid) do
         children when is_list(children) ->
           {:ok, format_children(children)}
+
         _ ->
           {:error, :not_supervisor}
       end
@@ -76,6 +77,7 @@ defmodule OTPSupervisor.Core.Control do
       _e in ArgumentError ->
         # This happens when the PID is not a supervisor
         {:error, :not_supervisor}
+
       e ->
         # Any other error
         {:error, Exception.message(e)}
@@ -84,13 +86,13 @@ defmodule OTPSupervisor.Core.Control do
 
   @doc """
   Kills a process by PID or PID string.
-  
+
   Accepts either a PID or a string representation of a PID.
-  
+
   Returns `:ok` after sending the kill signal.
-  
+
   ## Examples
-  
+
       iex> pid = spawn(fn -> :timer.sleep(:infinity) end)
       iex> OTPSupervisor.Core.Control.kill_process(pid)
       :ok
@@ -106,14 +108,16 @@ defmodule OTPSupervisor.Core.Control do
   def kill_process(pid_string) when is_binary(pid_string) do
     try do
       # Handle both "#PID<0.123.0>" and "<0.123.0>" formats
-      cleaned = pid_string
-      |> String.replace("#PID", "")
-      |> String.trim()
-      
-      pid = cleaned
-      |> String.to_charlist()
-      |> :erlang.list_to_pid()
-      
+      cleaned =
+        pid_string
+        |> String.replace("#PID", "")
+        |> String.trim()
+
+      pid =
+        cleaned
+        |> String.to_charlist()
+        |> :erlang.list_to_pid()
+
       kill_process(pid)
     rescue
       _ -> {:error, :invalid_pid}
@@ -122,10 +126,10 @@ defmodule OTPSupervisor.Core.Control do
 
   @doc """
   Gets detailed information about a process.
-  
+
   Returns `{:ok, info}` where info is a map of process attributes, or
   `{:error, :process_dead}` if the process no longer exists.
-  
+
   The returned information includes:
   - `:memory` - Memory usage in bytes
   - `:message_queue_len` - Number of messages in queue
@@ -134,9 +138,9 @@ defmodule OTPSupervisor.Core.Control do
   - `:stack_size` - Stack size in words
   - `:reductions` - Number of reductions executed
   - `:current_function` - Currently executing function
-  
+
   ## Examples
-  
+
       iex> {:ok, info} = OTPSupervisor.Core.Control.get_process_info(self())
       iex> Map.keys(info)
       [:current_function, :heap_size, :memory, :message_queue_len, 
@@ -144,15 +148,15 @@ defmodule OTPSupervisor.Core.Control do
   """
   def get_process_info(pid) when is_pid(pid) do
     keys = [
-      :memory, 
-      :message_queue_len, 
-      :status, 
+      :memory,
+      :message_queue_len,
+      :status,
       :heap_size,
-      :stack_size, 
-      :reductions, 
+      :stack_size,
+      :reductions,
       :current_function
     ]
-    
+
     case Process.info(pid, keys) do
       nil -> {:error, :process_dead}
       info -> {:ok, Map.new(info)}
@@ -170,15 +174,17 @@ defmodule OTPSupervisor.Core.Control do
 
   defp is_supervisor_pid?(pid) when is_pid(pid) do
     case Process.info(pid, :dictionary) do
-      nil -> 
+      nil ->
         false
+
       {:dictionary, dict} ->
         # Check multiple indicators that this is a supervisor
         # First check the initial call to avoid calling supervisor functions on non-supervisors
         initial_call = Keyword.get(dict, :"$initial_call", false)
-        
+
         case initial_call do
-          {:supervisor, _, _} -> true  # Standard OTP supervisor
+          # Standard OTP supervisor
+          {:supervisor, _, _} -> true
           {Supervisor, _, _} -> true
           {DynamicSupervisor, _, _} -> true
           {PartitionSupervisor, _, _} -> true
@@ -187,7 +193,6 @@ defmodule OTPSupervisor.Core.Control do
         end
     end
   end
-
 
   defp format_supervisor_info(name) when is_atom(name) do
     case Process.whereis(name) do
@@ -198,6 +203,7 @@ defmodule OTPSupervisor.Core.Control do
           alive: false,
           child_count: 0
         }
+
       pid ->
         %{
           name: name,
@@ -230,6 +236,7 @@ defmodule OTPSupervisor.Core.Control do
           alive: Process.alive?(pid),
           info: get_basic_process_info(pid)
         }
+
       {id, pid, type, modules} ->
         # Handle case where pid might be :undefined or :restarting
         %{
@@ -249,5 +256,4 @@ defmodule OTPSupervisor.Core.Control do
       info -> Map.new(info)
     end
   end
-
 end

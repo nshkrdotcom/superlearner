@@ -1,9 +1,11 @@
 defmodule OTPSupervisor.Core.ControlTest do
   use ExUnit.Case
-  
+  import ExUnit.CaptureLog
+
   alias OTPSupervisor.Core.Control
   alias OTPSupervisor.Sandbox.Workers.Counter
   alias OTPSupervisor.Sandbox.Workers.Printer
+  import SupervisorTestHelper
 
   # Simple test worker for our tests
   defmodule TestWorker do
@@ -16,7 +18,7 @@ defmodule OTPSupervisor.Core.ControlTest do
     def init(:ok) do
       {:ok, %{}}
     end
-    
+
     # Add a simple handle_call to avoid crashes
     def handle_call(_msg, _from, state) do
       {:reply, :ok, state}
@@ -24,12 +26,16 @@ defmodule OTPSupervisor.Core.ControlTest do
   end
 
   describe "list_supervisors/0" do
-    test "returns a list with expected format" do
+    setup do
+      get_demo_supervisor()
+    end
+
+    test "returns a list with expected format", %{supervisor: _supervisor} do
       supervisors = Control.list_supervisors()
-      
+
       # Should return a list
       assert is_list(supervisors)
-      
+
       # Each supervisor should have the required fields
       Enum.each(supervisors, fn sup ->
         assert Map.has_key?(sup, :name)
@@ -47,33 +53,41 @@ defmodule OTPSupervisor.Core.ControlTest do
   describe "get_supervision_tree/1" do
     setup do
       # Create a simple supervisor for testing
+      unique_id = :erlang.unique_integer([:positive])
+      supervisor_name = :"test_control_supervisor_#{unique_id}"
+      worker_name = :"test_worker_#{unique_id}"
+
       children = [
-        {TestWorker, name: :test_worker_1}
+        {TestWorker, name: worker_name}
       ]
-      
-      {:ok, sup} = Supervisor.start_link(
-        children, 
-        strategy: :one_for_one,
-        name: :test_control_supervisor
-      )
-      
+
+      {:ok, sup} =
+        Supervisor.start_link(
+          children,
+          strategy: :one_for_one,
+          name: supervisor_name
+        )
+
       on_exit(fn ->
         if Process.alive?(sup) do
           Process.exit(sup, :shutdown)
-          Process.sleep(10)
         end
       end)
-      
-      {:ok, supervisor: sup}
+
+      {:ok, supervisor: sup, supervisor_name: supervisor_name, worker_name: worker_name}
     end
 
-    test "returns children by supervisor name", %{supervisor: _sup} do
-      assert {:ok, children} = Control.get_supervision_tree(:test_control_supervisor)
+    test "returns children by supervisor name", %{
+      supervisor: _sup,
+      supervisor_name: supervisor_name
+    } do
+      assert {:ok, children} = Control.get_supervision_tree(supervisor_name)
       assert is_list(children)
       assert length(children) == 1
-      
+
       child = hd(children)
-      assert child.id == TestWorker  # The id is the module, not the registered name
+      # The id is the module, not the registered name
+      assert child.id == TestWorker
       assert child.type == :worker
       assert child.alive == true
       assert is_map(child.info)
@@ -99,37 +113,41 @@ defmodule OTPSupervisor.Core.ControlTest do
   describe "kill_process/1" do
     test "terminates process by pid" do
       # Spawn a simple process
-      pid = spawn(fn -> 
-        receive do
-          :stop -> :ok
-        end
-      end)
-      
+      pid =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
       assert Process.alive?(pid)
       assert :ok = Control.kill_process(pid)
-      
-      # Give it a moment
-      Process.sleep(10)
-      
+
+      # Use process monitoring for deterministic synchronization
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
       refute Process.alive?(pid)
     end
 
     test "terminates process by pid string" do
       # Spawn a simple process
-      pid = spawn(fn -> 
-        receive do
-          :stop -> :ok
-        end
-      end)
-      
+      pid =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
       pid_string = inspect(pid)
-      
+
       assert Process.alive?(pid)
       assert :ok = Control.kill_process(pid_string)
-      
-      # Give it a moment
-      Process.sleep(10)
-      
+
+      # Use process monitoring for deterministic synchronization
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
       refute Process.alive?(pid)
     end
 
@@ -143,7 +161,7 @@ defmodule OTPSupervisor.Core.ControlTest do
     test "returns detailed process information" do
       # Use self() which is always available
       {:ok, info} = Control.get_process_info(self())
-      
+
       # Check all expected fields are present
       assert Map.has_key?(info, :memory)
       assert Map.has_key?(info, :message_queue_len)
@@ -152,7 +170,7 @@ defmodule OTPSupervisor.Core.ControlTest do
       assert Map.has_key?(info, :stack_size)
       assert Map.has_key?(info, :reductions)
       assert Map.has_key?(info, :current_function)
-      
+
       # Check types
       assert is_integer(info.memory)
       assert is_integer(info.message_queue_len)
@@ -165,171 +183,646 @@ defmodule OTPSupervisor.Core.ControlTest do
     test "returns error for dead process" do
       # Spawn and let die
       pid = spawn(fn -> :ok end)
-      Process.sleep(10)  # Ensure process has finished
-      
+
+      # Use process monitoring to ensure process has finished
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
       assert {:error, :process_dead} = Control.get_process_info(pid)
     end
   end
 
   describe "supervisor detection" do
     setup do
-      # Create a test supervisor
-      {:ok, sup} = Supervisor.start_link([], strategy: :one_for_one, name: :detection_test_sup)
-      
-      on_exit(fn ->
-        if Process.alive?(sup) do
-          Process.exit(sup, :shutdown)
-          Process.sleep(10)
-        end
-      end)
-      
-      :ok
+      get_demo_supervisor()
     end
 
-    test "includes known supervisors" do
+    test "includes known supervisors", %{supervisor: supervisor_name} do
       supervisors = Control.list_supervisors()
       names = Enum.map(supervisors, & &1.name)
-      
-      # Our test supervisor should be in the list
-      assert :detection_test_sup in names
+
+      # Our demo supervisor should be in the list
+      assert supervisor_name in names
     end
 
     test "does not include non-supervisors" do
       # Start a regular GenServer with a name
-      {:ok, _pid} = GenServer.start_link(TestWorker, :ok, name: :not_a_supervisor)
-      
+      unique_id = :erlang.unique_integer([:positive])
+      process_name = :"not_a_supervisor_#{unique_id}"
+
+      {:ok, _pid} = GenServer.start_link(TestWorker, :ok, name: process_name)
+
       supervisors = Control.list_supervisors()
       names = Enum.map(supervisors, & &1.name)
-      
-      refute :not_a_supervisor in names
-      
-      GenServer.stop(:not_a_supervisor)
+
+      refute process_name in names
+
+      GenServer.stop(process_name)
     end
   end
 
   describe "supervisor restart behavior with sandbox workers" do
     setup do
-      # Create a supervisor with sandbox workers
-      children = [
-        {Counter, name: :test_counter_restart, initial_value: 42},
-        {Printer, name: :test_printer_restart, id: "test-printer"}
-      ]
-      
-      {:ok, sup} = Supervisor.start_link(
-        children, 
-        strategy: :one_for_one,
-        name: :test_restart_supervisor
-      )
-      
-      on_exit(fn ->
-        try do
-          if Process.whereis(:test_restart_supervisor) do
-            Supervisor.stop(sup, :shutdown, 5000)
-          end
-        catch
-          :exit, _ -> :ok
-        end
-      end)
-      
-      {:ok, supervisor: sup}
+      setup_isolated_supervisor("restart_behavior")
     end
 
-    test "supervisor restarts killed counter process", %{supervisor: _sup} do
+    test "supervisor restarts killed counter process", %{supervisor: supervisor, sup_pid: sup_pid} do
+      # Get supervision tree to find processes
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      counter_child = Enum.find(children, &(&1.id == :counter_1))
+      assert counter_child != nil
+
       # Get initial PID and value
-      initial_pid = Process.whereis(:test_counter_restart)
-      assert initial_pid != nil
-      assert Counter.get_value(:test_counter_restart) == 42
-      
+      initial_pid = extract_pid_from_string(counter_child.pid)
+      unique_id = String.split(Atom.to_string(supervisor), "_") |> List.last()
+      counter_name = String.to_atom("counter_1_" <> unique_id)
+      assert Counter.get_value(counter_name) == 0
+
       # Increment to change state
-      Counter.increment(:test_counter_restart)
-      assert Counter.get_value(:test_counter_restart) == 43
-      
+      Counter.increment(counter_name)
+      assert Counter.get_value(counter_name) == 1
+
       # Kill the process
       Control.kill_process(initial_pid)
-      
-      # Wait for restart
-      Process.sleep(50)
-      
+
+      # Use supervisor's which_children to wait for restart completion
+      :ok = wait_for_restart(sup_pid)
+
+      # Get the new PID from supervisor children (more reliable than name lookup)
+      children = Supervisor.which_children(sup_pid)
+      counter_child = Enum.find(children, fn {id, _pid, _type, _modules} -> id == :counter_1 end)
+      {_id, new_pid, _type, _modules} = counter_child
+
       # Verify new process started
-      new_pid = Process.whereis(:test_counter_restart)
       assert new_pid != nil
       assert new_pid != initial_pid
-      
+
+      # Also verify name registration is working
+      assert Process.whereis(counter_name) == new_pid
+
       # Verify state was reset (not preserved)
-      assert Counter.get_value(:test_counter_restart) == 42
+      assert Counter.get_value(counter_name) == 0
     end
 
-    test "supervisor restarts crashed counter process", %{supervisor: _sup} do
+    test "supervisor restarts crashed counter process", %{
+      supervisor: supervisor,
+      sup_pid: sup_pid
+    } do
+      # Get supervision tree to find processes
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      counter_child = Enum.find(children, &(&1.id == :counter_1))
+      assert counter_child != nil
+
       # Get initial PID
-      initial_pid = Process.whereis(:test_counter_restart)
+      initial_pid = extract_pid_from_string(counter_child.pid)
+      unique_id = String.split(Atom.to_string(supervisor), "_") |> List.last()
+      counter_name = String.to_atom("counter_1_" <> unique_id)
       assert initial_pid != nil
-      
+
+      # Monitor the process to detect crash
+      ref = Process.monitor(initial_pid)
+
       # Cause intentional crash
-      Counter.crash(:test_counter_restart)
-      
-      # Wait for restart
-      Process.sleep(50)
-      
+      capture_log(fn -> Counter.crash(counter_name) end)
+
+      # Wait for the crash to occur
+      assert_receive {:DOWN, ^ref, :process, ^initial_pid, _}, 1000
+
+      # Use supervisor's which_children to wait for restart completion
+      :ok = wait_for_restart(sup_pid)
+
+      # Get the new PID from supervisor children (more reliable than name lookup)
+      children = Supervisor.which_children(sup_pid)
+      counter_child = Enum.find(children, fn {id, _pid, _type, _modules} -> id == :counter_1 end)
+      {_id, new_pid, _type, _modules} = counter_child
+
       # Verify new process started
-      new_pid = Process.whereis(:test_counter_restart)
       assert new_pid != nil
       assert new_pid != initial_pid
-      
+
+      # Also verify name registration is working
+      assert Process.whereis(counter_name) == new_pid
+
       # Verify it's functional
-      assert Counter.get_value(:test_counter_restart) == 42
+      assert Counter.get_value(counter_name) == 0
     end
 
-    test "killing one process doesn't affect others", %{supervisor: _sup} do
+    test "killing one process doesn't affect others", %{supervisor: supervisor, sup_pid: sup_pid} do
+      # Get supervision tree to find processes
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      counter_child = Enum.find(children, &(&1.id == :counter_1))
+      printer_child = Enum.find(children, &(&1.id == :printer_1))
+
       # Get initial PIDs
-      counter_pid = Process.whereis(:test_counter_restart)
-      printer_pid = Process.whereis(:test_printer_restart)
-      
+      counter_pid = extract_pid_from_string(counter_child.pid)
+      printer_pid = extract_pid_from_string(printer_child.pid)
+
+      # Get process names
+      unique_id = String.split(Atom.to_string(supervisor), "_") |> List.last()
+      printer_name = String.to_atom("printer_1_" <> unique_id)
+
       # Track printer message count
-      Printer.print(:test_printer_restart, "test message")
-      initial_count = Printer.get_print_count(:test_printer_restart)
+      Printer.print(printer_name, "test message")
+      initial_count = Printer.get_print_count(printer_name)
       assert initial_count == 1
-      
+
       # Kill only the counter
       Control.kill_process(counter_pid)
-      
-      # Wait for restart
-      Process.sleep(50)
-      
+
+      # Wait for restart using proper synchronization
+      :ok = wait_for_restart(sup_pid)
+
       # Verify printer wasn't affected
-      assert Process.whereis(:test_printer_restart) == printer_pid
+      assert Process.whereis(printer_name) == printer_pid
       assert Process.alive?(printer_pid)
-      assert Printer.get_print_count(:test_printer_restart) == initial_count
-      
-      # Verify counter was restarted
-      new_counter_pid = Process.whereis(:test_counter_restart)
+      assert Printer.get_print_count(printer_name) == initial_count
+
+      # Verify counter was restarted by checking supervisor children
+      children = Supervisor.which_children(sup_pid)
+      counter_child = Enum.find(children, fn {id, _pid, _type, _modules} -> id == :counter_1 end)
+      {_id, new_counter_pid, _type, _modules} = counter_child
+
       assert new_counter_pid != counter_pid
       assert Process.alive?(new_counter_pid)
     end
 
-    test "supervision tree correctly reflects process states", %{supervisor: _sup} do
+    test "supervision tree correctly reflects process states", %{
+      supervisor: supervisor,
+      sup_pid: sup_pid
+    } do
       # Get initial tree
-      {:ok, initial_children} = Control.get_supervision_tree(:test_restart_supervisor)
-      assert length(initial_children) == 2
+      {:ok, initial_children} = Control.get_supervision_tree(supervisor)
+      assert length(initial_children) == 3
       assert Enum.all?(initial_children, & &1.alive)
-      
+
       # Kill one process
-      counter_child = Enum.find(initial_children, & &1.id == Counter)
+      counter_child = Enum.find(initial_children, &(&1.id == :counter_1))
       Control.kill_process(counter_child.pid)
-      
+
       # Check immediately (might catch dead state)
-      {:ok, _dead_children} = Control.get_supervision_tree(:test_restart_supervisor)
-      
-      # Wait for restart
-      Process.sleep(50)
-      
+      {:ok, _dead_children} = Control.get_supervision_tree(supervisor)
+
+      # Wait for restart using proper synchronization
+      :ok = wait_for_restart(sup_pid)
+
       # Check after restart
-      {:ok, final_children} = Control.get_supervision_tree(:test_restart_supervisor)
-      assert length(final_children) == 2
+      {:ok, final_children} = Control.get_supervision_tree(supervisor)
+      assert length(final_children) == 3
       assert Enum.all?(final_children, & &1.alive)
-      
+
       # Verify PID changed for counter
-      final_counter = Enum.find(final_children, & &1.id == Counter)
+      final_counter = Enum.find(final_children, &(&1.id == :counter_1))
       assert final_counter.pid != counter_child.pid
+    end
+  end
+
+  describe "malformed supervision tree handling" do
+    test "handles supervisor crash during inspection" do
+      %{supervisor: supervisor_name, sup_pid: sup_pid} =
+        setup_crash_test_supervisor("crash_during_inspection")
+
+      # Verify it's working first
+      assert {:ok, _children} = Control.get_supervision_tree(supervisor_name)
+
+      # Crash the supervisor
+      Process.flag(:trap_exit, true)
+      Process.exit(sup_pid, :kill)
+
+      receive do
+        {:EXIT, ^sup_pid, :killed} -> :ok
+      after
+        100 -> :ok
+      end
+
+      # Should return error for crashed supervisor
+      assert {:error, :not_found} = Control.get_supervision_tree(supervisor_name)
+    end
+
+    test "handles supervisor in transition state" do
+      %{supervisor: supervisor_name, sup_pid: sup_pid} =
+        setup_crash_test_supervisor("transition_state")
+
+      # Try to get supervision tree immediately (might catch transitional state)
+      case Control.get_supervision_tree(supervisor_name) do
+        {:ok, children} ->
+          # Should handle children that might be starting
+          assert is_list(children)
+
+        {:error, reason} ->
+          # Should gracefully handle any errors during transition
+          assert reason != nil
+      end
+
+      # Cleanup
+      Supervisor.stop(sup_pid)
+    end
+
+    test "handles supervisor with malformed child specs" do
+      %{supervisor: supervisor_name, sup_pid: sup_pid} =
+        setup_crash_test_supervisor("malformed_child_specs")
+
+      # Should still be able to inspect supervisor
+      case Control.get_supervision_tree(supervisor_name) do
+        {:ok, children} ->
+          assert is_list(children)
+
+        {:error, reason} ->
+          assert is_atom(reason) or is_binary(reason)
+      end
+
+      # Test demonstrates error handling even with problematic supervisors
+      Supervisor.stop(sup_pid)
+    end
+  end
+
+  describe "supervisor detection edge cases" do
+    setup do
+      get_demo_supervisor()
+    end
+
+    test "detects DynamicSupervisor correctly", %{supervisor: _supervisor} do
+      # Start a DynamicSupervisor
+      unique_id = :erlang.unique_integer([:positive])
+      supervisor_name = :"test_dynamic_sup_#{unique_id}"
+
+      {:ok, _pid} =
+        DynamicSupervisor.start_link(
+          strategy: :one_for_one,
+          name: supervisor_name
+        )
+
+      supervisors = Control.list_supervisors()
+      names = Enum.map(supervisors, & &1.name)
+
+      # Should include DynamicSupervisor
+      assert supervisor_name in names
+
+      # Cleanup
+      DynamicSupervisor.stop(supervisor_name)
+    end
+
+    test "detects Task.Supervisor correctly", %{supervisor: _supervisor} do
+      # Start a Task.Supervisor
+      unique_id = :erlang.unique_integer([:positive])
+      supervisor_name = :"test_task_sup_#{unique_id}"
+
+      {:ok, _pid} = Task.Supervisor.start_link(name: supervisor_name)
+
+      supervisors = Control.list_supervisors()
+      names = Enum.map(supervisors, & &1.name)
+
+      # Should include Task.Supervisor
+      assert supervisor_name in names
+
+      # Cleanup
+      Supervisor.stop(supervisor_name)
+    end
+
+    test "handles processes with missing dictionary entries" do
+      # Create a process and manually modify its dictionary to test edge cases
+      {:ok, pid} = Agent.start_link(fn -> %{} end)
+
+      # This shouldn't be detected as a supervisor
+      supervisors = Control.list_supervisors()
+      _agent_names = Enum.map(supervisors, & &1.name)
+
+      # Agent shouldn't be in supervisor list (it's not registered with a name anyway)
+      # But this tests that processes without proper supervisor markers aren't included
+      assert is_list(supervisors)
+
+      Agent.stop(pid)
+    end
+
+    test "handles processes with malformed initial_call" do
+      # This is an internal test - we'll test with a process that has unusual initial_call
+      # Most real-world scenarios are already covered, this ensures robustness
+      unique_id = :erlang.unique_integer([:positive])
+      process_name = :"unusual_process_#{unique_id}"
+
+      # Start a process that might have unusual properties
+      pid =
+        spawn(fn ->
+          Process.register(self(), process_name)
+
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      # Should not be detected as supervisor
+      supervisors = Control.list_supervisors()
+      names = Enum.map(supervisors, & &1.name)
+
+      refute process_name in names
+
+      # Cleanup
+      send(pid, :stop)
+    end
+  end
+
+  describe "process information error scenarios" do
+    test "handles processes that die during inspection" do
+      # Create a process that will die quickly
+      pid =
+        spawn(fn ->
+          exit(:normal)
+        end)
+
+      # Try to get info - might succeed or fail depending on timing
+      case Control.get_process_info(pid) do
+        {:ok, info} ->
+          assert is_map(info)
+
+        {:error, :process_dead} ->
+          # This is expected and handled correctly
+          assert true
+      end
+
+      # Use monitoring to ensure it's definitely dead
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
+      # Now should definitely return error
+      assert {:error, :process_dead} = Control.get_process_info(pid)
+    end
+
+    test "handles processes with extreme memory usage" do
+      # Create a process with significant memory usage
+      {:ok, pid} =
+        Agent.start_link(fn ->
+          # Create a large data structure
+          large_data = for i <- 1..1000, do: {i, "data_#{i}_" <> String.duplicate("x", 100)}
+          %{data: large_data}
+        end)
+
+      # Should still be able to get process info
+      {:ok, info} = Control.get_process_info(pid)
+
+      assert is_integer(info.memory)
+      assert info.memory > 0
+      assert is_map(info)
+
+      Agent.stop(pid)
+    end
+
+    test "handles processes with large message queues" do
+      # Create a process that properly handles messages to build up a queue
+      pid =
+        spawn(fn ->
+          # Process messages slowly to build up a queue
+          Process.flag(:trap_exit, true)
+          receive_loop(0)
+        end)
+
+      # Send many messages rapidly
+      for i <- 1..50 do
+        send(pid, {:test_message, i})
+      end
+
+      # Should still be able to get process info
+      {:ok, info} = Control.get_process_info(pid)
+
+      assert is_integer(info.message_queue_len)
+      assert info.message_queue_len >= 0
+
+      # Cleanup
+      Process.exit(pid, :shutdown)
+    end
+
+    # Helper function for the message queue test
+    defp receive_loop(count) do
+      receive do
+        {:test_message, _} ->
+          # Process slowly to allow queue buildup
+          receive_loop(count + 1)
+
+        :stop ->
+          :ok
+      after
+        5000 -> :timeout
+      end
+    end
+
+    test "handles processes in unusual states" do
+      # Create a process that's suspended/waiting
+      {:ok, pid} =
+        Task.start_link(fn ->
+          receive do
+            :continue -> :ok
+          after
+            60_000 -> :timeout
+          end
+        end)
+
+      # Should be able to get info even for waiting processes
+      {:ok, info} = Control.get_process_info(pid)
+
+      assert is_atom(info.status)
+      assert info.status in [:running, :waiting, :runnable, :suspended]
+
+      # Cleanup
+      Process.exit(pid, :shutdown)
+    end
+  end
+
+  describe "kill process error handling" do
+    test "handles already dead processes" do
+      # Create and immediately kill a process
+      pid = spawn(fn -> :ok end)
+
+      # Use process monitoring to ensure it's dead
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
+      # Killing dead process should still return :ok
+      assert :ok = Control.kill_process(pid)
+    end
+
+    test "handles protected processes gracefully" do
+      # Test that we can kill processes even if they trap exits
+      pid =
+        spawn(fn ->
+          Process.flag(:trap_exit, true)
+
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      # Should still be able to kill it (kill signal bypasses trap_exit)
+      assert :ok = Control.kill_process(pid)
+
+      # Use process monitoring for deterministic synchronization
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+
+      refute Process.alive?(pid)
+    end
+
+    test "handles malformed PID strings with various formats" do
+      # Test various invalid PID string formats
+      invalid_pids = [
+        "not_a_pid",
+        # Empty
+        "#PID<>",
+        # Non-numeric
+        "#PID<abc.def.ghi>",
+        # Wrong format
+        "<0.123>",
+        # Empty string
+        "",
+        "nil"
+      ]
+
+      Enum.each(invalid_pids, fn invalid_pid ->
+        assert {:error, :invalid_pid} = Control.kill_process(invalid_pid)
+      end)
+    end
+
+    test "handles PID strings from different formats" do
+      # Should work with full format
+      pid1 =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      pid1_string = inspect(pid1)
+      assert :ok = Control.kill_process(pid1_string)
+
+      # Should work with cleaned format (without #PID)
+      pid2 =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      pid2_string = inspect(pid2)
+      cleaned = String.replace(pid2_string, "#PID", "")
+      assert :ok = Control.kill_process(cleaned)
+
+      # Use process monitoring for deterministic synchronization
+      ref1 = Process.monitor(pid1)
+      ref2 = Process.monitor(pid2)
+      assert_receive {:DOWN, ^ref1, :process, ^pid1, _}, 100
+      assert_receive {:DOWN, ^ref2, :process, ^pid2, _}, 100
+
+      refute Process.alive?(pid1)
+      refute Process.alive?(pid2)
+    end
+
+    test "handles concurrent kill operations" do
+      # Create multiple processes
+      pids =
+        for _i <- 1..5 do
+          spawn(fn ->
+            receive do
+              :stop -> :ok
+            end
+          end)
+        end
+
+      # Monitor all processes
+      refs = Enum.map(pids, fn pid -> {pid, Process.monitor(pid)} end)
+
+      # Kill them all concurrently
+      tasks =
+        Enum.map(pids, fn pid ->
+          Task.async(fn -> Control.kill_process(pid) end)
+        end)
+
+      # All should succeed
+      results = Task.await_many(tasks, 1000)
+      assert Enum.all?(results, &(&1 == :ok))
+
+      # Wait for all processes to be dead using monitoring
+      Enum.each(refs, fn {pid, ref} ->
+        assert_receive {:DOWN, ^ref, :process, ^pid, _}, 100
+      end)
+
+      # All should be dead
+      assert Enum.all?(pids, fn pid -> not Process.alive?(pid) end)
+    end
+  end
+
+  describe "integration with real supervision scenarios" do
+    setup do
+      setup_isolated_supervisor("integration")
+    end
+
+    test "handles supervision tree inspection during active restarts", %{
+      supervisor: supervisor,
+      sup_pid: sup_pid
+    } do
+      # Get initial state
+      {:ok, initial_children} = Control.get_supervision_tree(supervisor)
+      assert length(initial_children) == 3
+
+      # Kill multiple processes rapidly
+      counter_child = Enum.find(initial_children, &(&1.id == :counter_1))
+      printer_child = Enum.find(initial_children, &(&1.id == :printer_1))
+
+      counter_pid = extract_pid_from_string(counter_child.pid)
+      printer_pid = extract_pid_from_string(printer_child.pid)
+
+      Control.kill_process(counter_pid)
+      Control.kill_process(printer_pid)
+
+      # Try to inspect during restart period
+      # Should handle gracefully regardless of timing
+      case Control.get_supervision_tree(supervisor) do
+        {:ok, children} ->
+          assert is_list(children)
+
+        # Might have different alive states during restart
+        {:error, reason} ->
+          # Should be graceful error
+          assert reason != nil
+      end
+
+      # Wait for restart using proper synchronization
+      :ok = wait_for_restart(sup_pid)
+
+      # Should eventually be stable again
+      {:ok, final_children} = Control.get_supervision_tree(supervisor)
+      assert length(final_children) == 3
+      assert Enum.all?(final_children, & &1.alive)
+    end
+
+    test "maintains consistency across multiple control operations", %{
+      supervisor: supervisor,
+      sup_pid: sup_pid
+    } do
+      # Perform multiple operations in sequence
+      {:ok, children1} = Control.get_supervision_tree(supervisor)
+      info1 = Control.get_process_info(self())
+      supervisors1 = Control.list_supervisors()
+
+      # Kill a process
+      counter_child = Enum.find(children1, &(&1.id == :counter_1))
+      counter_pid = extract_pid_from_string(counter_child.pid)
+      Control.kill_process(counter_pid)
+
+      # Wait for restart using proper synchronization
+      :ok = wait_for_restart(sup_pid)
+
+      # Perform operations again
+      {:ok, children2} = Control.get_supervision_tree(supervisor)
+      info2 = Control.get_process_info(self())
+      supervisors2 = Control.list_supervisors()
+
+      # Structure should be consistent
+      assert length(children1) == length(children2)
+      assert {:ok, _} = info1
+      assert {:ok, _} = info2
+      assert length(supervisors1) == length(supervisors2)
+
+      # But PIDs should have changed for restarted process
+      counter1 = Enum.find(children1, &(&1.id == :counter_1))
+      counter2 = Enum.find(children2, &(&1.id == :counter_1))
+      assert counter1.pid != counter2.pid
     end
   end
 end

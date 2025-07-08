@@ -1,13 +1,13 @@
 defmodule OTPSupervisor.Sandbox.Workers.Counter do
   @moduledoc """
   A simple counter GenServer for demonstration.
-  
+
   This worker maintains a numeric counter value that can be incremented
   and retrieved. It also includes a crash function for demonstrating
   supervisor restart behavior.
-  
+
   ## IEx Examples
-  
+
       # Interacting with the pre-started counter
       iex> alias OTPSupervisor.Sandbox.Workers.Counter
       iex> Counter.get_value(:counter_1)
@@ -34,14 +34,14 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
 
   @doc """
   Starts a counter process.
-  
+
   ## Options
-  
+
     * `:name` - The name to register the process under (defaults to module name)
     * `:initial_value` - The initial counter value (defaults to 0)
-  
+
   ## Examples
-  
+
       iex> {:ok, pid} = Counter.start_link(name: :my_counter, initial_value: 10)
       iex> Counter.get_value(:my_counter)
       10
@@ -54,9 +54,9 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
 
   @doc """
   Increments the counter value by 1.
-  
+
   ## Examples
-  
+
       iex> Counter.increment(:my_counter)
       :ok
   """
@@ -66,9 +66,9 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
 
   @doc """
   Returns the current counter value.
-  
+
   ## Examples
-  
+
       iex> Counter.get_value(:my_counter)
       42
   """
@@ -78,11 +78,11 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
 
   @doc """
   Intentionally crashes the process for demonstration purposes.
-  
+
   This is useful for demonstrating supervisor restart strategies.
-  
+
   ## Examples
-  
+
       iex> Counter.crash(:my_counter)
       :ok
   """

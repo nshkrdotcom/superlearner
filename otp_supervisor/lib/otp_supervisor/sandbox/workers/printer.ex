@@ -1,13 +1,13 @@
 defmodule OTPSupervisor.Sandbox.Workers.Printer do
   @moduledoc """
   A simple printer GenServer that logs messages.
-  
+
   This worker logs messages using the Logger module and tracks
   how many messages it has printed. Useful for demonstrating
   GenServer message handling and process state.
-  
+
   ## IEx Examples
-  
+
       # Interacting with the pre-started printer
       iex> alias OTPSupervisor.Sandbox.Workers.Printer
       iex> Printer.print(:printer_1, "Hello from IEx!")
@@ -32,14 +32,14 @@ defmodule OTPSupervisor.Sandbox.Workers.Printer do
 
   @doc """
   Starts a printer process.
-  
+
   ## Options
-  
+
     * `:name` - The name to register the process under (defaults to module name)
     * `:id` - An identifier for this printer instance (used in log messages)
-  
+
   ## Examples
-  
+
       iex> {:ok, pid} = Printer.start_link(name: :my_printer, id: "printer_1")
       iex> Printer.print(:my_printer, "Hello, world!")
       :ok
@@ -51,9 +51,9 @@ defmodule OTPSupervisor.Sandbox.Workers.Printer do
 
   @doc """
   Prints a message to the log and increments the message counter.
-  
+
   ## Examples
-  
+
       iex> Printer.print(:my_printer, "Important message")
       :ok
   """
@@ -63,9 +63,9 @@ defmodule OTPSupervisor.Sandbox.Workers.Printer do
 
   @doc """
   Returns the number of messages printed by this printer.
-  
+
   ## Examples
-  
+
       iex> Printer.get_print_count(:my_printer)
       42
   """
@@ -78,10 +78,12 @@ defmodule OTPSupervisor.Sandbox.Workers.Printer do
   @impl true
   def init(opts) do
     id = Keyword.get(opts, :id, "default")
+
     state = %{
       id: id,
       print_count: 0
     }
+
     {:ok, state}
   end
 

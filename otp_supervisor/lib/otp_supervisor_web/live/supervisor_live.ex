@@ -1,7 +1,7 @@
 defmodule OtpSupervisorWeb.SupervisorLive do
   @moduledoc """
   LiveView for monitoring and controlling OTP supervisors.
-  
+
   Provides a real-time view of:
   - All supervisors in the system
   - Children of selected supervisors
@@ -9,7 +9,7 @@ defmodule OtpSupervisorWeb.SupervisorLive do
   - Controls to kill processes for testing restart behavior
   """
   use OtpSupervisorWeb, :live_view
-  
+
   alias OTPSupervisor.Core.Control
 
   @refresh_interval 1000
@@ -32,19 +32,20 @@ defmodule OtpSupervisorWeb.SupervisorLive do
   @impl true
   def handle_params(params, _url, socket) do
     supervisor_name = params["supervisor"]
-    
-    socket = if supervisor_name do
-      select_supervisor(socket, supervisor_name)
-    else
-      socket
-    end
-    
+
+    socket =
+      if supervisor_name do
+        select_supervisor(socket, supervisor_name)
+      else
+        socket
+      end
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("select_supervisor", %{"name" => name}, socket) do
-    {:noreply, 
+    {:noreply,
      socket
      |> select_supervisor(name)
      |> push_patch(to: ~p"/supervisors?supervisor=#{name}")}
@@ -57,7 +58,7 @@ defmodule OtpSupervisorWeb.SupervisorLive do
         # Refresh immediately to show the change
         send(self(), :refresh)
         {:noreply, put_flash(socket, :info, "Process killed: #{pid_string}")}
-      
+
       {:error, :invalid_pid} ->
         {:noreply, put_flash(socket, :error, "Invalid PID: #{pid_string}")}
     end
@@ -66,20 +67,23 @@ defmodule OtpSupervisorWeb.SupervisorLive do
   @impl true
   def handle_event("select_process", %{"pid" => pid_string}, socket) do
     # Handle PID string formats like "#PID<0.123.0>" or "<0.123.0>"
-    cleaned_pid = pid_string
-    |> String.replace("#PID", "")
-    |> String.trim()
-    
+    cleaned_pid =
+      pid_string
+      |> String.replace("#PID", "")
+      |> String.trim()
+
     try do
-      pid = cleaned_pid
-      |> String.to_charlist()
-      |> :erlang.list_to_pid()
-      
-      process_info = case Control.get_process_info(pid) do
-        {:ok, info} -> info
-        {:error, _} -> nil
-      end
-      
+      pid =
+        cleaned_pid
+        |> String.to_charlist()
+        |> :erlang.list_to_pid()
+
+      process_info =
+        case Control.get_process_info(pid) do
+          {:ok, info} -> info
+          {:error, _} -> nil
+        end
+
       {:noreply,
        socket
        |> assign(:selected_process, pid_string)
@@ -96,22 +100,25 @@ defmodule OtpSupervisorWeb.SupervisorLive do
 
   @impl true
   def handle_info(:refresh, socket) do
-    socket = socket
-    |> assign(:supervisors, Control.list_supervisors())
-    
-    socket = if socket.assigns.selected_supervisor do
-      refresh_children(socket)
-    else
+    socket =
       socket
-    end
-    
+      |> assign(:supervisors, Control.list_supervisors())
+
+    socket =
+      if socket.assigns.selected_supervisor do
+        refresh_children(socket)
+      else
+        socket
+      end
+
     # Refresh process info if a process is selected
-    socket = if socket.assigns.selected_process && socket.assigns.process_info do
-      refresh_process_info(socket)
-    else
-      socket
-    end
-    
+    socket =
+      if socket.assigns.selected_process && socket.assigns.process_info do
+        refresh_process_info(socket)
+      else
+        socket
+      end
+
     {:noreply, socket}
   end
 
@@ -136,12 +143,15 @@ defmodule OtpSupervisorWeb.SupervisorLive do
         |> assign(:children, children)
         |> assign(:selected_process, nil)
         |> assign(:process_info, nil)
+
       {:error, :not_found} ->
         socket
         |> put_flash(:error, "Supervisor not found: #{name}")
+
       {:error, :not_supervisor} ->
         socket
         |> put_flash(:error, "Process is not a supervisor: #{name}")
+
       {:error, reason} ->
         socket
         |> put_flash(:error, "Error: #{inspect(reason)}")
@@ -150,9 +160,10 @@ defmodule OtpSupervisorWeb.SupervisorLive do
 
   defp refresh_children(socket) do
     case Control.get_supervision_tree(socket.assigns.selected_supervisor) do
-      {:ok, children} -> 
+      {:ok, children} ->
         assign(socket, :children, children)
-      {:error, _} -> 
+
+      {:error, _} ->
         # Supervisor might have crashed, clear selection
         socket
         |> assign(:selected_supervisor, nil)
@@ -161,18 +172,21 @@ defmodule OtpSupervisorWeb.SupervisorLive do
   end
 
   defp refresh_process_info(socket) do
-    cleaned_pid = socket.assigns.selected_process
-    |> String.replace("#PID", "")
-    |> String.trim()
-    
+    cleaned_pid =
+      socket.assigns.selected_process
+      |> String.replace("#PID", "")
+      |> String.trim()
+
     try do
-      pid = cleaned_pid
-      |> String.to_charlist()
-      |> :erlang.list_to_pid()
-      
+      pid =
+        cleaned_pid
+        |> String.to_charlist()
+        |> :erlang.list_to_pid()
+
       case Control.get_process_info(pid) do
-        {:ok, info} -> 
+        {:ok, info} ->
           assign(socket, :process_info, info)
+
         {:error, :process_dead} ->
           socket
           |> assign(:process_info, nil)
@@ -193,6 +207,7 @@ defmodule OtpSupervisorWeb.SupervisorLive do
       true -> "#{bytes} B"
     end
   end
+
   def format_bytes(_), do: "N/A"
 
   def format_key(key) when is_atom(key) do
@@ -205,8 +220,10 @@ defmodule OtpSupervisorWeb.SupervisorLive do
 
   def format_value(value) when is_integer(value), do: to_string(value)
   def format_value(value) when is_atom(value), do: inspect(value)
+
   def format_value({m, f, a}) when is_atom(m) and is_atom(f) and is_integer(a) do
     "#{m}.#{f}/#{a}"
   end
+
   def format_value(value), do: inspect(value)
 end
