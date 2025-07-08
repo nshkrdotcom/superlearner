@@ -541,138 +541,11 @@ defmodule OTPSupervisor.Core.Control do
 
   # Advanced Supervisor Control Features
 
-  @doc """
-  Starts tracking restart events for a supervisor.
 
-  This function initializes restart tracking for the specified supervisor,
-  enabling collection of restart analytics and history.
 
-  ## Examples
 
-      iex> OTPSupervisor.Core.Control.start_restart_tracking(:my_supervisor)
-      :ok
-  """
-  def start_restart_tracking(supervisor) do
-    case to_pid(supervisor) do
-      {:ok, pid} ->
-        OTPSupervisor.Core.RestartTracker.start_tracking(pid)
 
-      error ->
-        error
-    end
-  end
 
-  @doc """
-  Gets the restart history for a supervisor.
-
-  Returns a list of restart events with detailed information about each restart.
-
-  ## Examples
-
-      iex> OTPSupervisor.Core.Control.get_restart_history(:my_supervisor)
-      [%{timestamp: 1234567890, child_id: :worker, reason: :killed, ...}]
-  """
-  def get_restart_history(supervisor) do
-    case to_pid(supervisor) do
-      {:ok, pid} ->
-        OTPSupervisor.Core.RestartTracker.get_history(pid)
-
-      {:error, _} ->
-        []
-    end
-  end
-
-  @doc """
-  Calculates the current restart intensity for a supervisor.
-
-  Returns the number of restarts per minute based on recent restart history.
-
-  ## Examples
-
-      iex> OTPSupervisor.Core.Control.calculate_restart_intensity(:my_supervisor)
-      2.5
-  """
-  def calculate_restart_intensity(supervisor) do
-    case to_pid(supervisor) do
-      {:ok, pid} ->
-        history = OTPSupervisor.Core.RestartTracker.get_history(pid)
-        calculate_intensity(history)
-
-      {:error, _} ->
-        0.0
-    end
-  end
-
-  @doc """
-  Predicts restart storm risk for a supervisor.
-
-  Analyzes current restart patterns to predict if the supervisor is approaching
-  dangerous restart thresholds.
-
-  ## Examples
-
-      iex> OTPSupervisor.Core.Control.predict_restart_storm(:my_supervisor)
-      %{risk_level: :low, current_intensity: 1.2, threshold: 5.0}
-  """
-  def predict_restart_storm(supervisor) do
-    intensity = calculate_restart_intensity(supervisor)
-    # Standard OTP default
-    threshold = 5.0
-
-    risk_level =
-      cond do
-        intensity >= threshold * 0.8 -> :high
-        intensity >= threshold * 0.5 -> :medium
-        true -> :low
-      end
-
-    %{
-      risk_level: risk_level,
-      current_intensity: intensity,
-      threshold: threshold
-    }
-  end
-
-  @doc """
-  Temporarily pauses supervision for a supervisor.
-
-  When paused, the supervisor will not restart failed children. This is useful
-  for maintenance and debugging scenarios.
-
-  ## Examples
-
-      iex> OTPSupervisor.Core.Control.pause_supervisor(:my_supervisor)
-      :ok
-  """
-  def pause_supervisor(supervisor) do
-    case to_pid(supervisor) do
-      {:ok, pid} ->
-        OTPSupervisor.Core.SupervisorController.pause(pid)
-
-      error ->
-        error
-    end
-  end
-
-  @doc """
-  Resumes supervision for a supervisor.
-
-  Re-enables automatic restart of failed children after being paused.
-
-  ## Examples
-
-      iex> OTPSupervisor.Core.Control.resume_supervisor(:my_supervisor)
-      :ok
-  """
-  def resume_supervisor(supervisor) do
-    case to_pid(supervisor) do
-      {:ok, pid} ->
-        OTPSupervisor.Core.SupervisorController.resume(pid)
-
-      error ->
-        error
-    end
-  end
 
   @doc """
   Simulates a crash with a specific reason.
@@ -703,16 +576,4 @@ defmodule OTPSupervisor.Core.Control do
   end
 
   # Private helper functions
-
-  defp calculate_intensity(history) do
-    now = System.system_time(:millisecond)
-
-    recent_restarts =
-      Enum.filter(history, fn event ->
-        # Last minute
-        now - event.timestamp < 60_000
-      end)
-
-    length(recent_restarts) / 60.0
-  end
 end

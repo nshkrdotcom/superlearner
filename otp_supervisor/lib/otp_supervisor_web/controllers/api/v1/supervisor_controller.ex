@@ -78,9 +78,6 @@ defmodule OtpSupervisorWeb.Api.V1.SupervisorController do
     supervisor_atom = String.to_existing_atom(supervisor_name)
 
     analytics_data = %{
-      "restart_history" => Control.get_restart_history(supervisor_atom),
-      "restart_intensity" => Control.calculate_restart_intensity(supervisor_atom),
-      "restart_storm_risk" => Control.predict_restart_storm(supervisor_atom),
       "performance_metrics" => get_supervisor_performance_metrics(supervisor_atom)
     }
 
@@ -99,79 +96,7 @@ defmodule OtpSupervisorWeb.Api.V1.SupervisorController do
       })
   end
 
-  def pause(conn, %{"name" => supervisor_name}) do
-    supervisor_atom = String.to_existing_atom(supervisor_name)
 
-    case Control.pause_supervisor(supervisor_atom) do
-      :ok ->
-        conn
-        |> put_status(200)
-        |> json(%{
-          data: %{
-            status: "paused",
-            supervisor: supervisor_name
-          }
-        })
-
-      {:error, reason} ->
-        conn
-        |> put_status(422)
-        |> json(%{
-          error: %{
-            message: "Failed to pause supervisor",
-            code: "pause_failed",
-            reason: inspect(reason)
-          }
-        })
-    end
-  rescue
-    ArgumentError ->
-      conn
-      |> put_status(404)
-      |> json(%{
-        error: %{
-          message: "Supervisor not found",
-          code: "supervisor_not_found"
-        }
-      })
-  end
-
-  def resume(conn, %{"name" => supervisor_name}) do
-    supervisor_atom = String.to_existing_atom(supervisor_name)
-
-    case Control.resume_supervisor(supervisor_atom) do
-      :ok ->
-        conn
-        |> put_status(200)
-        |> json(%{
-          data: %{
-            status: "resumed",
-            supervisor: supervisor_name
-          }
-        })
-
-      {:error, reason} ->
-        conn
-        |> put_status(422)
-        |> json(%{
-          error: %{
-            message: "Failed to resume supervisor",
-            code: "resume_failed",
-            reason: inspect(reason)
-          }
-        })
-    end
-  rescue
-    ArgumentError ->
-      conn
-      |> put_status(404)
-      |> json(%{
-        error: %{
-          message: "Supervisor not found",
-          code: "supervisor_not_found"
-        }
-      })
-  end
 
   def change_strategy(conn, %{"name" => supervisor_name} = params) do
     _supervisor_atom = String.to_existing_atom(supervisor_name)

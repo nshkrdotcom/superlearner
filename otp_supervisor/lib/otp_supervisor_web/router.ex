@@ -44,8 +44,6 @@ defmodule OtpSupervisorWeb.Router do
       get "/supervisors", SupervisorController, :index
       get "/supervisors/:name", SupervisorController, :show
       get "/supervisors/:name/analytics", SupervisorController, :analytics
-      post "/supervisors/:name/pause", SupervisorController, :pause
-      post "/supervisors/:name/resume", SupervisorController, :resume
       put "/supervisors/:name/strategy", SupervisorController, :change_strategy
       post "/supervisors/:name/simulate-failure", SupervisorController, :simulate_failure
     end

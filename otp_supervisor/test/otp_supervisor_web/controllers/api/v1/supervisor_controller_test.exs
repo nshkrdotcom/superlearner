@@ -75,63 +75,15 @@ defmodule OtpSupervisorWeb.Api.V1.SupervisorControllerTest do
 
       assert %{
                "data" => %{
-                 "restart_history" => restart_history,
-                 "restart_intensity" => restart_intensity,
-                 "restart_storm_risk" => restart_storm_risk,
                  "performance_metrics" => performance_metrics
                }
              } = json_response(conn, 200)
 
-      assert is_list(restart_history)
-      assert is_float(restart_intensity)
-      assert is_map(restart_storm_risk)
       assert is_map(performance_metrics)
     end
   end
 
-  describe "POST /api/v1/supervisors/:name/pause" do
-    setup do
-      %{supervisor: supervisor} = SupervisorTestHelper.setup_isolated_supervisor("pause_test")
-      {:ok, supervisor: supervisor}
-    end
 
-    test "pauses supervisor successfully", %{conn: conn, supervisor: supervisor} do
-      conn = post(conn, "/api/v1/supervisors/#{supervisor}/pause")
-
-      assert %{
-               "data" => %{
-                 "status" => "paused",
-                 "supervisor" => supervisor_name
-               }
-             } = json_response(conn, 200)
-
-      assert supervisor_name == Atom.to_string(supervisor)
-    end
-  end
-
-  describe "POST /api/v1/supervisors/:name/resume" do
-    setup do
-      %{supervisor: supervisor} = SupervisorTestHelper.setup_isolated_supervisor("resume_test")
-      {:ok, supervisor: supervisor}
-    end
-
-    test "resumes supervisor successfully", %{conn: conn, supervisor: supervisor} do
-      # First pause the supervisor
-      post(conn, "/api/v1/supervisors/#{supervisor}/pause")
-
-      # Then resume it
-      conn = post(conn, "/api/v1/supervisors/#{supervisor}/resume")
-
-      assert %{
-               "data" => %{
-                 "status" => "resumed",
-                 "supervisor" => supervisor_name
-               }
-             } = json_response(conn, 200)
-
-      assert supervisor_name == Atom.to_string(supervisor)
-    end
-  end
 
   describe "PUT /api/v1/supervisors/:name/strategy" do
     setup do
