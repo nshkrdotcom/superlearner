@@ -66,16 +66,15 @@ defmodule OTPSupervisor.Core.Control do
 
   def get_supervision_tree(supervisor_pid) when is_pid(supervisor_pid) do
     try do
-      case Supervisor.which_children(supervisor_pid) do
-        children when is_list(children) ->
-          {:ok, format_children(children)}
-
-        _ ->
-          {:error, :not_supervisor}
-      end
+      children = Supervisor.which_children(supervisor_pid)
+      {:ok, format_children(children)}
     rescue
-      _e in ArgumentError ->
+      ArgumentError ->
         # This happens when the PID is not a supervisor
+        {:error, :not_supervisor}
+
+      FunctionClauseError ->
+        # This also happens when the PID is not a supervisor
         {:error, :not_supervisor}
 
       e ->
@@ -246,10 +245,8 @@ defmodule OTPSupervisor.Core.Control do
 
   defp count_children(pid) when is_pid(pid) do
     try do
-      case Supervisor.count_children(pid) do
-        %{active: active} -> active
-        _ -> 0
-      end
+      %{active: active} = Supervisor.count_children(pid)
+      active
     rescue
       _ -> 0
     end
