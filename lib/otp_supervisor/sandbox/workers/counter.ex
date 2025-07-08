@@ -112,4 +112,9 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
     # Simulate a crash
     raise "Intentional crash for demonstration"
   end
+
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
 end
