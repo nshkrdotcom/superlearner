@@ -439,16 +439,9 @@ defmodule OTPSupervisor.Sandbox.Workers.PrinterTest do
         1000 -> flunk("Process did not terminate within timeout")
       end
 
-      # Wait for supervisor to restart the process (OTP pattern)
-      # Poll for the new process to be registered
-      Enum.reduce_while(1..100, nil, fn _i, _acc ->
-        case Process.whereis(printer_name) do
-          nil -> {:cont, nil}
-          pid when pid != original_pid -> {:halt, pid}
-          # Still the old process somehow
-          ^original_pid -> {:cont, nil}
-        end
-      end)
+      # Wait for supervisor to restart the child using the more robust helper
+      # The child ID is the module name when using {Module, args} format
+      :ok = wait_for_child_restart(sup_pid, Printer, original_pid)
 
       # Verify the process was restarted with fresh state
       new_pid = Process.whereis(printer_name)
@@ -608,7 +601,7 @@ defmodule OTPSupervisor.Sandbox.Workers.PrinterTest do
 
       # Wait for supervisor to restart the crashed process (if it crashes)
       # Note: sending invalid messages might not always crash the process
-      case wait_for_process_restart(printer_name_1, pid1_before, 500) do
+      case wait_for_child_restart(sup_pid, :demo_printer_1, pid1_before, 500) do
         # Process restarted
         :ok -> :ok
         # Process didn't crash, that's fine too

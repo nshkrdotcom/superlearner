@@ -1,5 +1,5 @@
 defmodule OTPSupervisor.Core.ControlTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   import ExUnit.CaptureLog
 
   alias OTPSupervisor.Core.Control

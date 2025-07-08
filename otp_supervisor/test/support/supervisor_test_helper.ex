@@ -165,7 +165,11 @@ defmodule SupervisorTestHelper do
         unique_id: unique_id
       )
 
-    # No automatic cleanup - test is expected to crash this supervisor
+    # Always add cleanup for robustness - if test fails before crashing supervisor
+    ExUnit.Callbacks.on_exit(fn ->
+      if Process.alive?(sup_pid), do: Process.exit(sup_pid, :kill)
+    end)
+
     %{supervisor: supervisor_name, sup_pid: sup_pid}
   end
 
@@ -206,6 +210,61 @@ defmodule SupervisorTestHelper do
   end
 
   @doc """
+  Waits for a specific child process to be restarted by its supervisor.
+
+  This is more robust than polling Process.whereis/1 as it queries the
+  supervisor's state directly.
+
+  ## Parameters
+
+    * `supervisor_pid` - The supervisor PID
+    * `child_id` - The child ID as used in the supervisor child spec
+    * `original_pid` - The PID before the crash
+    * `timeout` - Maximum time to wait in milliseconds (default: 1000)
+
+  ## Returns
+
+    * `:ok` if restart completes
+    * `{:error, :timeout}` if restart doesn't complete in time
+
+  ## Examples
+
+      original_pid = Process.whereis(:my_process)
+      Process.exit(original_pid, :kill)
+      :ok = SupervisorTestHelper.wait_for_child_restart(sup_pid, :my_process, original_pid)
+  """
+  def wait_for_child_restart(supervisor_pid, child_id, original_pid, timeout \\ 1000) do
+    task = Task.async(fn ->
+      _wait_for_child_restart(supervisor_pid, child_id, original_pid)
+    end)
+
+    case Task.yield(task, timeout) do
+      {:ok, :ok} ->
+        :ok
+      nil ->
+        Task.shutdown(task)
+        {:error, :timeout}
+    end
+  end
+
+  defp _wait_for_child_restart(supervisor_pid, child_id, original_pid) do
+    # Query the supervisor for its children
+    children = Supervisor.which_children(supervisor_pid)
+    restarted_child = Enum.find(children, fn {id, _, _, _} -> id == child_id end)
+
+    case restarted_child do
+      # Child found and its PID is different from the original
+      {^child_id, new_pid, _, _} when new_pid != original_pid and is_pid(new_pid) ->
+        :ok # Restart successful
+
+      # Child still has the same PID or hasn't restarted yet
+      _ ->
+        Process.sleep(20) # Yield and try again
+        _wait_for_child_restart(supervisor_pid, child_id, original_pid)
+    end
+  end
+
+  @doc """
   Waits for a specific named process to be restarted (new PID).
 
   This function monitors the original process for death, then waits
@@ -235,7 +294,7 @@ defmodule SupervisorTestHelper do
 
       receive do
         {:DOWN, ^ref, :process, ^original_pid, _reason} ->
-          # Process died, now wait for restart
+          # Process died, now wait for restart using proper synchronization
           wait_for_name_change(process_name, original_pid, timeout)
       after
         timeout -> {:error, :timeout}
@@ -247,29 +306,34 @@ defmodule SupervisorTestHelper do
   end
 
   defp wait_for_name_change(process_name, original_pid, timeout) do
-    end_time = System.monotonic_time(:millisecond) + timeout
-    check_name_change_loop(process_name, original_pid, end_time)
+    # Robust OTP approach: Use Task with proper timeout
+    task = Task.async(fn ->
+      monitor_name_change(process_name, original_pid)
+    end)
+    
+    case Task.yield(task, timeout) do
+      {:ok, result} -> result
+      nil -> 
+        Task.shutdown(task)
+        {:error, :timeout}
+    end
   end
 
-  defp check_name_change_loop(process_name, original_pid, end_time) do
-    current_time = System.monotonic_time(:millisecond)
-
-    if current_time > end_time do
-      {:error, :timeout}
-    else
-      case Process.whereis(process_name) do
-        ^original_pid ->
-          # Same PID, check again immediately
-          check_name_change_loop(process_name, original_pid, end_time)
-
-        nil ->
-          # No process registered, check again immediately
-          check_name_change_loop(process_name, original_pid, end_time)
-
-        _new_pid ->
-          # Different PID - restart successful!
-          :ok
-      end
+  defp monitor_name_change(process_name, original_pid) do
+    case Process.whereis(process_name) do
+      ^original_pid ->
+        # Still the same PID, wait and check again
+        # Use Process.sleep to yield the scheduler and prevent busy-waiting
+        Process.sleep(10)
+        monitor_name_change(process_name, original_pid)
+      nil ->
+        # No process registered, wait and check again  
+        # Use Process.sleep to yield the scheduler and prevent busy-waiting
+        Process.sleep(10)
+        monitor_name_change(process_name, original_pid)
+      _new_pid ->
+        # Different PID - restart successful!
+        :ok
     end
   end
 
@@ -301,7 +365,7 @@ defmodule SupervisorTestHelper do
   Converts a PID string to an actual PID.
 
   The Control module returns PIDs as strings like "#PID<0.123.0>".
-  This function converts them back to actual PID values.
+  This function converts them back to actual PID values using the centralized parser.
 
   ## Parameters
 
@@ -316,10 +380,9 @@ defmodule SupervisorTestHelper do
       pid = SupervisorTestHelper.extract_pid_from_string("#PID<0.123.0>")
   """
   def extract_pid_from_string(pid_string) when is_binary(pid_string) do
-    pid_string
-    |> String.replace("#PID", "")
-    |> String.trim()
-    |> String.to_charlist()
-    |> :erlang.list_to_pid()
+    case Control.to_pid(pid_string) do
+      {:ok, pid} -> pid
+      {:error, :invalid_pid} -> raise ArgumentError, "Invalid PID format: #{pid_string}"
+    end
   end
 end

@@ -106,6 +106,31 @@ defmodule OTPSupervisor.Core.Control do
   end
 
   def kill_process(pid_string) when is_binary(pid_string) do
+    case to_pid(pid_string) do
+      {:ok, pid} -> kill_process(pid)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Converts a PID string into a PID.
+  
+  Handles both "#PID<0.123.0>" and "<0.123.0>" formats.
+  
+  Returns `{:ok, pid}` on success or `{:error, :invalid_pid}` on failure.
+  
+  ## Examples
+  
+      iex> OTPSupervisor.Core.Control.to_pid("#PID<0.123.0>")
+      {:ok, #PID<0.123.0>}
+      
+      iex> OTPSupervisor.Core.Control.to_pid("<0.123.0>")
+      {:ok, #PID<0.123.0>}
+      
+      iex> OTPSupervisor.Core.Control.to_pid("invalid")
+      {:error, :invalid_pid}
+  """
+  def to_pid(pid_string) when is_binary(pid_string) do
     try do
       # Handle both "#PID<0.123.0>" and "<0.123.0>" formats
       cleaned =
@@ -118,7 +143,7 @@ defmodule OTPSupervisor.Core.Control do
         |> String.to_charlist()
         |> :erlang.list_to_pid()
 
-      kill_process(pid)
+      {:ok, pid}
     rescue
       _ -> {:error, :invalid_pid}
     end
@@ -183,13 +208,10 @@ defmodule OTPSupervisor.Core.Control do
         initial_call = Keyword.get(dict, :"$initial_call", false)
 
         case initial_call do
-          # Standard OTP supervisor
-          {:supervisor, _, _} -> true
-          {Supervisor, _, _} -> true
-          {DynamicSupervisor, _, _} -> true
-          {PartitionSupervisor, _, _} -> true
-          {Task.Supervisor, _, _} -> true
-          _ -> false
+          {mod, _, _} when mod in [:supervisor, Supervisor, DynamicSupervisor, PartitionSupervisor, Task.Supervisor] ->
+            true
+          _ ->
+            false
         end
     end
   end

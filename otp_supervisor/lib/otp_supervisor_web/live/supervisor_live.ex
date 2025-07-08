@@ -66,30 +66,20 @@ defmodule OtpSupervisorWeb.SupervisorLive do
 
   @impl true
   def handle_event("select_process", %{"pid" => pid_string}, socket) do
-    # Handle PID string formats like "#PID<0.123.0>" or "<0.123.0>"
-    cleaned_pid =
-      pid_string
-      |> String.replace("#PID", "")
-      |> String.trim()
+    case Control.to_pid(pid_string) do
+      {:ok, pid} ->
+        process_info =
+          case Control.get_process_info(pid) do
+            {:ok, info} -> info
+            {:error, _} -> nil
+          end
 
-    try do
-      pid =
-        cleaned_pid
-        |> String.to_charlist()
-        |> :erlang.list_to_pid()
+        {:noreply,
+         socket
+         |> assign(:selected_process, pid_string)
+         |> assign(:process_info, process_info)}
 
-      process_info =
-        case Control.get_process_info(pid) do
-          {:ok, info} -> info
-          {:error, _} -> nil
-        end
-
-      {:noreply,
-       socket
-       |> assign(:selected_process, pid_string)
-       |> assign(:process_info, process_info)}
-    rescue
-      _ ->
+      {:error, :invalid_pid} ->
         {:noreply,
          socket
          |> assign(:selected_process, nil)
@@ -172,28 +162,20 @@ defmodule OtpSupervisorWeb.SupervisorLive do
   end
 
   defp refresh_process_info(socket) do
-    cleaned_pid =
-      socket.assigns.selected_process
-      |> String.replace("#PID", "")
-      |> String.trim()
+    case Control.to_pid(socket.assigns.selected_process) do
+      {:ok, pid} ->
+        case Control.get_process_info(pid) do
+          {:ok, info} ->
+            assign(socket, :process_info, info)
 
-    try do
-      pid =
-        cleaned_pid
-        |> String.to_charlist()
-        |> :erlang.list_to_pid()
+          {:error, :process_dead} ->
+            socket
+            |> assign(:process_info, nil)
+            |> put_flash(:info, "Selected process is no longer alive")
+        end
 
-      case Control.get_process_info(pid) do
-        {:ok, info} ->
-          assign(socket, :process_info, info)
-
-        {:error, :process_dead} ->
-          socket
-          |> assign(:process_info, nil)
-          |> put_flash(:info, "Selected process is no longer alive")
-      end
-    rescue
-      _ -> socket
+      {:error, :invalid_pid} ->
+        socket
     end
   end
 
