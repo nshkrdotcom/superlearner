@@ -541,11 +541,69 @@ defmodule OTPSupervisor.Core.Control do
 
   # Advanced Supervisor Control Features
 
+  @doc """
+  Gets restart history for a supervisor using telemetry-based analytics.
 
+  Returns a list of restart events captured by the AnalyticsServer.
+  Each event includes timestamp, event type, child ID, and other metadata.
 
+  ## Examples
 
+      iex> {:ok, history} = OTPSupervisor.Core.Control.get_restart_history(:demo_one_for_one)
+      iex> length(history)
+      3
+  """
+  def get_restart_history(supervisor) do
+    case to_pid(supervisor) do
+      {:ok, pid} ->
+        {:ok, OTPSupervisor.Core.AnalyticsServer.get_restart_history(pid)}
 
+      error ->
+        error
+    end
+  end
 
+  @doc """
+  Gets comprehensive analytics for all supervisors in the system.
+
+  Returns a map with global statistics including total supervisors,
+  total restarts, uptime, and per-supervisor statistics.
+
+  ## Examples
+
+      iex> stats = OTPSupervisor.Core.Control.get_supervisor_analytics()
+      iex> stats.total_supervisors
+      3
+  """
+  def get_supervisor_analytics do
+    OTPSupervisor.Core.AnalyticsServer.get_all_supervisor_stats()
+  end
+
+  @doc """
+  Calculates failure rate for a supervisor over a time window.
+
+  Returns restart count and rate per second for the specified time window.
+
+  ## Parameters
+
+    * `supervisor` - Supervisor name or PID
+    * `time_window_ms` - Time window in milliseconds (default: 60,000)
+
+  ## Examples
+
+      iex> {:ok, rate} = OTPSupervisor.Core.Control.get_failure_rate(:demo_one_for_one, 10_000)
+      iex> rate.restarts
+      2
+  """
+  def get_failure_rate(supervisor, time_window_ms \\ 60_000) do
+    case to_pid(supervisor) do
+      {:ok, pid} ->
+        {:ok, OTPSupervisor.Core.AnalyticsServer.get_failure_rate(pid, time_window_ms)}
+
+      error ->
+        error
+    end
+  end
 
   @doc """
   Simulates a crash with a specific reason.

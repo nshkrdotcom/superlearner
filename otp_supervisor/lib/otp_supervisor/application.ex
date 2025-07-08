@@ -15,6 +15,10 @@ defmodule OtpSupervisor.Application do
       {Finch, name: OtpSupervisor.Finch},
       # Start the TracerRegistry for message tracing
       {Registry, keys: :unique, name: TracerRegistry},
+
+      # Add AnalyticsServer to collect supervisor events
+      OTPSupervisor.Core.AnalyticsServer,
+
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
       # Start to serve requests, typically the last entry

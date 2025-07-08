@@ -83,8 +83,6 @@ defmodule OtpSupervisorWeb.Api.V1.SupervisorControllerTest do
     end
   end
 
-
-
   describe "PUT /api/v1/supervisors/:name/strategy" do
     setup do
       %{supervisor: supervisor} = SupervisorTestHelper.setup_isolated_supervisor("strategy_test")

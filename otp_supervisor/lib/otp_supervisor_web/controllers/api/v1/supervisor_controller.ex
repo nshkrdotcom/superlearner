@@ -96,8 +96,6 @@ defmodule OtpSupervisorWeb.Api.V1.SupervisorController do
       })
   end
 
-
-
   def change_strategy(conn, %{"name" => supervisor_name} = params) do
     _supervisor_atom = String.to_existing_atom(supervisor_name)
     new_strategy = params["strategy"]

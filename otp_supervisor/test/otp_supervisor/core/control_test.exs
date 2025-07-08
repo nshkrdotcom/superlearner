@@ -906,7 +906,49 @@ defmodule OTPSupervisor.Core.ControlTest do
     end
   end
 
+  describe "telemetry-based analytics" do
+    setup do
+      setup_isolated_supervisor("analytics_control_test")
+    end
 
+    test "get_restart_history returns telemetry data", %{supervisor: supervisor, sup_pid: sup_pid} do
+      # Test Control module wrapper
+      {:ok, history} = Control.get_restart_history(supervisor)
+      assert is_list(history)
+
+      # Also test with PID directly
+      {:ok, history_pid} = Control.get_restart_history(sup_pid)
+      assert history == history_pid
+    end
+
+    test "get_supervisor_analytics returns comprehensive stats", %{supervisor: _supervisor} do
+      stats = Control.get_supervisor_analytics()
+
+      assert is_map(stats)
+      assert Map.has_key?(stats, :total_supervisors)
+      assert Map.has_key?(stats, :total_restarts)
+      assert Map.has_key?(stats, :supervisor_stats)
+      assert is_list(stats.supervisor_stats)
+    end
+
+    test "get_failure_rate calculates rates correctly", %{
+      supervisor: supervisor,
+      sup_pid: _sup_pid
+    } do
+      {:ok, failure_rate} = Control.get_failure_rate(supervisor, 5000)
+
+      assert is_map(failure_rate)
+      assert Map.has_key?(failure_rate, :restarts)
+      assert Map.has_key?(failure_rate, :rate)
+      assert Map.has_key?(failure_rate, :window_ms)
+      assert failure_rate.window_ms == 5000
+    end
+
+    test "handles invalid supervisor gracefully" do
+      assert {:error, :invalid_pid} = Control.get_restart_history("invalid")
+      assert {:error, :invalid_pid} = Control.get_failure_rate("invalid", 1000)
+    end
+  end
 
   describe "failure simulation" do
     setup do

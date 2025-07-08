@@ -577,7 +577,7 @@ Follow the implementation from `docs/SANDBOX_MANAGER_IMPLEMENTATION.md` with the
 - ✅ **Proper process monitoring** - Use Process.monitor/1 for supervisor lifecycle
 - ✅ **ETS for fast lookup** - Use ETS tables for sandbox metadata
 - ✅ **Graceful cleanup** - Handle supervisor crashes properly
-- ✅ **Educational comments** - Explain lifecycle management patterns
+- ✅ **Comprehensive documentation** - Explain lifecycle management patterns
 
 #### Step 2.2: Enhance TestDemoSupervisor
 **Update**: `test/support/test_demo_supervisor.ex`
@@ -587,9 +587,9 @@ Add unique naming support and configuration options:
 ```elixir
 defmodule OTPSupervisor.Sandbox.TestDemoSupervisor do
   @moduledoc """
-  Enhanced demo supervisor with unique naming for sandbox isolation.
+  Production-grade demo supervisor with unique naming for sandbox isolation.
   
-  This supervisor demonstrates proper OTP patterns for dynamic supervisor
+  This supervisor provides proper OTP patterns for dynamic supervisor
   creation with unique child naming to prevent conflicts between multiple
   instances running concurrently.
   """
@@ -715,7 +715,7 @@ mix test
 - [ ] **Graceful cleanup** with proper resource management
 - [ ] **Unique naming** prevents conflicts between sandboxes
 - [ ] **Error handling** for edge cases and failures
-- [ ] **Educational comments** explain lifecycle management patterns
+- [ ] **Comprehensive documentation** explain lifecycle management patterns
 - [ ] **Tests demonstrate real OTP scenarios** not simulated behavior
 
 #### Step 3.2: Integration and Performance Testing
@@ -880,7 +880,7 @@ false
 - [ ] **Proper OTP synchronization** using GenServer patterns
 - [ ] **Process monitoring** for supervisor lifecycle management
 - [ ] **ETS table management** for fast lookups
-- [ ] **Educational comments** explaining lifecycle patterns  
+- [ ] **Comprehensive documentation** explaining lifecycle patterns  
 - [ ] **Error handling** for edge cases and failures
 - [ ] **Resource cleanup** with proper teardown
 
@@ -892,7 +892,7 @@ false
 - [ ] Tests demonstrate supervisor lifecycle patterns
 - [ ] Integration tests verify end-to-end functionality
 
-### Educational Value
+### Production Value
 - [ ] Code demonstrates proper OTP supervisor lifecycle management
 - [ ] Tests show real-world patterns for managing subsystems
 - [ ] Comments explain why lifecycle management is superior to simulation
@@ -913,8 +913,8 @@ false
 ## Notes
 - **Use real OTP operations** - Never simulate supervisor lifecycle
 - **Follow OTP Testing Standards** for all code and tests
-- **Educational first** - Code should teach proper lifecycle management
+- **Production focused** - Code should provide robust lifecycle management
 - **Test with real supervisors** - Use actual OTP start/stop scenarios
 - **Handle edge cases** - Supervisor crashes, invalid inputs, concurrent access
 
-This TDD implementation provides **real OTP supervisor lifecycle management** that demonstrates genuine patterns used in production applications for managing dynamic supervision trees and subsystems.
+This TDD implementation provides **real OTP supervisor lifecycle management** using genuine patterns from production applications for managing dynamic supervision trees and subsystems.

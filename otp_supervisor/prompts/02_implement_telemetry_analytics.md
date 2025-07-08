@@ -286,20 +286,20 @@ Follow the implementation from `docs/TELEMETRY_ANALYTICS_IMPLEMENTATION.md` with
 - ✅ **GenServer message ordering** - Rely on FIFO guarantees  
 - ✅ **Proper process monitoring** - Use Process.monitor/1
 - ✅ **Error handling** - Handle supervisor crashes gracefully
-- ✅ **Educational comments** - Explain telemetry patterns
+- ✅ **Comprehensive documentation** - Explain telemetry patterns
 
 ```elixir
 defmodule OTPSupervisor.Core.AnalyticsServer do
   @moduledoc """
   Collects supervisor analytics using OTP's built-in telemetry events.
   
-  This server demonstrates the modern, idiomatic way to monitor OTP supervisors
+  This server provides production-grade monitoring of OTP supervisors
   without external process monitoring or race conditions. It uses :telemetry
   events that are emitted by supervisors themselves.
   
-  ## Educational Value
+  ## Implementation Features
   
-  This module teaches:
+  This module provides:
   - Proper telemetry integration patterns
   - GenServer state management for analytics
   - Handling asynchronous telemetry events
@@ -396,7 +396,7 @@ mix test
 - [ ] **Telemetry handlers are non-blocking** and fast
 - [ ] **Bounded data storage** prevents memory leaks
 - [ ] **Error handling** for edge cases and failures
-- [ ] **Educational comments** explain OTP patterns
+- [ ] **Comprehensive documentation** explain OTP patterns
 - [ ] **Tests demonstrate real OTP scenarios** not mocked events
 
 #### Step 3.2: Performance and Integration Testing
@@ -521,7 +521,7 @@ iex> length(new_history) > length(history)
 - [ ] **No Process.sleep/1** in any implementation or tests
 - [ ] **Proper OTP synchronization** using GenServer patterns
 - [ ] **Process monitoring** for supervisor lifecycle
-- [ ] **Educational comments** explaining telemetry patterns
+- [ ] **Comprehensive documentation** explaining telemetry patterns
 - [ ] **Error handling** for edge cases
 - [ ] **Bounded storage** preventing memory leaks
 
@@ -530,9 +530,9 @@ iex> length(new_history) > length(history)
 - [ ] Tests use real OTP operations, not mocked events
 - [ ] Proper cleanup with `on_exit/1` callbacks
 - [ ] Unique naming for test isolation
-- [ ] Tests serve as educational examples
+- [ ] Tests demonstrate production-ready patterns
 
-### Educational Value
+### Production Value
 - [ ] Code demonstrates proper telemetry integration
 - [ ] Tests show real OTP supervisor monitoring
 - [ ] Comments explain why telemetry is superior to external monitoring
@@ -553,8 +553,8 @@ iex> length(new_history) > length(history)
 ## Notes
 - **Use real telemetry** - Never mock or simulate telemetry events
 - **Follow OTP Testing Standards** for all code and tests
-- **Educational first** - Code should teach proper OTP monitoring
+- **Production focused** - Code should provide robust OTP monitoring
 - **Performance conscious** - Telemetry handlers must be fast
 - **Test with real supervisors** - Use actual OTP restart scenarios
 
-This TDD implementation provides **real OTP analytics** using industry-standard telemetry patterns while serving as an excellent educational example.
+This TDD implementation provides **real OTP analytics** using industry-standard telemetry patterns for production-grade supervisor monitoring.
