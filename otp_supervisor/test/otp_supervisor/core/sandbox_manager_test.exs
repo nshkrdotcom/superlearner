@@ -288,20 +288,10 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       end)
 
       # Wait for SandboxManager to process the DOWN message using proper OTP synchronization
-      wait_for_sandbox_cleanup = fn ->
-        Enum.reduce_while(1..100, nil, fn _i, _acc ->
-          case SandboxManager.get_sandbox_info(sandbox_id) do
-            {:error, :not_found} -> {:halt, :ok}
-            {:ok, _info} -> {:cont, nil}
-          end
-        end)
-      end
+      :ok = SandboxManager.sync()
 
-      case wait_for_sandbox_cleanup.() do
-        # Sandbox was cleaned up
-        :ok -> :ok
-        nil -> flunk("Sandbox was not cleaned up after supervisor crash")
-      end
+      # Verify sandbox was cleaned up
+      {:error, :not_found} = SandboxManager.get_sandbox_info(sandbox_id)
     end
   end
 
