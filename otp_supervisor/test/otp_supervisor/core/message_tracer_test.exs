@@ -1,9 +1,9 @@
 defmodule OTPSupervisor.Core.MessageTracerTest do
   use ExUnit.Case, async: true
-  
+
   alias OTPSupervisor.Core.MessageTracer
   alias OTPSupervisor.Core.Control
-  
+
   import SupervisorTestHelper
 
   setup_all do
@@ -12,9 +12,10 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, _} -> :ok
       {:error, {:already_started, _}} -> :ok
     end
+
     :ok
   end
-  
+
   describe "message tracing" do
     setup do
       SupervisorTestHelper.setup_isolated_supervisor("message_tracing")
@@ -25,7 +26,7 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       result = MessageTracer.trace_messages(counter_pid, max_messages: 10)
       assert {:ok, tracer_pid} = result
       assert Process.alive?(tracer_pid)
@@ -36,20 +37,20 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       {:ok, _tracer} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
-      
+
       # Generate some messages
       GenServer.cast(counter_pid, :increment)
       GenServer.cast(counter_pid, :increment)
-      
+
       # Use synchronous call to ensure all previous casts are processed
       final_value = GenServer.call(counter_pid, :get_value)
       assert final_value == 2
-      
+
       messages = MessageTracer.get_message_history(counter_pid)
       assert length(messages) >= 2
-      
+
       # Verify message structure
       Enum.each(messages, fn msg ->
         assert Map.has_key?(msg, :timestamp)
@@ -63,12 +64,12 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       {:ok, tracer_pid} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
-      
+
       result = MessageTracer.stop_tracing(counter_pid)
       assert :ok = result
-      
+
       # Verify tracer process is cleaned up
       refute Process.alive?(tracer_pid)
     end
@@ -78,18 +79,18 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       {:ok, _tracer} = MessageTracer.trace_messages(counter_pid, max_messages: 2)
-      
+
       # Generate more messages than limit
       GenServer.cast(counter_pid, :increment)
       GenServer.cast(counter_pid, :increment)
       GenServer.cast(counter_pid, :increment)
       GenServer.cast(counter_pid, :increment)
-      
+
       # Synchronize to ensure all messages processed
       GenServer.call(counter_pid, :get_value)
-      
+
       messages = MessageTracer.get_message_history(counter_pid)
       assert length(messages) <= 2
     end
@@ -97,7 +98,7 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
     test "handles tracing non-existent process", %{supervisor: _supervisor} do
       fake_pid = spawn(fn -> :ok end)
       Process.exit(fake_pid, :kill)
-      
+
       result = MessageTracer.trace_messages(fake_pid, max_messages: 10)
       assert {:error, _reason} = result
     end
@@ -107,17 +108,17 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter1_child = Enum.find(children, &(&1.id == :counter_1))
       counter2_child = Enum.find(children, &(&1.id == :printer_1))
-      
+
       counter_pid_1 = extract_pid_from_string(counter1_child.pid)
       counter_pid_2 = extract_pid_from_string(counter2_child.pid)
-      
+
       {:ok, tracer1} = MessageTracer.trace_messages(counter_pid_1, max_messages: 5)
       {:ok, tracer2} = MessageTracer.trace_messages(counter_pid_2, max_messages: 5)
-      
+
       assert tracer1 != tracer2
       assert Process.alive?(tracer1)
       assert Process.alive?(tracer2)
-      
+
       # Cleanup
       MessageTracer.stop_tracing(counter_pid_2)
     end
@@ -132,9 +133,9 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
         %{content: {:cast, :increment}, timestamp: 1002, direction: :incoming},
         %{content: {:cast, :increment}, timestamp: 1003, direction: :incoming}
       ]
-      
+
       patterns = MessageTracer.analyze_message_patterns(messages)
-      
+
       assert Map.has_key?(patterns, :cast_frequency)
       assert Map.has_key?(patterns, :call_frequency)
       assert patterns.cast_frequency > patterns.call_frequency
@@ -142,7 +143,7 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
 
     test "analyze_message_patterns/1 handles empty message list" do
       patterns = MessageTracer.analyze_message_patterns([])
-      
+
       assert %{cast_frequency: 0, call_frequency: 0, total_messages: 0} = patterns
     end
 
@@ -152,9 +153,9 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
         %{content: {:call, :get_value}, timestamp: 1100, direction: :incoming},
         %{content: {:cast, :increment}, timestamp: 1200, direction: :incoming}
       ]
-      
+
       patterns = MessageTracer.analyze_message_patterns(messages)
-      
+
       assert Map.has_key?(patterns, :avg_message_interval)
       assert patterns.avg_message_interval == 100.0
     end
@@ -170,20 +171,21 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       {:ok, tracer_pid} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
-      
+
       # Verify tracer is registered
       case Registry.lookup(TracerRegistry, counter_pid) do
         [{registered_tracer, _}] ->
           assert registered_tracer == tracer_pid
+
         [] ->
           flunk("Tracer not registered")
       end
-      
+
       # Stop tracing - this should be synchronous
       MessageTracer.stop_tracing(counter_pid)
-      
+
       # Verify tracer is unregistered
       assert Registry.lookup(TracerRegistry, counter_pid) == []
     end
@@ -199,19 +201,19 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       {:ok, tracer_pid} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
-      
+
       # Kill the tracer process
       Process.exit(tracer_pid, :kill)
-      
+
       # Verify cleanup happens
       refute Process.alive?(tracer_pid)
-      
+
       # Should be able to start a new tracer
       {:ok, new_tracer} = MessageTracer.trace_messages(counter_pid, max_messages: 5)
       assert Process.alive?(new_tracer)
-      
+
       # Cleanup
       MessageTracer.stop_tracing(counter_pid)
     end
@@ -221,7 +223,7 @@ defmodule OTPSupervisor.Core.MessageTracerTest do
       {:ok, children} = Control.get_supervision_tree(supervisor)
       counter_child = Enum.find(children, &(&1.id == :counter_1))
       counter_pid = extract_pid_from_string(counter_child.pid)
-      
+
       messages = MessageTracer.get_message_history(counter_pid)
       assert messages == []
     end
