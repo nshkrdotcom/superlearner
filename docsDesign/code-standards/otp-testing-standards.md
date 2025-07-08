@@ -228,13 +228,132 @@ defp wait_for_process_registration(name, timeout \\ 1000) do
     end
   end)
 end
+
+# Standard restart synchronization helpers
+defp wait_for_restart(supervisor_pid, timeout \\ 1000) do
+  # Use synchronous GenServer call to ensure all supervisor messages processed
+  try do
+    GenServer.call(supervisor_pid, :which_children, timeout)
+    :ok
+  catch
+    :exit, {:timeout, _} -> {:error, :timeout}
+  end
+end
+
+defp wait_for_child_restart(supervisor_pid, child_id, original_pid, timeout \\ 1000) do
+  task = Task.async(fn ->
+    _wait_for_child_restart_loop(supervisor_pid, child_id, original_pid)
+  end)
+  
+  case Task.yield(task, timeout) do
+    {:ok, :ok} -> :ok
+    nil -> Task.shutdown(task); {:error, :timeout}
+  end
+end
+
+defp _wait_for_child_restart_loop(supervisor_pid, child_id, original_pid) do
+  children = Supervisor.which_children(supervisor_pid)
+  restarted_child = Enum.find(children, fn {id, _, _, _} -> id == child_id end)
+  
+  case restarted_child do
+    {^child_id, new_pid, _, _} when new_pid != original_pid and is_pid(new_pid) ->
+      :ok
+    _ ->
+      # Use Task.yield with small interval for polling without sleep
+      Task.yield(Task.async(fn -> :ok end), 20)
+      _wait_for_child_restart_loop(supervisor_pid, child_id, original_pid)
+  end
+end
+
+defp wait_for_process_restart(process_name, original_pid, timeout \\ 1000) do
+  if Process.alive?(original_pid) do
+    ref = Process.monitor(original_pid)
+    receive do
+      {:DOWN, ^ref, :process, ^original_pid, _reason} -> 
+        wait_for_name_change(process_name, original_pid, timeout)
+    after timeout -> {:error, :timeout}
+    end
+  else
+    wait_for_name_change(process_name, original_pid, timeout)
+  end
+end
+
+defp wait_for_name_change(process_name, original_pid, timeout) do
+  task = Task.async(fn ->
+    monitor_name_change(process_name, original_pid)
+  end)
+  
+  case Task.yield(task, timeout) do
+    {:ok, result} -> result
+    nil -> Task.shutdown(task); {:error, :timeout}
+  end
+end
+
+defp monitor_name_change(process_name, original_pid) do
+  case Process.whereis(process_name) do
+    ^original_pid -> 
+      # Use Task.yield with small interval for polling without sleep
+      Task.yield(Task.async(fn -> :ok end), 10)
+      monitor_name_change(process_name, original_pid)
+    nil -> 
+      # Use Task.yield with small interval for polling without sleep
+      Task.yield(Task.async(fn -> :ok end), 10)
+      monitor_name_change(process_name, original_pid)
+    _new_pid -> :ok
+  end
+end
+```
+
+## Helper Function Usage Guide
+
+### When to Use Each Helper
+
+**`wait_for_restart(supervisor_pid)`** - Use when waiting for supervisor to complete restart cycle:
+```elixir
+test "supervisor completes restart cycle" do
+  kill_child(child_pid)
+  :ok = wait_for_restart(supervisor_pid)  # ✅ Correct
+  # Now supervisor is stable
+end
+```
+
+**`wait_for_child_restart(supervisor_pid, child_id, original_pid)`** - Use when waiting for specific child to get new PID:
+```elixir
+test "specific child gets new PID" do
+  original_pid = get_child_pid(supervisor_pid, :worker_1)
+  kill_child(original_pid)
+  :ok = wait_for_child_restart(supervisor_pid, :worker_1, original_pid)  # ✅ Correct
+  new_pid = get_child_pid(supervisor_pid, :worker_1)
+  assert new_pid != original_pid
+end
+```
+
+**`wait_for_process_restart(process_name, original_pid)`** - Use when waiting for named process restart:
+```elixir
+test "named process gets restarted" do
+  original_pid = Process.whereis(:my_worker)
+  kill_process(original_pid)
+  :ok = wait_for_process_restart(:my_worker, original_pid)  # ✅ Correct
+  new_pid = Process.whereis(:my_worker)
+  assert new_pid != original_pid
+end
+```
+
+**GenServer synchronous calls** - Use for async cleanup synchronization:
+```elixir
+test "manager processes cleanup messages" do
+  kill_supervised_process(pid)
+  # Ensure manager processed the DOWN message
+  _state = MyManager.get_state()  # ✅ Synchronization point
+  # Now verify cleanup
+end
 ```
 
 ## Testing Anti-Patterns
 
 ### ❌ Avoid These
 
-1. **Timing Dependencies**: Never rely on sleep or timing
+1. **Timing Dependencies**: Never rely on sleep or timing (except in helper polling loops)
 2. **Internal State Access**: Don't use `:sys.get_state/1` in tests
 3. **Process Polling Without Timeout**: Always have escape conditions
 4. **Race Conditions**: Don't assume async operations complete immediately
