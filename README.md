@@ -294,21 +294,41 @@ The platform is designed for step-by-step OTP mastery:
 ### API Endpoints (`/api/v1/`)
 **Comprehensive RESTful API:**
 
+#### Process Management (`/api/v1/processes`)
 ```bash
-# Supervisor Management
-GET    /api/v1/supervisors           # List all supervisors
-GET    /api/v1/supervisors/:id       # Supervisor details
-POST   /api/v1/supervisors/:id/kill  # Kill supervisor process
+# Process Listing & Details
+GET    /api/v1/processes                    # List all processes (with pagination & filtering)
+GET    /api/v1/processes/:pid               # Get detailed process information
+GET    /api/v1/processes/:pid/state         # Get GenServer internal state
 
-# Process Control
-GET    /api/v1/processes             # System process list
-GET    /api/v1/processes/:pid        # Process details
-DELETE /api/v1/processes/:pid        # Terminate process
+# Message Tracing
+GET    /api/v1/processes/:pid/messages      # Get captured message history
+POST   /api/v1/processes/:pid/trace         # Start message tracing
+DELETE /api/v1/processes/:pid/trace         # Stop message tracing
 
-# System Analysis
-GET    /api/v1/system/health         # System health metrics
-GET    /api/v1/system/graph          # Process relationship graph
-GET    /api/v1/system/anomalies      # Detected anomalies
+# Process Communication
+POST   /api/v1/processes/:pid/message       # Send message to process (cast/call/send)
+```
+
+#### Supervisor Management (`/api/v1/supervisors`)
+```bash
+# Supervisor Operations
+GET    /api/v1/supervisors                  # List all supervisors
+GET    /api/v1/supervisors/:name            # Get supervisor details & children
+GET    /api/v1/supervisors/:name/analytics  # Get supervisor performance metrics
+
+# Supervisor Configuration
+POST   /api/v1/supervisors/:name/strategy   # Change supervision strategy
+POST   /api/v1/supervisors/:name/simulate   # Simulate failures (child/supervisor)
+```
+
+#### System Analysis (`/api/v1/system`)
+```bash
+# System Health
+GET    /api/v1/system/health                # System health metrics & status
+GET    /api/v1/system/graph                 # Process relationship graph
+GET    /api/v1/system/bottlenecks           # Identify system bottlenecks
+GET    /api/v1/system/anomalies             # Detect system anomalies
 ```
 
 ## 🧪 Testing & Quality
