@@ -825,4 +825,90 @@ defmodule OTPSupervisor.Core.ControlTest do
       assert counter1.pid != counter2.pid
     end
   end
+
+  describe "process introspection" do
+    setup do
+      setup_isolated_supervisor("introspection")
+    end
+
+    test "list_all_processes/1 returns all processes with filtering", %{supervisor: _supervisor} do
+      processes = Control.list_all_processes(filter: :supervisor)
+      assert is_list(processes)
+      assert length(processes) > 0
+
+      # Test each process has required fields
+      Enum.each(processes, fn process ->
+        assert Map.has_key?(process, :pid)
+        assert Map.has_key?(process, :name)
+        assert Map.has_key?(process, :type)
+      end)
+    end
+
+    test "get_process_state/1 extracts GenServer state safely", %{supervisor: _supervisor} do
+      unique_id = :erlang.unique_integer([:positive])
+      counter_name = :"test_counter_#{unique_id}"
+      {:ok, counter_pid} = start_supervised({Counter, name: counter_name})
+
+      result = Control.get_process_state(counter_pid)
+      assert {:ok, state} = result
+      assert is_map(state) or is_atom(state) or is_number(state)
+    end
+
+    test "get_process_state/1 handles non-GenServer processes", %{supervisor: _supervisor} do
+      {:ok, task_pid} =
+        Task.start_link(fn ->
+          receive do
+            :stop -> :ok
+          after
+            5000 -> :timeout
+          end
+        end)
+
+      result = Control.get_process_state(task_pid)
+      assert {:error, :not_a_genserver} = result
+
+      # Cleanup
+      send(task_pid, :stop)
+    end
+
+    test "build_process_graph/0 creates complete relationship graph" do
+      graph = Control.build_process_graph()
+      assert is_map(graph)
+      assert Map.has_key?(graph, :processes)
+      assert Map.has_key?(graph, :links)
+      assert Map.has_key?(graph, :monitors)
+    end
+
+    test "list_all_processes/1 handles limit option" do
+      processes = Control.list_all_processes(limit: 5)
+      assert is_list(processes)
+      assert length(processes) <= 5
+    end
+
+    test "list_all_processes/1 returns consistent structure for all processes" do
+      processes = Control.list_all_processes(limit: 50)
+
+      # Verify all processes have required structure
+      Enum.each(processes, fn process ->
+        assert Map.has_key?(process, :pid)
+        assert Map.has_key?(process, :name)
+        assert Map.has_key?(process, :type)
+        assert is_binary(process.pid)
+        assert process.type in [:supervisor, :genserver, :worker, :dead]
+        assert is_atom(process.name) or is_nil(process.name)
+      end)
+    end
+
+    test "get_process_state/1 is safe to call repeatedly" do
+      unique_id = :erlang.unique_integer([:positive])
+      counter_name = :"test_counter_#{unique_id}"
+      {:ok, counter_pid} = start_supervised({Counter, name: counter_name})
+
+      # Call multiple times - should be safe and consistent
+      for _i <- 1..5 do
+        result = Control.get_process_state(counter_pid)
+        assert {:ok, _state} = result
+      end
+    end
+  end
 end
