@@ -844,31 +844,25 @@ defmodule OTPSupervisor.Core.ControlTest do
       end)
     end
 
-    test "get_process_state/1 extracts GenServer state safely", %{supervisor: _supervisor} do
-      unique_id = :erlang.unique_integer([:positive])
-      counter_name = :"test_counter_#{unique_id}"
-      {:ok, counter_pid} = start_supervised({Counter, name: counter_name})
+    test "get_process_state/1 extracts GenServer state safely", %{supervisor: supervisor} do
+      # Get one of the counters that the helper already started for us
+      {:ok, children} = Control.get_supervision_tree(supervisor)
+      counter_child = Enum.find(children, &(&1.id == :counter_1))
+      counter_pid = extract_pid_from_string(counter_child.pid)
 
+      # Test the state extraction on this known process
       result = Control.get_process_state(counter_pid)
-      assert {:ok, state} = result
-      assert is_map(state) or is_atom(state) or is_number(state)
+      assert {:ok, %{value: 0, crashes: 0}} = result
     end
 
     test "get_process_state/1 handles non-GenServer processes", %{supervisor: _supervisor} do
-      {:ok, task_pid} =
-        Task.start_link(fn ->
-          receive do
-            :stop -> :ok
-          after
-            5000 -> :timeout
-          end
-        end)
+      {:ok, task_pid} = Task.start_link(fn -> receive do: (_ -> :ok) end)
+
+      # Ensure cleanup happens no matter what
+      on_exit(fn -> if Process.alive?(task_pid), do: Process.exit(task_pid, :kill) end)
 
       result = Control.get_process_state(task_pid)
       assert {:error, :not_a_genserver} = result
-
-      # Cleanup
-      send(task_pid, :stop)
     end
 
     test "build_process_graph/0 creates complete relationship graph" do

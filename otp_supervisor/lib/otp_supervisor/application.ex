@@ -13,6 +13,8 @@ defmodule OtpSupervisor.Application do
       {Phoenix.PubSub, name: OtpSupervisor.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: OtpSupervisor.Finch},
+      # Start the TracerRegistry for message tracing
+      {Registry, keys: :unique, name: TracerRegistry},
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
       # Start to serve requests, typically the last entry
