@@ -234,13 +234,15 @@ defmodule SupervisorTestHelper do
       :ok = SupervisorTestHelper.wait_for_child_restart(sup_pid, :my_process, original_pid)
   """
   def wait_for_child_restart(supervisor_pid, child_id, original_pid, timeout \\ 1000) do
-    task = Task.async(fn ->
-      _wait_for_child_restart(supervisor_pid, child_id, original_pid)
-    end)
+    task =
+      Task.async(fn ->
+        _wait_for_child_restart(supervisor_pid, child_id, original_pid)
+      end)
 
     case Task.yield(task, timeout) do
       {:ok, :ok} ->
         :ok
+
       nil ->
         Task.shutdown(task)
         {:error, :timeout}
@@ -255,11 +257,13 @@ defmodule SupervisorTestHelper do
     case restarted_child do
       # Child found and its PID is different from the original
       {^child_id, new_pid, _, _} when new_pid != original_pid and is_pid(new_pid) ->
-        :ok # Restart successful
+        # Restart successful
+        :ok
 
       # Child still has the same PID or hasn't restarted yet
       _ ->
-        Process.sleep(20) # Yield and try again
+        # Yield and try again
+        Process.sleep(20)
         _wait_for_child_restart(supervisor_pid, child_id, original_pid)
     end
   end
@@ -307,13 +311,16 @@ defmodule SupervisorTestHelper do
 
   defp wait_for_name_change(process_name, original_pid, timeout) do
     # Robust OTP approach: Use Task with proper timeout
-    task = Task.async(fn ->
-      monitor_name_change(process_name, original_pid)
-    end)
-    
+    task =
+      Task.async(fn ->
+        monitor_name_change(process_name, original_pid)
+      end)
+
     case Task.yield(task, timeout) do
-      {:ok, result} -> result
-      nil -> 
+      {:ok, result} ->
+        result
+
+      nil ->
         Task.shutdown(task)
         {:error, :timeout}
     end
@@ -326,11 +333,13 @@ defmodule SupervisorTestHelper do
         # Use Process.sleep to yield the scheduler and prevent busy-waiting
         Process.sleep(10)
         monitor_name_change(process_name, original_pid)
+
       nil ->
         # No process registered, wait and check again  
         # Use Process.sleep to yield the scheduler and prevent busy-waiting
         Process.sleep(10)
         monitor_name_change(process_name, original_pid)
+
       _new_pid ->
         # Different PID - restart successful!
         :ok

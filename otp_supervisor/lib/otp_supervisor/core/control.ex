@@ -114,13 +114,13 @@ defmodule OTPSupervisor.Core.Control do
 
   @doc """
   Converts a PID string into a PID.
-  
+
   Handles both "#PID<0.123.0>" and "<0.123.0>" formats.
-  
+
   Returns `{:ok, pid}` on success or `{:error, :invalid_pid}` on failure.
-  
+
   ## Examples
-  
+
       iex> OTPSupervisor.Core.Control.to_pid("#PID<0.123.0>")
       {:ok, #PID<0.123.0>}
       
@@ -208,8 +208,16 @@ defmodule OTPSupervisor.Core.Control do
         initial_call = Keyword.get(dict, :"$initial_call", false)
 
         case initial_call do
-          {mod, _, _} when mod in [:supervisor, Supervisor, DynamicSupervisor, PartitionSupervisor, Task.Supervisor] ->
+          {mod, _, _}
+          when mod in [
+                 :supervisor,
+                 Supervisor,
+                 DynamicSupervisor,
+                 PartitionSupervisor,
+                 Task.Supervisor
+               ] ->
             true
+
           _ ->
             false
         end

@@ -74,15 +74,15 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
     end
 
     property "format_bytes/1 has correct behavioral properties" do
-      check all bytes <- integer(0..10_000_000_000_000) do
+      check all(bytes <- integer(0..10_000_000_000_000)) do
         formatted = SupervisorLive.format_bytes(bytes)
-        
+
         # Property 1: Always returns a string
         assert is_binary(formatted)
-        
+
         # Property 2: Always follows format pattern (number + space + unit)
         assert formatted =~ ~r/^\d+(\.\d+)?\s+(B|KB|MB|GB)$/
-        
+
         # Property 3: For values >= 1024, the displayed number is smaller than original
         # (compression property - we show fewer digits by using larger units)
         if bytes >= 1024 do
@@ -90,12 +90,12 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
           displayed_number = String.to_float(num_string)
           assert displayed_number < bytes
         end
-        
+
         # Property 4: Small numbers show exact value in bytes
         if bytes < 1024 do
           assert formatted == "#{bytes} B"
         end
-        
+
         # Property 5: Larger units are used for larger numbers
         # (monotonicity property)
         if bytes >= 1_073_741_824 do
@@ -105,23 +105,26 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
     end
 
     property "format_bytes/1 handles non-integer input" do
-      check all invalid_input <- one_of([
-        constant(nil),
-        constant("not_a_number"),
-        constant([1, 2, 3]),
-        constant(%{key: "value"}),
-        constant(:atom),
-        float()
-      ]) do
+      check all(
+              invalid_input <-
+                one_of([
+                  constant(nil),
+                  constant("not_a_number"),
+                  constant([1, 2, 3]),
+                  constant(%{key: "value"}),
+                  constant(:atom),
+                  float()
+                ])
+            ) do
         formatted = SupervisorLive.format_bytes(invalid_input)
         assert formatted == "N/A"
       end
     end
 
     property "format_bytes/1 handles negative integers" do
-      check all bytes <- integer(-1000..-1) do
+      check all(bytes <- integer(-1000..-1)) do
         formatted = SupervisorLive.format_bytes(bytes)
-        
+
         # Should handle negative integers (they get formatted as negative bytes)
         assert is_binary(formatted)
         assert formatted == "#{bytes} B"
@@ -129,25 +132,28 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
     end
 
     property "format_key/1 handles any atom correctly" do
-      check all key_string <- string(:alphanumeric, min_length: 1, max_length: 50),
-                separator <- member_of(["_", ""]) do
+      check all(
+              key_string <- string(:alphanumeric, min_length: 1, max_length: 50),
+              separator <- member_of(["_", ""])
+            ) do
         # Create atom with potential underscores
         key_with_sep = String.replace(key_string, ~r/.{3}/, "\\0#{separator}")
         key_atom = String.to_atom(key_with_sep)
-        
+
         formatted = SupervisorLive.format_key(key_atom)
-        
+
         # Should always return a string
         assert is_binary(formatted)
-        
+
         # Should be capitalized words
         words = String.split(formatted, " ")
+
         for word <- words do
           if String.length(word) > 0 do
             assert String.at(word, 0) == String.upcase(String.at(word, 0))
           end
         end
-        
+
         # Should not contain underscores
         refute formatted =~ "_"
       end
@@ -488,7 +494,10 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
       # Verify supervisor is displayed in the UI
       html_before = render(view)
       assert has_element?(view, "[data-testid=children-header]")
-      assert view |> element("[data-testid=supervisor-name]") |> render() =~ to_string(supervisor_name)
+
+      assert view |> element("[data-testid=supervisor-name]") |> render() =~
+               to_string(supervisor_name)
+
       assert html_before =~ to_string(supervisor_name)
 
       # Kill the supervisor and catch any linked process exits
@@ -510,16 +519,19 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
 
       # Verify the UI handles the dead supervisor gracefully
       html_after = render(view)
-      
+
       # The supervisor should either:
       # 1. Disappear from the supervisors list, OR
       # 2. Show an error state in the UI
       # We test that the UI doesn't crash and shows some appropriate response
-      assert html_after =~ "error" || 
-             html_after =~ "not found" || 
-             html_after =~ "Select a Supervisor" ||
-             refute(has_element?(view, "[data-testid=supervisor-name]") && 
-                    view |> element("[data-testid=supervisor-name]") |> render() =~ to_string(supervisor_name))
+      assert html_after =~ "error" ||
+               html_after =~ "not found" ||
+               html_after =~ "Select a Supervisor" ||
+               refute(
+                 has_element?(view, "[data-testid=supervisor-name]") &&
+                   view |> element("[data-testid=supervisor-name]") |> render() =~
+                     to_string(supervisor_name)
+               )
     end
 
     test "error message display and flash handling", %{conn: conn} do
@@ -771,8 +783,12 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
       # Both should see the same content
       assert has_element?(view1, "[data-testid=children-header]")
       assert has_element?(view2, "[data-testid=children-header]")
-      assert view1 |> element("[data-testid=supervisor-name]") |> render() =~ to_string(supervisor)
-      assert view2 |> element("[data-testid=supervisor-name]") |> render() =~ to_string(supervisor)
+
+      assert view1 |> element("[data-testid=supervisor-name]") |> render() =~
+               to_string(supervisor)
+
+      assert view2 |> element("[data-testid=supervisor-name]") |> render() =~
+               to_string(supervisor)
 
       # Test that actions by one user don't interfere with another
       # Get a child process
