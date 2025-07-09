@@ -1,9 +1,17 @@
 #!/bin/bash
-# start_node2.sh - Start Node 2 (Secondary) wrapper
+# Start Node 2 (secondary)
 
-# Get the directory of this script
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "$0")/.."
 
-# Source common functions and start node 2
-source "$SCRIPT_DIR/cluster_common.sh"
-start_node 2
+echo "🚀 Starting Node 2 (secondary) - superlearner2@localhost"
+echo "Web interface: http://localhost:4010"
+echo "Press Ctrl+C to stop"
+echo "=================================================="
+
+# Set environment
+export MIX_ENV=dev
+export NODE_ROLE=secondary
+export MIX_CONFIG=config/dev2.exs
+
+# Start with proper node name, cookie, and config
+exec iex --name superlearner2@localhost --cookie secret_cluster_cookie -S mix phx.server

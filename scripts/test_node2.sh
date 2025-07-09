@@ -1,9 +1,12 @@
 #!/bin/bash
-# test_node2.sh - Test Node 2 connectivity wrapper
+# Test Node 2 connectivity
 
-# Get the directory of this script
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+echo "Testing Node 2 connectivity..."
+curl -s http://localhost:4010 > /dev/null && echo "✅ Node 2 web interface is accessible" || echo "❌ Node 2 web interface is not accessible"
 
-# Source common functions and test node 2
-source "$SCRIPT_DIR/cluster_common.sh"
-test_node 2
+# Test if node is running
+if pgrep -f "superlearner2@localhost" > /dev/null; then
+    echo "✅ Node 2 Elixir process is running"
+else
+    echo "❌ Node 2 Elixir process is not running"
+fi
