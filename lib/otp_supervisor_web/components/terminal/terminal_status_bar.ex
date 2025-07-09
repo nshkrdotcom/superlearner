@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalStatusBar do
 
   @moduledoc """
   Terminal-themed status bar component used across all pages.
-  
+
   Provides a consistent header with title, metrics, and navigation links.
   """
 
@@ -30,42 +30,45 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalStatusBar do
     ]}>
       <!-- Left section: Title and metrics -->
       <div class="flex items-center space-x-4">
-        <h1 class="text-lg font-mono font-bold"><%= @title %></h1>
-        
+        <h1 class="text-lg font-mono font-bold">{@title}</h1>
+
         <%= if @metrics != [] do %>
           <div class="flex items-center space-x-3">
             <%= for metric <- @metrics do %>
               <div class="flex items-center space-x-1">
-                <span class="text-green-300 text-sm font-mono"><%= metric.label %>:</span>
-                <span class="text-green-400 text-sm font-mono font-bold"><%= metric.value %></span>
+                <span class="text-green-300 text-sm font-mono">{metric.label}:</span>
+                <span class="text-green-400 text-sm font-mono font-bold">{metric.value}</span>
               </div>
             <% end %>
           </div>
         <% end %>
 
-        <%= render_slot(@left_section) %>
+        {render_slot(@left_section)}
       </div>
-
-      <!-- Center section -->
+      
+    <!-- Center section -->
       <div class="flex items-center">
-        <%= render_slot(@center_section) %>
+        {render_slot(@center_section)}
       </div>
-
-      <!-- Right section: Navigation links -->
+      
+    <!-- Right section: Navigation links -->
       <div class="flex items-center space-x-4">
-        <%= render_slot(@right_section) %>
-        
+        {render_slot(@right_section)}
+
         <%= if @navigation_links != [] do %>
           <div class="flex items-center space-x-2">
             <%= for link <- @navigation_links do %>
-              <.link 
+              <.link
                 navigate={link.path}
                 class={[
                   "px-2 py-1 rounded text-sm font-mono transition-colors",
-                  if(Map.get(link, :active, false), do: "bg-green-500/20 text-green-300", else: "text-green-400/70 hover:text-green-300 hover:bg-green-500/10")
+                  if(Map.get(link, :active, false),
+                    do: "bg-green-500/20 text-green-300",
+                    else: "text-green-400/70 hover:text-green-300 hover:bg-green-500/10"
+                  )
                 ]}
               >
-                <%= link.label %>
+                {link.label}
               </.link>
             <% end %>
           </div>
@@ -84,7 +87,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalStatusBar do
   end
 
   # Helper functions
-  
+
   defp height_class(:small), do: "h-12"
   defp height_class(:medium), do: "h-14"
   defp height_class(:large), do: "h-16"

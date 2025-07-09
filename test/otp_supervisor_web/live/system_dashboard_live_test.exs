@@ -1,5 +1,6 @@
 defmodule OtpSupervisorWeb.SystemDashboardLiveTest do
   use OtpSupervisorWeb.ConnCase, async: true
+  @moduletag :ui
   import Phoenix.LiveViewTest
 
   describe "system dashboard" do

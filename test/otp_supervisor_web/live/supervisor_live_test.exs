@@ -1,8 +1,9 @@
 defmodule OtpSupervisorWeb.SupervisorLiveTest do
   use OtpSupervisorWeb.ConnCase, async: false
 
+  @moduletag :ui
   import Phoenix.LiveViewTest
-  alias OtpSupervisorWeb.SupervisorLive
+  alias OtpSupervisorWeb.Live.SupervisorLive
   alias OtpSandbox.Workers.Counter
   alias OTPSupervisor.Core.Control
 

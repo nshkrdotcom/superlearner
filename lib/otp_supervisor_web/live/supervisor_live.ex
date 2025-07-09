@@ -3,16 +3,14 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
   alias OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget
-  alias OtpSupervisorWeb.Components.Terminal.TerminalTable
   alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
   alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
   alias OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget
   alias OtpSupervisorWeb.Components.Widgets.ProcessListWidget
-  alias OtpSupervisorWeb.Components.Widgets.AlertWidget
 
   @moduledoc """
   OTP supervisor monitoring and control interface.
-  
+
   Refactored to use LiveComponents for better reusability and maintainability.
   """
 
@@ -22,7 +20,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
       Phoenix.PubSub.subscribe(OtpSupervisor.PubSub, "supervisor_updates")
     end
 
-    {:ok, 
+    {:ok,
      socket
      |> assign(:page_title, "Supervisor Monitor")
      |> assign(:current_page, "supervisor")
@@ -43,8 +41,8 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   def handle_info({:supervisor_selected, supervisor_id}, socket) do
     supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
     children = get_supervisor_children(supervisor_id)
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(:selected_supervisor, supervisor)
      |> assign(:supervisor_children, children)
@@ -53,15 +51,17 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   def handle_info({:fetch_supervisor_children, supervisor_id}, socket) do
     children = get_supervisor_children(supervisor_id)
-    updated_children_map = Map.put(socket.assigns[:children_by_supervisor] || %{}, supervisor_id, children)
-    
+
+    updated_children_map =
+      Map.put(socket.assigns[:children_by_supervisor] || %{}, supervisor_id, children)
+
     # Update the supervisor tree widget with the children
     Phoenix.LiveView.send_update(
       OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget,
       id: "supervisor-tree",
       children_by_supervisor: updated_children_map
     )
-    
+
     {:noreply, assign(socket, :children_by_supervisor, updated_children_map)}
   end
 
@@ -76,8 +76,8 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
         metrics={status_bar_metrics(assigns)}
         navigation_links={TerminalNavigationLinks.page_navigation_links("supervisor", %{})}
       />
-
-      <!-- Main Layout -->
+      
+    <!-- Main Layout -->
       <.live_component
         module={TerminalPanelLayout}
         id="supervisor-panel-layout"
@@ -95,8 +95,8 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   def handle_event("select_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
     supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
     children = get_supervisor_children(supervisor_id)
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(:selected_supervisor, supervisor)
      |> assign(:supervisor_children, children)
@@ -129,7 +129,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   end
 
   def handle_event("close_children_panel", _params, socket) do
-    {:noreply, 
+    {:noreply,
      socket
      |> assign(:selected_supervisor, nil)
      |> assign(:show_children_panel, false)}
@@ -143,7 +143,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp load_supervisor_data(socket) do
     supervisors = get_supervisors()
-    
+
     socket
     |> assign(:supervisors, supervisors)
     |> assign(:supervisor_count, length(supervisors))
@@ -154,7 +154,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp update_supervisor_data(socket) do
     supervisors = get_supervisors()
-    
+
     socket
     |> assign(:supervisors, supervisors)
     |> assign(:supervisor_count, length(supervisors))
@@ -188,7 +188,10 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
     [
       %{label: "Supervisors", value: "#{assigns.supervisor_count}"},
       %{label: "Health", value: supervisor_health_summary(assigns.supervisor_health)},
-      %{label: "Selected", value: if(assigns.selected_supervisor, do: assigns.selected_supervisor.name, else: "None")},
+      %{
+        label: "Selected",
+        value: if(assigns.selected_supervisor, do: assigns.selected_supervisor.name, else: "None")
+      },
       %{label: "Children", value: "#{length(assigns.supervisor_children || [])}"}
     ]
   end
@@ -210,7 +213,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
           },
           span: %{cols: 1, rows: 2}
         },
-        
+
         # Right panel: Children ProcessListWidget
         %{
           title: "Children of #{assigns.selected_supervisor.name}",
@@ -249,7 +252,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
           },
           span: %{cols: 1, rows: 2}
         },
-        
+
         # Right panel: Supervisor Health Overview
         %{
           title: "Supervisor Health",
@@ -288,13 +291,16 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp get_supervisors do
     # Use the Arsenal API for consistency with REST endpoints
-    with {:ok, validated_params} <- OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.validate_params(%{}),
-         {:ok, {supervisors, _meta}} <- OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.execute(validated_params) do
+    with {:ok, validated_params} <-
+           OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.validate_params(%{}),
+         {:ok, {supervisors, _meta}} <-
+           OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.execute(validated_params) do
       Enum.map(supervisors, &format_arsenal_supervisor_for_display/1)
     else
       {:error, reason} ->
         # Log the error and fallback to Control module
         IO.puts("Arsenal API failed: #{inspect(reason)}")
+
         OTPSupervisor.Core.Control.list_supervisors()
         |> Enum.map(&format_supervisor_for_display/1)
     end
@@ -302,12 +308,13 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp format_arsenal_supervisor_for_display(supervisor) do
     # Handle both atom and string names from Arsenal
-    supervisor_name = case supervisor.name do
-      name when is_atom(name) -> name
-      name when is_binary(name) -> String.to_existing_atom(name)
-      name -> name
-    end
-    
+    supervisor_name =
+      case supervisor.name do
+        name when is_atom(name) -> name
+        name when is_binary(name) -> String.to_existing_atom(name)
+        name -> name
+      end
+
     %{
       id: to_string(supervisor.name),
       name: to_string(supervisor.name),
@@ -338,6 +345,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp get_supervisor_children(supervisor_id) do
     supervisor_name = String.to_atom(supervisor_id)
+
     OTPSupervisor.Core.Control.get_supervisor_children(supervisor_name)
     |> Enum.map(&format_child_for_display(&1, supervisor_id))
   end
@@ -346,7 +354,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
     pid_value = Map.get(child, :pid, :undefined)
     child_id = Map.get(child, :id, "unknown")
     child_type = Map.get(child, :type, :worker)
-    
+
     %{
       id: "child_#{supervisor_id}_#{child_id}",
       name: to_string(child_id),
@@ -361,11 +369,11 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp get_supervisor_health do
     supervisors = get_supervisors()
-    
+
     healthy = Enum.count(supervisors, &(&1.status == :running))
     stopped = Enum.count(supervisors, &(&1.status == :stopped))
     error = Enum.count(supervisors, &(&1.status == :error))
-    
+
     %{
       healthy: healthy,
       warning: stopped,
@@ -392,7 +400,8 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
         uptime: supervisor.uptime,
         memory: supervisor.memory,
         restart_count: supervisor.restart_count,
-        children: []  # Children are loaded dynamically when expanded
+        # Children are loaded dynamically when expanded
+        children: []
       }
     end)
   end
@@ -429,7 +438,9 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   defp get_supervisor_strategy(supervisor_name) do
     try do
       case Process.whereis(supervisor_name) do
-        nil -> :unknown
+        nil ->
+          :unknown
+
         pid ->
           case :sys.get_state(pid, 1000) do
             state when is_map(state) -> Map.get(state, :strategy, :one_for_one)
@@ -444,11 +455,14 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   defp get_supervisor_uptime(supervisor_name) do
     try do
       case Process.whereis(supervisor_name) do
-        nil -> 0
+        nil ->
+          0
+
         pid ->
           case Process.info(pid, :current_function) do
             nil -> 0
-            _ -> :rand.uniform(86400)  # TODO: Calculate real uptime
+            # TODO: Calculate real uptime
+            _ -> :rand.uniform(86400)
           end
       end
     rescue
@@ -459,7 +473,9 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   defp get_supervisor_memory(supervisor_name) do
     try do
       case Process.whereis(supervisor_name) do
-        nil -> 0
+        nil ->
+          0
+
         pid ->
           case Process.info(pid, :memory) do
             {:memory, memory} -> memory
@@ -501,4 +517,33 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   end
 
   defp get_process_memory(_), do: 0
+
+  # Format functions for compatibility with existing tests
+  def format_bytes(bytes) when is_integer(bytes) do
+    cond do
+      bytes >= 1_073_741_824 -> "#{Float.round(bytes / 1_073_741_824, 2)} GB"
+      bytes >= 1_048_576 -> "#{Float.round(bytes / 1_048_576, 2)} MB"
+      bytes >= 1024 -> "#{Float.round(bytes / 1024, 2)} KB"
+      true -> "#{bytes} B"
+    end
+  end
+
+  def format_bytes(_), do: "N/A"
+
+  def format_key(key) when is_atom(key) do
+    key
+    |> Atom.to_string()
+    |> String.split("_")
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(" ")
+  end
+
+  def format_value(value) when is_integer(value), do: to_string(value)
+  def format_value(value) when is_atom(value), do: inspect(value)
+
+  def format_value({m, f, a}) when is_atom(m) and is_atom(f) and is_integer(a) do
+    "#{m}.#{f}/#{a}"
+  end
+
+  def format_value(value), do: inspect(value)
 end

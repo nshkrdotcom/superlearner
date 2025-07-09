@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
 
   @moduledoc """
   Hierarchical supervisor tree widget with interactive navigation.
-  
+
   Displays the OTP supervisor tree structure with:
   - Collapsible tree nodes
   - Interactive selection and drilling down
@@ -54,8 +54,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
           </button>
         </div>
       </div>
-
-      <!-- Tree view -->
+      
+    <!-- Tree view -->
       <div class="flex-1 overflow-auto p-4">
         <%= if @supervisors == [] do %>
           <div class="text-center py-8">
@@ -64,31 +64,31 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
         <% else %>
           <div class="space-y-2">
             <%= for supervisor <- @supervisors do %>
-              <%= render_supervisor_node(assigns, supervisor, 0) %>
+              {render_supervisor_node(assigns, supervisor, 0)}
             <% end %>
           </div>
         <% end %>
       </div>
-
-      <!-- Footer with selected supervisor info -->
+      
+    <!-- Footer with selected supervisor info -->
       <%= if @selected_supervisor do %>
         <div class="border-t border-green-500/20 p-3">
           <div class="text-sm">
             <div class="font-mono font-bold text-green-300 mb-1">
-              Selected: <%= @selected_supervisor.name %>
+              Selected: {@selected_supervisor.name}
             </div>
             <div class="grid grid-cols-2 gap-4 text-xs">
               <div>
                 <span class="text-green-400/70">PID:</span>
-                <span class="text-green-400 font-mono"><%= @selected_supervisor.pid %></span>
+                <span class="text-green-400 font-mono">{@selected_supervisor.pid}</span>
               </div>
               <div>
                 <span class="text-green-400/70">Strategy:</span>
-                <span class="text-green-400 font-mono"><%= @selected_supervisor.strategy %></span>
+                <span class="text-green-400 font-mono">{@selected_supervisor.strategy}</span>
               </div>
               <div>
                 <span class="text-green-400/70">Children:</span>
-                <span class="text-green-400 font-mono"><%= @selected_supervisor.children_count %></span>
+                <span class="text-green-400 font-mono">{@selected_supervisor.children_count}</span>
               </div>
               <div>
                 <span class="text-green-400/70">Status:</span>
@@ -96,7 +96,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
                   "font-mono",
                   supervisor_status_color(@selected_supervisor.status)
                 ]}>
-                  <%= String.capitalize(to_string(@selected_supervisor.status)) %>
+                  {String.capitalize(to_string(@selected_supervisor.status))}
                 </span>
               </div>
             </div>
@@ -108,7 +108,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
   end
 
   def mount(socket) do
-    {:ok, 
+    {:ok,
      socket
      |> assign(:expanded_nodes, MapSet.new())
      |> assign(:hovered_node, nil)
@@ -123,27 +123,28 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
 
   def handle_event("toggle_node", %{"supervisor_id" => supervisor_id}, socket) do
     expanded = socket.assigns.expanded_nodes
-    
-    new_expanded = if MapSet.member?(expanded, supervisor_id) do
-      MapSet.delete(expanded, supervisor_id)
-    else
-      MapSet.put(expanded, supervisor_id)
-    end
-    
+
+    new_expanded =
+      if MapSet.member?(expanded, supervisor_id) do
+        MapSet.delete(expanded, supervisor_id)
+      else
+        MapSet.put(expanded, supervisor_id)
+      end
+
     # If expanding, fetch children for this supervisor
     if !MapSet.member?(expanded, supervisor_id) do
       send(self(), {:fetch_supervisor_children, supervisor_id})
     end
-    
+
     {:noreply, assign(socket, :expanded_nodes, new_expanded)}
   end
 
   def handle_event("select_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
     supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
-    
+
     # Notify parent component via Phoenix.LiveView.send_update
     send(self(), {:supervisor_selected, supervisor_id})
-    
+
     {:noreply, assign(socket, :selected_supervisor, supervisor)}
   end
 
@@ -161,7 +162,11 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
     {:noreply, socket}
   end
 
-  def handle_event("supervisor_action", %{"action" => action, "supervisor_id" => supervisor_id}, socket) do
+  def handle_event(
+        "supervisor_action",
+        %{"action" => action, "supervisor_id" => supervisor_id},
+        socket
+      ) do
     send(self(), {:supervisor_action, action, supervisor_id})
     {:noreply, socket}
   end
@@ -173,7 +178,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
     assigns = assign(assigns, :expanded, expanded)
     assigns = assign(assigns, :supervisor, supervisor)
     assigns = assign(assigns, :depth, depth)
-    
+
     ~H"""
     <div class={[
       "flex flex-col",
@@ -182,7 +187,10 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
       <!-- Supervisor node -->
       <div class={[
         "flex items-center space-x-2 p-2 rounded hover:bg-green-500/5 transition-colors cursor-pointer",
-        if(@selected_supervisor && @selected_supervisor.id == @supervisor.id, do: "bg-green-500/10", else: "")
+        if(@selected_supervisor && @selected_supervisor.id == @supervisor.id,
+          do: "bg-green-500/10",
+          else: ""
+        )
       ]}>
         <!-- Expand/collapse button -->
         <%= if has_children?(@supervisor) do %>
@@ -203,24 +211,25 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
             <span class="text-xs text-green-400/30">•</span>
           </div>
         <% end %>
-
-        <!-- Tree connector lines -->
+        
+    <!-- Tree connector lines -->
         <%= if @depth > 0 do %>
           <div class="flex items-center">
             <div class="w-4 h-px bg-green-500/30"></div>
           </div>
         <% end %>
-
-        <!-- Supervisor icon and info -->
+        
+    <!-- Supervisor icon and info -->
         <div class="flex items-center space-x-2 flex-1">
           <div class="flex items-center space-x-1">
-            <span class="text-green-400"><%= supervisor_icon(@supervisor) %></span>
+            <span class="text-green-400">{supervisor_icon(@supervisor)}</span>
             <span class={[
               "w-2 h-2 rounded-full",
               supervisor_health_color(@supervisor.status)
-            ]}></span>
+            ]}>
+            </span>
           </div>
-          
+
           <button
             phx-target={@myself}
             phx-click="select_supervisor"
@@ -228,15 +237,15 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
             class="flex items-center space-x-2 text-left hover:text-green-300 transition-colors"
           >
             <span class="font-mono text-sm text-green-400">
-              <%= @supervisor.name %>
+              {@supervisor.name}
             </span>
             <span class="font-mono text-xs text-green-400/70">
-              (<%= @supervisor.children_count %> children)
+              ({@supervisor.children_count} children)
             </span>
           </button>
         </div>
-
-        <!-- Supervisor actions -->
+        
+    <!-- Supervisor actions -->
         <div class="flex items-center space-x-1">
           <button
             phx-target={@myself}
@@ -259,17 +268,17 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
             🔄
           </button>
         </div>
-
-        <!-- Status indicator -->
+        
+    <!-- Status indicator -->
         <div class={[
           "px-2 py-1 rounded text-xs font-mono",
           supervisor_status_classes(@supervisor.status)
         ]}>
-          <%= supervisor_status_text(@supervisor.status) %>
+          {supervisor_status_text(@supervisor.status)}
         </div>
       </div>
-
-      <!-- Children (if expanded) -->
+      
+    <!-- Children (if expanded) -->
       <%= if @expanded && @show_children do %>
         <div class="ml-6 mt-2 space-y-1">
           <%= for child <- Map.get(@children_by_supervisor, @supervisor.id, []) do %>
@@ -279,27 +288,28 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
                 <span class="text-xs text-green-400/30">├</span>
               </div>
               
-              <!-- Child info -->
+    <!-- Child info -->
               <div class="flex items-center space-x-2 flex-1">
-                <span class="text-green-400/70"><%= child_icon(child) %></span>
+                <span class="text-green-400/70">{child_icon(child)}</span>
                 <span class={[
                   "w-2 h-2 rounded-full",
                   child_health_color(child.status)
-                ]}></span>
+                ]}>
+                </span>
                 <span class="font-mono text-sm text-green-400/80">
-                  <%= child.name %>
+                  {child.name}
                 </span>
                 <span class="font-mono text-xs text-green-400/50">
-                  <%= child.pid %>
+                  {child.pid}
                 </span>
               </div>
               
-              <!-- Child status -->
+    <!-- Child status -->
               <div class={[
                 "px-2 py-1 rounded text-xs font-mono",
                 child_status_classes(child.status)
               ]}>
-                <%= child_status_text(child.status) %>
+                {child_status_text(child.status)}
               </div>
             </div>
           <% end %>

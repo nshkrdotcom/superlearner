@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProgressBarWidget do
 
   @moduledoc """
   Visual progress bar widget for various progress indicators.
-  
+
   Supports multiple styles and configurations:
   - Horizontal and vertical orientations
   - Different color schemes and themes
@@ -36,42 +36,47 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProgressBarWidget do
           "text-green-400/70 font-mono text-xs",
           if(@orientation == :vertical, do: "mb-2", else: "mr-2")
         ]}>
-          <%= @label %>
+          {@label}
         </div>
       <% end %>
-
-      <!-- Progress bar container -->
+      
+    <!-- Progress bar container -->
       <div class={[
         "relative overflow-hidden rounded",
         container_classes(@orientation, @size),
         background_classes()
       ]}>
         <!-- Progress fill -->
-        <div class={[
-          "rounded transition-all duration-300",
-          fill_classes(@orientation, @size),
-          progress_color_classes(@color),
-          if(@animated, do: "transition-all duration-500 ease-out", else: ""),
-          if(@striped, do: "bg-gradient-to-r from-current via-transparent to-current bg-[length:20px_20px] animate-pulse", else: "")
-        ]}
-        style={progress_style(@value, @max_value, @orientation)}
+        <div
+          class={[
+            "rounded transition-all duration-300",
+            fill_classes(@orientation, @size),
+            progress_color_classes(@color),
+            if(@animated, do: "transition-all duration-500 ease-out", else: ""),
+            if(@striped,
+              do:
+                "bg-gradient-to-r from-current via-transparent to-current bg-[length:20px_20px] animate-pulse",
+              else: ""
+            )
+          ]}
+          style={progress_style(@value, @max_value, @orientation)}
         >
         </div>
-
-        <!-- Percentage text overlay -->
+        
+    <!-- Percentage text overlay -->
         <%= if @show_percentage and @orientation == :horizontal do %>
           <div class="absolute inset-0 flex items-center justify-center">
             <span class="text-xs font-mono font-bold text-gray-900 mix-blend-difference">
-              <%= progress_percentage(@value, @max_value) %>%
+              {progress_percentage(@value, @max_value)}%
             </span>
           </div>
         <% end %>
       </div>
-
-      <!-- Percentage text (vertical) -->
+      
+    <!-- Percentage text (vertical) -->
       <%= if @show_percentage and @orientation == :vertical do %>
         <div class="mt-2 text-xs font-mono font-bold text-green-400">
-          <%= progress_percentage(@value, @max_value) %>%
+          {progress_percentage(@value, @max_value)}%
         </div>
       <% end %>
     </div>

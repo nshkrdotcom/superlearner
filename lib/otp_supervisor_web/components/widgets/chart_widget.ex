@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
 
   @moduledoc """
   Data visualization widget for various charts and graphs.
-  
+
   Supports multiple chart types and visualization options:
   - Line charts for time series data
   - Bar charts for categorical data
@@ -39,13 +39,13 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
       <div class="flex items-center justify-between p-3 border-b border-green-500/20">
         <div class="flex items-center space-x-4">
           <h3 class="text-sm font-mono font-bold text-green-300">
-            <%= if @title != "", do: @title, else: chart_type_name(@chart_type) %>
+            {if @title != "", do: @title, else: chart_type_name(@chart_type)}
           </h3>
           <span class="text-xs text-green-400/70 font-mono">
-            (<%= length(@data) %> points)
+            ({length(@data)} points)
           </span>
         </div>
-        
+
         <div class="flex items-center space-x-2">
           <!-- Chart controls -->
           <button
@@ -53,23 +53,29 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
             phx-click="toggle_grid"
             class={[
               "px-2 py-1 text-xs border border-green-500/30 rounded font-mono hover:bg-green-500/30 transition-colors",
-              if(@show_grid, do: "bg-green-500/20 text-green-400", else: "bg-gray-500/20 text-gray-400")
+              if(@show_grid,
+                do: "bg-green-500/20 text-green-400",
+                else: "bg-gray-500/20 text-gray-400"
+              )
             ]}
           >
             Grid
           </button>
-          
+
           <button
             phx-target={@myself}
             phx-click="toggle_legend"
             class={[
               "px-2 py-1 text-xs border border-green-500/30 rounded font-mono hover:bg-green-500/30 transition-colors",
-              if(@show_legend, do: "bg-green-500/20 text-green-400", else: "bg-gray-500/20 text-gray-400")
+              if(@show_legend,
+                do: "bg-green-500/20 text-green-400",
+                else: "bg-gray-500/20 text-gray-400"
+              )
             ]}
           >
             Legend
           </button>
-          
+
           <button
             phx-target={@myself}
             phx-click="reset_zoom"
@@ -77,7 +83,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
           >
             Reset
           </button>
-          
+
           <button
             phx-target={@myself}
             phx-click="export_chart"
@@ -87,22 +93,22 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
           </button>
         </div>
       </div>
-
-      <!-- Chart area -->
+      
+    <!-- Chart area -->
       <div class="flex-1 flex flex-col min-h-0">
         <%= if @data == [] do %>
           <div class="flex-1 flex items-center justify-center">
             <div class="text-center">
               <div class="text-green-400/50 text-sm font-mono">No data available</div>
               <div class="text-green-400/30 text-xs font-mono mt-1">
-                Add data to display <%= chart_type_name(@chart_type) %> chart
+                Add data to display {chart_type_name(@chart_type)} chart
               </div>
             </div>
           </div>
         <% else %>
           <div class="flex-1 relative">
             <!-- Chart container -->
-            <div 
+            <div
               class="absolute inset-0 m-4"
               id={"chart-#{@myself}"}
               phx-hook={if @interactive, do: "ChartWidget", else: nil}
@@ -111,13 +117,13 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
               data-chart-config={Jason.encode!(chart_config(assigns))}
             >
               <!-- SVG Chart will be rendered here by JavaScript -->
-              <%= render_chart(assigns) %>
+              {render_chart(assigns)}
             </div>
           </div>
         <% end %>
       </div>
-
-      <!-- Legend -->
+      
+    <!-- Legend -->
       <%= if @show_legend and @data != [] do %>
         <div class="border-t border-green-500/20 p-3">
           <div class="flex items-center justify-center space-x-4 text-xs">
@@ -126,30 +132,31 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
                 <div class={[
                   "w-3 h-3 rounded",
                   legend_color(index, @color_scheme)
-                ]}></div>
-                <span class="text-green-400/70 font-mono"><%= label %></span>
+                ]}>
+                </div>
+                <span class="text-green-400/70 font-mono">{label}</span>
               </div>
             <% end %>
           </div>
         </div>
       <% end %>
-
-      <!-- Chart statistics -->
+      
+    <!-- Chart statistics -->
       <div class="border-t border-green-500/20 p-2">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center space-x-4">
             <span class="text-green-400/70 font-mono">
-              Min: <span class="text-green-400"><%= format_value(get_min_value(@data)) %></span>
+              Min: <span class="text-green-400">{format_value(get_min_value(@data))}</span>
             </span>
             <span class="text-green-400/70 font-mono">
-              Max: <span class="text-green-400"><%= format_value(get_max_value(@data)) %></span>
+              Max: <span class="text-green-400">{format_value(get_max_value(@data))}</span>
             </span>
             <span class="text-green-400/70 font-mono">
-              Avg: <span class="text-green-400"><%= format_value(get_avg_value(@data)) %></span>
+              Avg: <span class="text-green-400">{format_value(get_avg_value(@data))}</span>
             </span>
           </div>
           <div class="text-green-400/70 font-mono">
-            Last updated: <%= format_timestamp(DateTime.utc_now()) %>
+            Last updated: {format_timestamp(DateTime.utc_now())}
           </div>
         </div>
       </div>
@@ -163,7 +170,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
 
   def update(assigns, socket) do
     socket = assign(socket, assigns)
-    
+
     # Set up real-time updates if enabled
     if Map.get(assigns, :real_time, false) do
       Process.send_after(self(), :update_chart_data, 1000)
@@ -214,22 +221,24 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
   end
 
   defp render_chart(%{chart_type: :line, data: data} = assigns) do
+    assigns = assign(assigns, :data, data)
+
     ~H"""
     <svg viewBox="0 0 400 300" class="w-full h-full">
       <!-- Grid lines -->
       <%= if @show_grid do %>
         <defs>
           <pattern id={"grid-#{@myself}"} width="40" height="30" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 30" fill="none" stroke="#10b981" stroke-width="0.5" opacity="0.2"/>
+            <path d="M 40 0 L 0 0 0 30" fill="none" stroke="#10b981" stroke-width="0.5" opacity="0.2" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill={"url(#grid-#{@myself})"} />
       <% end %>
       
-      <!-- Chart line -->
-      <%= if length(data) > 1 do %>
+    <!-- Chart line -->
+      <%= if length(@data) > 1 do %>
         <polyline
-          points={line_points(data)}
+          points={line_points(@data)}
           fill="none"
           stroke="#10b981"
           stroke-width="2"
@@ -237,11 +246,11 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
         />
       <% end %>
       
-      <!-- Data points -->
-      <%= for {point, index} <- Enum.with_index(data) do %>
+    <!-- Data points -->
+      <%= for {point, index} <- Enum.with_index(@data) do %>
         <circle
-          cx={point_x(point, index, length(data))}
-          cy={point_y(point, data)}
+          cx={point_x(point, index, length(@data))}
+          cy={point_y(point, @data)}
           r="3"
           fill="#10b981"
           class="hover:fill-green-300 transition-colors cursor-pointer"
@@ -252,25 +261,27 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
   end
 
   defp render_chart(%{chart_type: :bar, data: data} = assigns) do
+    assigns = assign(assigns, :data, data)
+
     ~H"""
     <svg viewBox="0 0 400 300" class="w-full h-full">
       <!-- Grid lines -->
       <%= if @show_grid do %>
         <defs>
           <pattern id={"grid-#{@myself}"} width="40" height="30" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 30" fill="none" stroke="#10b981" stroke-width="0.5" opacity="0.2"/>
+            <path d="M 40 0 L 0 0 0 30" fill="none" stroke="#10b981" stroke-width="0.5" opacity="0.2" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill={"url(#grid-#{@myself})"} />
       <% end %>
       
-      <!-- Bars -->
-      <%= for {point, index} <- Enum.with_index(data) do %>
+    <!-- Bars -->
+      <%= for {point, index} <- Enum.with_index(@data) do %>
         <rect
-          x={bar_x(index, length(data))}
-          y={bar_y(point, data)}
-          width={bar_width(length(data))}
-          height={bar_height(point, data)}
+          x={bar_x(index, length(@data))}
+          y={bar_y(point, @data)}
+          width={bar_width(length(@data))}
+          height={bar_height(point, @data)}
           fill="#10b981"
           class="hover:fill-green-300 transition-colors cursor-pointer"
         />
@@ -280,10 +291,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
   end
 
   defp render_chart(%{chart_type: :pie, data: data} = assigns) do
+    assigns = assign(assigns, :data, data)
+
     ~H"""
     <svg viewBox="0 0 400 300" class="w-full h-full">
       <!-- Pie slices -->
-      <%= for {slice, index} <- Enum.with_index(pie_slices(data)) do %>
+      <%= for {slice, index} <- Enum.with_index(pie_slices(@data)) do %>
         <path
           d={slice.path}
           fill={pie_color(index, @color_scheme)}
@@ -296,22 +309,24 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
   end
 
   defp render_chart(%{chart_type: :area, data: data} = assigns) do
+    assigns = assign(assigns, :data, data)
+
     ~H"""
     <svg viewBox="0 0 400 300" class="w-full h-full">
       <!-- Grid lines -->
       <%= if @show_grid do %>
         <defs>
           <pattern id={"grid-#{@myself}"} width="40" height="30" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 30" fill="none" stroke="#10b981" stroke-width="0.5" opacity="0.2"/>
+            <path d="M 40 0 L 0 0 0 30" fill="none" stroke="#10b981" stroke-width="0.5" opacity="0.2" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill={"url(#grid-#{@myself})"} />
       <% end %>
       
-      <!-- Area fill -->
-      <%= if length(data) > 1 do %>
+    <!-- Area fill -->
+      <%= if length(@data) > 1 do %>
         <polygon
-          points={area_points(data)}
+          points={area_points(@data)}
           fill="rgba(16, 185, 129, 0.3)"
           stroke="#10b981"
           stroke-width="2"
@@ -328,15 +343,17 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
     end
   end
 
-  defp legend_color(index, :green), do: "bg-green-500"
-  defp legend_color(index, :blue), do: "bg-blue-500"
+  defp legend_color(_index, :green), do: "bg-green-500"
+  defp legend_color(_index, :blue), do: "bg-blue-500"
+
   defp legend_color(index, :multi) do
     colors = ["bg-green-500", "bg-blue-500", "bg-yellow-500", "bg-red-500", "bg-purple-500"]
     Enum.at(colors, rem(index, length(colors)))
   end
 
-  defp pie_color(index, :green), do: "#10b981"
-  defp pie_color(index, :blue), do: "#3b82f6"
+  defp pie_color(_index, :green), do: "#10b981"
+  defp pie_color(_index, :blue), do: "#3b82f6"
+
   defp pie_color(index, :multi) do
     colors = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"]
     Enum.at(colors, rem(index, length(colors)))
@@ -356,6 +373,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
 
   defp get_avg_value(data) do
     values = Enum.map(data, fn point -> get_point_value(point) end)
+
     if length(values) > 0 do
       Float.round(Enum.sum(values) / length(values), 2)
     else
@@ -380,8 +398,6 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
     Calendar.strftime(dt, "%H:%M:%S")
   end
 
-  defp format_timestamp(_), do: "N/A"
-
   # Chart rendering math helpers
 
   defp line_points(data) do
@@ -403,18 +419,18 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
   end
 
   defp point_x(_point, index, total) do
-    (index / (total - 1)) * 360 + 20
+    index / (total - 1) * 360 + 20
   end
 
   defp point_y(point, data) do
     value = get_point_value(point)
     max_val = get_max_value(data)
     min_val = get_min_value(data)
-    
+
     if max_val == min_val do
       150
     else
-      280 - ((value - min_val) / (max_val - min_val)) * 260
+      280 - (value - min_val) / (max_val - min_val) * 260
     end
   end
 
@@ -435,31 +451,32 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
     value = get_point_value(point)
     max_val = get_max_value(data)
     min_val = get_min_value(data)
-    
+
     if max_val == min_val do
       1
     else
-      ((value - min_val) / (max_val - min_val)) * 260
+      (value - min_val) / (max_val - min_val) * 260
     end
   end
 
   defp pie_slices(data) do
     total = Enum.sum(Enum.map(data, fn point -> get_point_value(point) end))
-    
+
     if total > 0 do
-      {slices, _} = Enum.reduce(data, {[], 0}, fn point, {slices, start_angle} ->
-        value = get_point_value(point)
-        angle = (value / total) * 360
-        
-        slice = %{
-          path: pie_slice_path(start_angle, angle),
-          angle: angle,
-          value: value
-        }
-        
-        {[slice | slices], start_angle + angle}
-      end)
-      
+      {slices, _} =
+        Enum.reduce(data, {[], 0}, fn point, {slices, start_angle} ->
+          value = get_point_value(point)
+          angle = value / total * 360
+
+          slice = %{
+            path: pie_slice_path(start_angle, angle),
+            angle: angle,
+            value: value
+          }
+
+          {[slice | slices], start_angle + angle}
+        end)
+
       Enum.reverse(slices)
     else
       []
@@ -467,16 +484,16 @@ defmodule OtpSupervisorWeb.Components.Widgets.ChartWidget do
   end
 
   defp pie_slice_path(start_angle, angle) do
-    start_radians = (start_angle * :math.pi()) / 180
-    end_radians = ((start_angle + angle) * :math.pi()) / 180
-    
+    start_radians = start_angle * :math.pi() / 180
+    end_radians = (start_angle + angle) * :math.pi() / 180
+
     x1 = 80 * :math.cos(start_radians)
     y1 = 80 * :math.sin(start_radians)
     x2 = 80 * :math.cos(end_radians)
     y2 = 80 * :math.sin(end_radians)
-    
+
     large_arc = if angle > 180, do: 1, else: 0
-    
+
     "M 0,0 L #{x1},#{y1} A 80,80 0 #{large_arc},1 #{x2},#{y2} Z"
   end
 end

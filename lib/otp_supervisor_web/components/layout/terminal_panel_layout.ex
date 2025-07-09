@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
 
   @moduledoc """
   Flexible terminal-themed panel layout system for different page structures.
-  
+
   Supports various layout configurations:
   - :two_panel - Side-by-side panels (used by DocsLive, SupervisorLive)
   - :three_panel - Three column layout (used by ArsenalLive)
@@ -36,42 +36,39 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
       <!-- Header -->
       <%= if @header != [] do %>
         <div class="flex-shrink-0">
-          <%= render_slot(@header) %>
+          {render_slot(@header)}
         </div>
       <% end %>
-
-      <!-- Main content area -->
+      
+    <!-- Main content area -->
       <div class="flex-1 overflow-hidden">
         <%= case @layout_type do %>
           <% :two_panel -> %>
             <div class="flex h-full gap-4">
-              <%= render_two_panel_layout(assigns) %>
+              {render_two_panel_layout(assigns)}
             </div>
-          
           <% :three_panel -> %>
             <div class="flex h-full gap-4">
-              <%= render_three_panel_layout(assigns) %>
+              {render_three_panel_layout(assigns)}
             </div>
-          
           <% :grid -> %>
             <div class={[
               "grid h-full gap-4",
               grid_classes(@panels)
             ]}>
-              <%= render_grid_layout(assigns) %>
+              {render_grid_layout(assigns)}
             </div>
-          
           <% :stacked -> %>
             <div class="flex flex-col h-full gap-4">
-              <%= render_stacked_layout(assigns) %>
+              {render_stacked_layout(assigns)}
             </div>
         <% end %>
       </div>
-
-      <!-- Footer -->
+      
+    <!-- Footer -->
       <%= if @footer != [] do %>
         <div class="flex-shrink-0">
-          <%= render_slot(@footer) %>
+          {render_slot(@footer)}
         </div>
       <% end %>
     </div>
@@ -97,7 +94,7 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
         @border_color
       ]}>
         <div class="flex-1 overflow-auto h-full">
-          <%= render_panel_content(panel) %>
+          {render_panel_content(panel)}
         </div>
       </div>
     <% end %>
@@ -113,7 +110,7 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
         @border_color
       ]}>
         <div class="flex-1 overflow-auto h-full">
-          <%= render_panel_content(panel) %>
+          {render_panel_content(panel)}
         </div>
       </div>
     <% end %>
@@ -129,7 +126,7 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
         @border_color
       ]}>
         <div class="flex-1 overflow-auto h-full">
-          <%= render_panel_content(panel) %>
+          {render_panel_content(panel)}
         </div>
       </div>
     <% end %>
@@ -145,7 +142,7 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
         @border_color
       ]}>
         <div class="flex-1 overflow-auto h-full">
-          <%= render_panel_content(panel) %>
+          {render_panel_content(panel)}
         </div>
       </div>
     <% end %>
@@ -156,13 +153,9 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
 
   defp render_panel_content(%{component: component, assigns: component_assigns}) do
     assigns = %{component: component, component_assigns: component_assigns}
-    
+
     ~H"""
-    <.live_component
-      module={@component}
-      id={@component_assigns.id}
-      {@component_assigns}
-    />
+    <.live_component module={@component} id={@component_assigns.id} {@component_assigns} />
     """
   end
 
@@ -177,27 +170,6 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
   defp render_panel_content(_panel) do
     Phoenix.HTML.raw("<div class='p-4 text-green-400/50 font-mono'>No content provided</div>")
   end
-
-  # Action rendering
-
-  defp render_action(%{type: :button, label: label, event: event}) do
-    Phoenix.HTML.raw(~s(<button class="px-2 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors" phx-click="#{event}">#{label}</button>))
-  end
-
-  defp render_action(%{type: :link, label: label, href: href}) do
-    Phoenix.HTML.raw(~s(<a href="#{href}" class="px-2 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors">#{label}</a>))
-  end
-
-  defp render_action(%{type: :toggle, label: label, event: event, active: active}) do
-    active_class = if active, do: "bg-green-500/30", else: "bg-green-500/20"
-    Phoenix.HTML.raw(~s(<button class="px-2 py-1 text-xs #{active_class} border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors" phx-click="#{event}">#{label}</button>))
-  end
-
-  defp render_action(action) when is_binary(action) do
-    Phoenix.HTML.raw(action)
-  end
-
-  defp render_action(_), do: nil
 
   # CSS class helpers
 
@@ -218,16 +190,20 @@ defmodule OtpSupervisorWeb.Components.Layout.TerminalPanelLayout do
   defp layout_specific_panel_classes(:grid, _), do: []
   defp layout_specific_panel_classes(:stacked, _), do: []
 
-  defp three_panel_width_classes(0, 3), do: ["w-1/4", "min-w-64"]  # Left panel
-  defp three_panel_width_classes(1, 3), do: ["flex-1"]              # Center panel
-  defp three_panel_width_classes(2, 3), do: ["w-1/3", "min-w-80"]   # Right panel
+  # Left panel
+  defp three_panel_width_classes(0, 3), do: ["w-1/4", "min-w-64"]
+  # Center panel
+  defp three_panel_width_classes(1, 3), do: ["flex-1"]
+  # Right panel
+  defp three_panel_width_classes(2, 3), do: ["w-1/3", "min-w-80"]
   defp three_panel_width_classes(index, 2) when index < 2, do: ["flex-1"]
   defp three_panel_width_classes(_, _), do: ["flex-1"]
 
   defp grid_classes(panels) do
     # Look at the actual spans to determine grid structure
-    max_cols = panels |> Enum.map(fn p -> Map.get(p[:span] || %{}, :cols, 1) end) |> Enum.max(fn -> 1 end)
-    
+    max_cols =
+      panels |> Enum.map(fn p -> Map.get(p[:span] || %{}, :cols, 1) end) |> Enum.max(fn -> 1 end)
+
     case max_cols do
       1 -> "grid-cols-1"
       2 -> "grid-cols-2"

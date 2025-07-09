@@ -75,31 +75,59 @@ defmodule OTPSupervisor.Core.CleanupValidationTest do
     end
   end
 
-  describe "demo supervisor functionality preserved" do
+  describe "sandbox functionality preserved" do
     setup do
-      get_demo_supervisor()
+      import SandboxTestHelper
+      setup_sandbox_test(nil)
     end
 
-    test "demo supervisor accessible", %{supervisor: supervisor} do
-      assert supervisor == :demo_one_for_one
-      {:ok, children} = OTPSupervisor.Core.Control.get_supervision_tree(supervisor)
-      # Should have counters and printer
-      assert length(children) >= 3
+    test "can create sandbox with demo supervisor" do
+      # Test that we can create a sandbox with the demo supervisor
+      {:ok, sandbox_info} =
+        OTPSupervisor.Core.Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
+
+      # Verify sandbox has correct structure
+      assert is_binary(sandbox_info.id)
+      assert sandbox_info.supervisor_module == OtpSandbox.TestDemoSupervisor
+      assert is_pid(sandbox_info.supervisor_pid)
+      assert Process.alive?(sandbox_info.supervisor_pid)
+
+      # Verify children are running
+      children = Supervisor.which_children(sandbox_info.supervisor_pid)
+      assert length(children) == 3
+
+      # Cleanup
+      :ok = OTPSupervisor.Core.Control.destroy_sandbox(sandbox_info.id)
     end
 
-    test "worker processes functional", %{supervisor: _supervisor} do
+    test "worker processes functional in sandbox" do
+      # Create sandbox
+      {:ok, sandbox_info} =
+        OTPSupervisor.Core.Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
+
+      # Get children from sandbox supervisor
+      children = Supervisor.which_children(sandbox_info.supervisor_pid)
+
+      # Find counter and printer processes
+      counter_1 = Enum.find(children, fn {id, _pid, _type, _modules} -> id == :counter_1 end)
+      printer_1 = Enum.find(children, fn {id, _pid, _type, _modules} -> id == :printer_1 end)
+
+      assert counter_1 != nil
+      assert printer_1 != nil
+
       # Test counter functionality
-      if Process.whereis(:counter_1) do
-        original_value = OtpSandbox.Workers.Counter.get_value(:counter_1)
-        OtpSandbox.Workers.Counter.increment(:counter_1)
-        new_value = OtpSandbox.Workers.Counter.get_value(:counter_1)
-        assert new_value == original_value + 1
-      end
+      {_id, counter_pid, _type, _modules} = counter_1
+      original_value = OtpSandbox.Workers.Counter.get_value(counter_pid)
+      OtpSandbox.Workers.Counter.increment(counter_pid)
+      new_value = OtpSandbox.Workers.Counter.get_value(counter_pid)
+      assert new_value == original_value + 1
 
       # Test printer functionality
-      if Process.whereis(:printer_1) do
-        assert :ok = OtpSandbox.Workers.Printer.print(:printer_1, "test")
-      end
+      {_id, printer_pid, _type, _modules} = printer_1
+      assert :ok = OtpSandbox.Workers.Printer.print(printer_pid, "test")
+
+      # Cleanup
+      :ok = OTPSupervisor.Core.Control.destroy_sandbox(sandbox_info.id)
     end
   end
 

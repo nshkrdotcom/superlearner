@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
 
   @moduledoc """
   System alerts and notifications widget.
-  
+
   Displays various types of alerts with:
   - Different severity levels (info, warning, error, critical)
   - Dismissible notifications
@@ -33,10 +33,10 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
             System Alerts
           </h3>
           <span class="text-xs text-green-400/70 font-mono">
-            (<%= length(@alerts) %> alerts)
+            ({length(@alerts)} alerts)
           </span>
         </div>
-        
+
         <div class="flex items-center space-x-2">
           <!-- Alert summary -->
           <div class="flex items-center space-x-3">
@@ -45,15 +45,16 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
                 <div class={[
                   "w-2 h-2 rounded-full",
                   alert_color_indicator(severity)
-                ]}></div>
+                ]}>
+                </div>
                 <span class="text-xs font-mono text-green-400/70">
-                  <%= count %>
+                  {count}
                 </span>
               </div>
             <% end %>
           </div>
           
-          <!-- Clear all button -->
+    <!-- Clear all button -->
           <%= if @alerts != [] do %>
             <button
               phx-target={@myself}
@@ -65,8 +66,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
           <% end %>
         </div>
       </div>
-
-      <!-- Alerts list -->
+      
+    <!-- Alerts list -->
       <div class="max-h-96 overflow-y-auto">
         <%= if @alerts == [] do %>
           <div class="p-8 text-center">
@@ -87,11 +88,11 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
                     "text-sm",
                     alert_text_color(alert.severity)
                   ]}>
-                    <%= alert_icon(alert.severity) %>
+                    {alert_icon(alert.severity)}
                   </span>
                 </div>
-
-                <!-- Alert content -->
+                
+    <!-- Alert content -->
                 <div class="flex-1 min-w-0">
                   <div class="flex items-start justify-between">
                     <div class="flex-1">
@@ -101,45 +102,45 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
                           "text-sm font-mono font-bold",
                           alert_text_color(alert.severity)
                         ]}>
-                          <%= alert.title %>
+                          {alert.title}
                         </div>
                       <% end %>
                       
-                      <!-- Alert message -->
+    <!-- Alert message -->
                       <div class={[
                         "text-sm font-mono",
                         if(@compact_mode, do: "mt-1", else: "mt-2"),
                         alert_text_color(alert.severity)
                       ]}>
-                        <%= alert.message %>
+                        {alert.message}
                       </div>
                       
-                      <!-- Alert metadata -->
+    <!-- Alert metadata -->
                       <%= if not @compact_mode do %>
                         <div class="flex items-center space-x-4 mt-2">
                           <%= if alert.source do %>
                             <span class="text-xs text-green-400/70 font-mono">
-                              Source: <%= alert.source %>
+                              Source: {alert.source}
                             </span>
                           <% end %>
-                          
+
                           <%= if Map.get(alert, :count) && alert.count > 1 do %>
                             <span class="text-xs text-green-400/70 font-mono">
-                              Count: <%= alert.count %>
+                              Count: {alert.count}
                             </span>
                           <% end %>
                         </div>
                       <% end %>
                     </div>
-
-                    <!-- Alert actions -->
+                    
+    <!-- Alert actions -->
                     <div class="flex items-center space-x-2 ml-2">
                       <%= if @show_timestamps do %>
                         <span class="text-xs text-green-400/50 font-mono">
-                          <%= format_timestamp(alert.timestamp) %>
+                          {format_timestamp(alert.timestamp)}
                         </span>
                       <% end %>
-                      
+
                       <button
                         phx-target={@myself}
                         phx-click="dismiss_alert"
@@ -157,18 +158,18 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
           </div>
         <% end %>
       </div>
-
-      <!-- Footer with stats -->
+      
+    <!-- Footer with stats -->
       <%= if @alerts != [] do %>
         <div class="border-t border-green-500/20 p-2">
           <div class="flex items-center justify-between text-xs">
             <div class="flex items-center space-x-4">
               <span class="text-green-400/70 font-mono">
-                Showing <%= min(length(@alerts), @max_alerts) %> of <%= length(@alerts) %> alerts
+                Showing {min(length(@alerts), @max_alerts)} of {length(@alerts)} alerts
               </span>
             </div>
             <div class="text-green-400/70 font-mono">
-              Last updated: <%= format_timestamp(DateTime.utc_now()) %>
+              Last updated: {format_timestamp(DateTime.utc_now())}
             </div>
           </div>
         </div>
@@ -183,7 +184,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.AlertWidget do
 
   def update(assigns, socket) do
     socket = assign(socket, assigns)
-    
+
     # Set up auto-dismiss timer if enabled
     if assigns.auto_dismiss and assigns.dismiss_timeout > 0 do
       Process.send_after(self(), :auto_dismiss_alerts, assigns.dismiss_timeout)

@@ -1,6 +1,7 @@
 defmodule OTPSupervisor.Core.SandboxIntegrationTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   # import SupervisorTestHelper
+  import SandboxTestHelper
   import ExUnit.CaptureLog
 
   @moduledoc """
@@ -10,6 +11,10 @@ defmodule OTPSupervisor.Core.SandboxIntegrationTest do
 
   alias OTPSupervisor.Core.Control
   alias OtpSandbox.TestDemoSupervisor
+
+  setup do
+    setup_sandbox_test(nil)
+  end
 
   describe "end-to-end sandbox lifecycle with analytics" do
     test "sandbox operations integrate with analytics system" do
@@ -59,8 +64,8 @@ defmodule OTPSupervisor.Core.SandboxIntegrationTest do
 
       # Cleanup - suppress expected supervisor death warnings
       capture_log(fn ->
-        :ok = Control.destroy_sandbox(sandbox1.id)
-        :ok = Control.destroy_sandbox(sandbox2.id)
+        destroy_test_sandbox(sandbox1.id)
+        destroy_test_sandbox(sandbox2.id)
       end)
     end
   end
@@ -69,48 +74,38 @@ defmodule OTPSupervisor.Core.SandboxIntegrationTest do
     test "survives sandbox supervisor crashes" do
       # Create sandbox
       {:ok, sandbox_info} = Control.create_sandbox(TestDemoSupervisor)
-      supervisor_pid = sandbox_info.supervisor_pid
+      app_pid = sandbox_info.app_pid
       sandbox_id = sandbox_info.id
 
-      # Kill the sandbox supervisor directly and capture expected warning log
-      ref = Process.monitor(supervisor_pid)
+      # Kill the sandbox application directly and capture expected warning log
+      ref = Process.monitor(app_pid)
 
       capture_log(fn ->
-        Process.exit(supervisor_pid, :kill)
+        Process.exit(app_pid, :kill)
 
         # Wait for death
         receive do
-          {:DOWN, ^ref, :process, ^supervisor_pid, :killed} -> :ok
+          {:DOWN, ^ref, :process, ^app_pid, :killed} -> :ok
         after
-          1000 -> flunk("Supervisor did not die")
+          1000 -> flunk("Application did not die")
         end
 
-        # Sync with Control to ensure SandboxManager processes DOWN message
-        _sandboxes = Control.list_sandboxes()
+        # Wait for SandboxManager to process DOWN message
+        wait_for_sandbox_cleanup(sandbox_id)
       end)
 
-      # Wait for SandboxManager to process the DOWN message using proper OTP synchronization
-      wait_for_sandbox_cleanup = fn ->
-        Enum.reduce_while(1..100, nil, fn _i, _acc ->
-          case Control.get_sandbox_info(sandbox_id) do
-            {:error, :not_found} -> {:halt, :ok}
-            {:ok, _info} -> {:cont, nil}
-          end
-        end)
-      end
+      # Verify sandbox was cleaned up
+      {:error, :not_found} = Control.get_sandbox_info(sandbox_id)
 
-      case wait_for_sandbox_cleanup.() do
-        # Sandbox was cleaned up
-        :ok -> :ok
-        nil -> flunk("Sandbox was not cleaned up after supervisor crash")
-      end
+      # Force application cleanup before creating new sandbox
+      cleanup_sandbox_applications()
 
       # Verify SandboxManager is still functional
       {:ok, new_sandbox} = Control.create_sandbox(TestDemoSupervisor)
       assert Process.alive?(new_sandbox.supervisor_pid)
 
       # Cleanup
-      capture_log(fn -> :ok = Control.destroy_sandbox(new_sandbox.id) end)
+      capture_log(fn -> destroy_test_sandbox(new_sandbox.id) end)
     end
   end
 end

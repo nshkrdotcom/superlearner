@@ -18,14 +18,14 @@ defmodule OtpSupervisorWeb.Components.Layouts do
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={get_csrf_token()} />
         <.live_title>
-          <%= assigns[:page_title] || "OTP Supervisor" %>
+          {assigns[:page_title] || "OTP Supervisor"}
         </.live_title>
         <link phx-track-static rel="stylesheet" href="/assets/app.css" />
         <script defer phx-track-static type="text/javascript" src="/assets/app.js">
         </script>
       </head>
       <body class="h-full bg-gray-900 text-green-400 font-mono">
-        <%= @inner_content %>
+        {@inner_content}
       </body>
     </html>
     """
@@ -35,7 +35,7 @@ defmodule OtpSupervisorWeb.Components.Layouts do
     ~H"""
     <main class="h-full">
       <.flash_group flash={@flash} />
-      <%= @inner_content %>
+      {@inner_content}
     </main>
     """
   end
@@ -50,7 +50,7 @@ defmodule OtpSupervisorWeb.Components.Layouts do
         autoshow={true}
         close={false}
       >
-        <%= Phoenix.Flash.get(@flash, :info) %>
+        {Phoenix.Flash.get(@flash, :info)}
       </.flash>
       <.flash
         :if={Phoenix.Flash.get(@flash, :error)}
@@ -59,7 +59,7 @@ defmodule OtpSupervisorWeb.Components.Layouts do
         autoshow={true}
         close={false}
       >
-        <%= Phoenix.Flash.get(@flash, :error) %>
+        {Phoenix.Flash.get(@flash, :error)}
       </.flash>
     </div>
     """
@@ -78,14 +78,10 @@ defmodule OtpSupervisorWeb.Components.Layouts do
     >
       <div class="flex items-center space-x-2">
         <span class="text-sm font-mono">
-          <%= render_slot(@inner_block) %>
+          {render_slot(@inner_block)}
         </span>
         <%= if @close do %>
-          <button
-            type="button"
-            class="ml-2 text-sm hover:opacity-75"
-            phx-click={hide("##{@id}")}
-          >
+          <button type="button" class="ml-2 text-sm hover:opacity-75" phx-click={hide("##{@id}")}>
             ✕
           </button>
         <% end %>
@@ -103,10 +99,10 @@ defmodule OtpSupervisorWeb.Components.Layouts do
   end
 
   defp show(js \\ %Phoenix.LiveView.JS{}, selector) do
-    Phoenix.LiveView.JS.show(js, selector)
+    Phoenix.LiveView.JS.show(js, to: selector)
   end
 
   defp hide(js \\ %Phoenix.LiveView.JS{}, selector) do
-    Phoenix.LiveView.JS.hide(js, selector)
+    Phoenix.LiveView.JS.hide(js, to: selector)
   end
 end

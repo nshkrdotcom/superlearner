@@ -34,6 +34,7 @@ defmodule SupervisorTestHelper do
   """
 
   alias OTPSupervisor.Core.Control
+  alias OtpSandbox.TestDemoSupervisor
 
   @doc """
   Creates an isolated supervisor instance for destructive tests.
@@ -117,19 +118,28 @@ defmodule SupervisorTestHelper do
       end
   """
   def get_demo_supervisor do
-    supervisor = :demo_one_for_one
+    # In the new architecture, we create a sandbox to get a demo supervisor
+    case Control.create_sandbox(OtpSandbox.TestDemoSupervisor) do
+      {:ok, sandbox_info} ->
+        # Register for cleanup
+        existing_cleanups = Process.get(:sandbox_cleanups, [])
+        Process.put(:sandbox_cleanups, [sandbox_info.id | existing_cleanups])
 
-    case Control.get_supervision_tree(supervisor) do
-      {:ok, _children} ->
-        %{supervisor: supervisor}
+        # Setup cleanup callback  
+        ExUnit.Callbacks.on_exit(fn ->
+          # Clean up the sandbox
+          Control.destroy_sandbox(sandbox_info.id)
+        end)
+
+        %{supervisor: sandbox_info.supervisor_pid}
 
       {:error, reason} ->
         raise """
-        Demo supervisor :demo_one_for_one is not available for testing.
+        Demo supervisor could not be created via sandbox.
         Error: #{inspect(reason)}
 
-        This usually means the application is not properly started in test mode.
-        Check that the demo supervisor is started in test configuration.
+        This usually means the sandbox system is not properly started in test mode.
+        Check that the sandbox manager is running.
         """
     end
   end

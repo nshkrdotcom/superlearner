@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
 
   @moduledoc """
   Arsenal-specific operation grid widget with status indicators.
-  
+
   Displays operations in a grid format with:
   - Color-coded status indicators
   - Interactive selection and execution
@@ -34,13 +34,13 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
             Operations Grid
           </h3>
           <span class="text-xs text-green-400/70 font-mono">
-            (<%= length(filtered_operations(@operations, @filters)) %> operations)
+            ({length(filtered_operations(@operations, @filters))} operations)
           </span>
         </div>
-        
+
         <div class="flex items-center space-x-2">
           <!-- Status filter -->
-          <select 
+          <select
             phx-target={@myself}
             phx-change="filter_status"
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
@@ -51,19 +51,19 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
             <option value="inactive">Inactive</option>
           </select>
           
-          <!-- Category filter -->
-          <select 
+    <!-- Category filter -->
+          <select
             phx-target={@myself}
             phx-change="filter_category"
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
           >
             <option value="">All Categories</option>
             <%= for category <- get_categories(@operations) do %>
-              <option value={category}><%= category %></option>
+              <option value={category}>{category}</option>
             <% end %>
           </select>
           
-          <!-- Search -->
+    <!-- Search -->
           <input
             type="text"
             placeholder="Search operations..."
@@ -74,8 +74,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
           />
           
-          <!-- Grid size selector -->
-          <select 
+    <!-- Grid size selector -->
+          <select
             phx-target={@myself}
             phx-change="change_grid_size"
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
@@ -87,8 +87,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
           </select>
         </div>
       </div>
-
-      <!-- Operations grid -->
+      
+    <!-- Operations grid -->
       <div class="flex-1 overflow-auto p-4">
         <div class={[
           "grid gap-2",
@@ -104,7 +104,10 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
                 "h-16 rounded border transition-all duration-200 flex items-center justify-start text-left cursor-pointer relative",
                 if(@compact_mode, do: "p-1", else: "p-2"),
                 operation_classes(operation),
-                if(@selected_operation && @selected_operation.id == operation.id, do: "ring-2 ring-green-400", else: "hover:bg-opacity-80")
+                if(@selected_operation && @selected_operation.id == operation.id,
+                  do: "ring-2 ring-green-400",
+                  else: "hover:bg-opacity-80"
+                )
               ]}
               title={operation_tooltip(operation)}
             >
@@ -113,30 +116,32 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
                 <div class={[
                   "absolute top-1 right-1 w-2 h-2 rounded-full",
                   status_indicator_color(operation.status)
-                ]}></div>
+                ]}>
+                </div>
               <% end %>
               
-              <!-- Priority indicator -->
+    <!-- Priority indicator -->
               <%= if operation.priority == :high or operation.priority == :critical do %>
-                <div class="absolute top-1 left-1 w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
+                <div class="absolute top-1 left-1 w-2 h-2 rounded-full bg-red-400 animate-pulse">
+                </div>
               <% end %>
               
-              <!-- Operation icon (smaller) -->
+    <!-- Operation icon (smaller) -->
               <div class="text-xs mr-1 flex-shrink-0 w-4 text-center">
-                <%= operation.icon %>
+                {operation.icon}
               </div>
               
-              <!-- Operation name (full width) -->
+    <!-- Operation name (full width) -->
               <div class="flex-1 min-w-0 pr-1 flex items-center">
                 <div class="text-xs font-mono leading-tight font-semibold text-left overflow-hidden max-h-full">
-                  <%= format_operation_name(operation.name) %>
+                  {format_operation_name(operation.name)}
                 </div>
               </div>
             </div>
           <% end %>
         </div>
         
-        <!-- Empty state -->
+    <!-- Empty state -->
         <%= if filtered_operations(@operations, @filters) == [] do %>
           <div class="text-center py-8">
             <div class="text-green-400/50 text-sm font-mono">No operations found</div>
@@ -144,33 +149,33 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
           </div>
         <% end %>
       </div>
-
-      <!-- Footer with selected operation details -->
+      
+    <!-- Footer with selected operation details -->
       <%= if @selected_operation do %>
         <div class="border-t border-green-500/20 p-3">
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <div class="flex items-center space-x-2 mb-2">
-                <span class="text-lg"><%= @selected_operation.icon %></span>
+                <span class="text-lg">{@selected_operation.icon}</span>
                 <span class="font-mono font-bold text-green-300">
-                  <%= @selected_operation.name %>
+                  {@selected_operation.name}
                 </span>
                 <span class={[
                   "px-2 py-1 rounded text-xs font-mono",
                   operation_status_classes(@selected_operation.status)
                 ]}>
-                  <%= String.capitalize(to_string(@selected_operation.status)) %>
+                  {String.capitalize(to_string(@selected_operation.status))}
                 </span>
               </div>
-              
+
               <div class="text-xs text-green-400/80 font-mono mb-2">
-                <%= @selected_operation.description %>
+                {@selected_operation.description}
               </div>
-              
+
               <div class="grid grid-cols-3 gap-4 text-xs">
                 <div>
                   <span class="text-green-400/70">Category:</span>
-                  <span class="text-green-400 font-mono ml-1"><%= @selected_operation.category %></span>
+                  <span class="text-green-400 font-mono ml-1">{@selected_operation.category}</span>
                 </div>
                 <div>
                   <span class="text-green-400/70">Priority:</span>
@@ -178,16 +183,18 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
                     "font-mono ml-1",
                     priority_color(@selected_operation.priority)
                   ]}>
-                    <%= String.capitalize(to_string(@selected_operation.priority)) %>
+                    {String.capitalize(to_string(@selected_operation.priority))}
                   </span>
                 </div>
                 <div>
                   <span class="text-green-400/70">Executions:</span>
-                  <span class="text-green-400 font-mono ml-1"><%= @selected_operation.execution_count %></span>
+                  <span class="text-green-400 font-mono ml-1">
+                    {@selected_operation.execution_count}
+                  </span>
                 </div>
               </div>
             </div>
-            
+
             <div class="flex items-center space-x-2 ml-4">
               <button
                 phx-target={@myself}
@@ -197,7 +204,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
               >
                 Toggle
               </button>
-              
+
               <%= if @selected_operation.status == :active do %>
                 <button
                   phx-target={@myself}
@@ -212,8 +219,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
           </div>
         </div>
       <% end %>
-
-      <!-- Status legend -->
+      
+    <!-- Status legend -->
       <div class="border-t border-green-500/20 p-2">
         <div class="flex items-center justify-center space-x-6 text-xs">
           <div class="flex items-center space-x-2">
@@ -246,12 +253,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
 
   def handle_event("select_operation", %{"operation-id" => operation_id}, socket) do
     operation = find_operation(operation_id, socket.assigns.operations)
-    
+
     # Notify parent LiveView if parent_pid is available
     if socket.parent_pid do
       send(socket.parent_pid, {:operation_selected, operation})
     end
-    
+
     {:noreply, assign(socket, :selected_operation, operation)}
   end
 
@@ -295,6 +302,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
 
   defp filter_by_status(operations, nil), do: operations
   defp filter_by_status(operations, ""), do: operations
+
   defp filter_by_status(operations, status) do
     status_atom = String.to_atom(status)
     Enum.filter(operations, &(&1.status == status_atom))
@@ -302,18 +310,21 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
 
   defp filter_by_category(operations, nil), do: operations
   defp filter_by_category(operations, ""), do: operations
+
   defp filter_by_category(operations, category) do
     Enum.filter(operations, &(&1.category == category))
   end
 
   defp filter_by_search(operations, nil), do: operations
   defp filter_by_search(operations, ""), do: operations
+
   defp filter_by_search(operations, search) do
     search = String.downcase(search)
+
     Enum.filter(operations, fn operation ->
       String.contains?(String.downcase(operation.name), search) ||
-      String.contains?(String.downcase(operation.description), search) ||
-      String.contains?(String.downcase(operation.category), search)
+        String.contains?(String.downcase(operation.description), search) ||
+        String.contains?(String.downcase(operation.category), search)
     end)
   end
 
@@ -330,14 +341,22 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
 
   defp operation_classes(operation) do
     base_classes = ["font-mono", "text-xs"]
-    
-    status_classes = case operation.status do
-      :active -> ["bg-green-500/20", "border-green-500/50", "text-green-400", "hover:bg-green-500/30"]
-      :planned -> ["bg-blue-500/20", "border-blue-500/50", "text-blue-400", "hover:bg-blue-500/30"]
-      :inactive -> ["bg-gray-500/20", "border-gray-500/50", "text-gray-400", "hover:bg-gray-500/30"]
-      _ -> ["bg-gray-500/20", "border-gray-500/50", "text-gray-400"]
-    end
-    
+
+    status_classes =
+      case operation.status do
+        :active ->
+          ["bg-green-500/20", "border-green-500/50", "text-green-400", "hover:bg-green-500/30"]
+
+        :planned ->
+          ["bg-blue-500/20", "border-blue-500/50", "text-blue-400", "hover:bg-blue-500/30"]
+
+        :inactive ->
+          ["bg-gray-500/20", "border-gray-500/50", "text-gray-400", "hover:bg-gray-500/30"]
+
+        _ ->
+          ["bg-gray-500/20", "border-gray-500/50", "text-gray-400"]
+      end
+
     base_classes ++ status_classes
   end
 
@@ -369,16 +388,6 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
     end
   end
 
-  defp truncate_name(name, compact_mode) do
-    max_length = if compact_mode, do: 6, else: 8
-    
-    if String.length(name) > max_length do
-      String.slice(name, 0, max_length) <> "..."
-    else
-      name
-    end
-  end
-
   defp format_operation_name(name) do
     # Remove common prefixes and clean up the name
     name
@@ -403,7 +412,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.OperationGridWidget do
     Priority: #{operation.priority}
     Status: #{operation.status}
     Executions: #{operation.execution_count}
-    
+
     #{operation.description}
     """
   end

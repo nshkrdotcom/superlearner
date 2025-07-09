@@ -2,8 +2,6 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
   use Phoenix.LiveView
 
   alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
-  alias OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget
-  alias OtpSupervisorWeb.Components.Terminal.TerminalTable
   alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
   alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
   alias OtpSupervisorWeb.Components.Widgets.SystemMetricsWidget
@@ -13,7 +11,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
 
   @moduledoc """
   High-density system monitoring dashboard with real-time metrics.
-  
+
   Refactored to use LiveComponents for better performance and maintainability.
   """
 
@@ -23,7 +21,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
       Phoenix.PubSub.subscribe(OtpSupervisor.PubSub, "system_metrics")
     end
 
-    {:ok, 
+    {:ok,
      socket
      |> assign(:page_title, "System Dashboard")
      |> assign(:current_page, "dashboard")
@@ -55,8 +53,8 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         metrics={status_bar_metrics(assigns)}
         navigation_links={TerminalNavigationLinks.page_navigation_links("dashboard", %{})}
       />
-
-      <!-- Main Grid Layout -->
+      
+    <!-- Main Grid Layout -->
       <.live_component
         module={TerminalPanelLayout}
         id="dashboard-grid-layout"
@@ -160,7 +158,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         },
         span: %{cols: 2, rows: 2}
       },
-      
+
       # Process List Widget (interactive process management)
       %{
         title: "Process Management",
@@ -179,7 +177,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         },
         span: %{cols: 2, rows: 2}
       },
-      
+
       # Performance Chart Widget (time series data)
       %{
         title: "Performance Trends",
@@ -197,7 +195,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         },
         span: %{cols: 2, rows: 1}
       },
-      
+
       # Memory Breakdown Chart Widget
       %{
         title: "Memory Distribution",
@@ -213,7 +211,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         },
         span: %{cols: 1, rows: 1}
       },
-      
+
       # Network Activity Chart Widget
       %{
         title: "Network Activity",
@@ -231,7 +229,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         },
         span: %{cols: 1, rows: 1}
       },
-      
+
       # System Alerts Widget
       %{
         title: "System Alerts",
@@ -298,7 +296,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
     system = :rand.uniform(div(total, 4))
     atom = :rand.uniform(div(total, 10))
     code = :rand.uniform(div(total, 8))
-    
+
     %{
       processes: processes,
       system: system,
@@ -310,10 +308,6 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
   defp get_system_alerts do
     # Mock alerts - replace with real implementation
     []
-  end
-
-  defp count_processes_by_status(processes, status) do
-    Enum.count(processes, &(&1.status == status))
   end
 
   defp find_process(process_id, processes) do
@@ -355,7 +349,11 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
       },
       network: %{
         interfaces: [
-          %{name: "eth0", rx_bytes: assigns.network_stats.bytes_in, tx_bytes: assigns.network_stats.bytes_out},
+          %{
+            name: "eth0",
+            rx_bytes: assigns.network_stats.bytes_in,
+            tx_bytes: assigns.network_stats.bytes_out
+          },
           %{name: "lo", rx_bytes: 1000, tx_bytes: 1000}
         ],
         connections: assigns.network_stats.active_connections
@@ -386,12 +384,16 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
   defp performance_chart_data(assigns) do
     # Generate time series data for the last 60 seconds
     now = DateTime.utc_now()
-    for i <- 59..0 do
+
+    for i <- 59..0//-1 do
       timestamp = DateTime.add(now, -i, :second)
+
       %{
         timestamp: timestamp,
         cpu: assigns.system_metrics.cpu_usage + :rand.uniform(20) - 10,
-        memory: (assigns.system_metrics.memory_used / assigns.system_metrics.memory_total) * 100 + :rand.uniform(10) - 5,
+        memory:
+          assigns.system_metrics.memory_used / assigns.system_metrics.memory_total * 100 +
+            :rand.uniform(10) - 5,
         x: DateTime.to_unix(timestamp),
         y: assigns.system_metrics.cpu_usage + :rand.uniform(20) - 10
       }
@@ -400,8 +402,16 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
 
   defp memory_chart_data(assigns) do
     [
-      %{label: "Processes", value: assigns.memory_breakdown.processes, y: assigns.memory_breakdown.processes},
-      %{label: "System", value: assigns.memory_breakdown.system, y: assigns.memory_breakdown.system},
+      %{
+        label: "Processes",
+        value: assigns.memory_breakdown.processes,
+        y: assigns.memory_breakdown.processes
+      },
+      %{
+        label: "System",
+        value: assigns.memory_breakdown.system,
+        y: assigns.memory_breakdown.system
+      },
       %{label: "Atom", value: assigns.memory_breakdown.atom, y: assigns.memory_breakdown.atom},
       %{label: "Code", value: assigns.memory_breakdown.code, y: assigns.memory_breakdown.code}
     ]
@@ -410,8 +420,10 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
   defp network_chart_data(assigns) do
     # Generate network I/O data for the last 30 seconds
     now = DateTime.utc_now()
-    for i <- 29..0 do
+
+    for i <- 29..0//-1 do
       timestamp = DateTime.add(now, -i, :second)
+
       %{
         timestamp: timestamp,
         bytes_in: assigns.network_stats.bytes_in + :rand.uniform(1000),
@@ -446,34 +458,42 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
 
     # Add dynamic alerts based on system state
     dynamic_alerts = []
-    
-    dynamic_alerts = if assigns.system_metrics.cpu_usage > 90 do
-      [%{
-        id: "cpu-critical",
-        severity: :critical,
-        title: "Critical CPU Usage",
-        message: "CPU usage is dangerously high at #{assigns.system_metrics.cpu_usage}%",
-        timestamp: DateTime.utc_now(),
-        source: "system_monitor",
-        count: 1
-      } | dynamic_alerts]
-    else
-      dynamic_alerts
-    end
 
-    dynamic_alerts = if assigns.network_stats.errors > 0 do
-      [%{
-        id: "network-error",
-        severity: :error,
-        title: "Network Errors Detected",
-        message: "#{assigns.network_stats.errors} network errors detected",
-        timestamp: DateTime.utc_now(),
-        source: "network_monitor",
-        count: assigns.network_stats.errors
-      } | dynamic_alerts]
-    else
-      dynamic_alerts
-    end
+    dynamic_alerts =
+      if assigns.system_metrics.cpu_usage > 90 do
+        [
+          %{
+            id: "cpu-critical",
+            severity: :critical,
+            title: "Critical CPU Usage",
+            message: "CPU usage is dangerously high at #{assigns.system_metrics.cpu_usage}%",
+            timestamp: DateTime.utc_now(),
+            source: "system_monitor",
+            count: 1
+          }
+          | dynamic_alerts
+        ]
+      else
+        dynamic_alerts
+      end
+
+    dynamic_alerts =
+      if assigns.network_stats.errors > 0 do
+        [
+          %{
+            id: "network-error",
+            severity: :error,
+            title: "Network Errors Detected",
+            message: "#{assigns.network_stats.errors} network errors detected",
+            timestamp: DateTime.utc_now(),
+            source: "network_monitor",
+            count: assigns.network_stats.errors
+          }
+          | dynamic_alerts
+        ]
+      else
+        dynamic_alerts
+      end
 
     base_alerts ++ dynamic_alerts
   end

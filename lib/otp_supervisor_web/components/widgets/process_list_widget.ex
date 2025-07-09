@@ -1,11 +1,9 @@
 defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
   use Phoenix.LiveComponent
 
-  alias OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters
-
   @moduledoc """
   Interactive process list widget with filtering, sorting, and actions.
-  
+
   Provides comprehensive process management capabilities including:
   - Real-time process monitoring
   - Interactive filtering and sorting
@@ -37,13 +35,13 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
             Process List
           </h3>
           <span class="text-xs text-green-400/70 font-mono">
-            (<%= length(filtered_processes(@processes, @filters)) %> processes)
+            ({length(filtered_processes(@processes, @filters))} processes)
           </span>
         </div>
-        
+
         <div class="flex items-center space-x-2">
           <!-- Status filter -->
-          <select 
+          <select
             phx-target={@myself}
             phx-change="filter_status"
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
@@ -54,8 +52,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
             <option value="error">Error</option>
           </select>
           
-          <!-- Grouping selector -->
-          <select 
+    <!-- Grouping selector -->
+          <select
             phx-target={@myself}
             phx-change="change_grouping"
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
@@ -66,7 +64,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
             <option value="status">By Status</option>
           </select>
           
-          <!-- Search -->
+    <!-- Search -->
           <input
             type="text"
             placeholder="Search processes..."
@@ -77,43 +75,44 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
           />
           
-          <!-- Refresh indicator -->
+    <!-- Refresh indicator -->
           <div class="flex items-center space-x-1">
             <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             <span class="text-xs text-green-400/70 font-mono">Auto</span>
           </div>
         </div>
       </div>
-
-      <!-- Process list content -->
+      
+    <!-- Process list content -->
       <div class={[
         "overflow-auto",
         @max_height
       ]}>
         <%= if @grouping == :none do %>
-          <%= render_flat_list(assigns) %>
+          {render_flat_list(assigns)}
         <% else %>
-          <%= render_grouped_list(assigns) %>
+          {render_grouped_list(assigns)}
         <% end %>
       </div>
-
-      <!-- Footer with summary stats -->
+      
+    <!-- Footer with summary stats -->
       <div class="border-t border-green-500/20 p-2">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center space-x-4">
             <span class="text-green-400/70 font-mono">
-              Running: <span class="text-green-400"><%= count_by_status(@processes, :running) %></span>
+              Running: <span class="text-green-400">{count_by_status(@processes, :running)}</span>
             </span>
             <span class="text-green-400/70 font-mono">
-              Stopped: <span class="text-yellow-400"><%= count_by_status(@processes, :stopped) %></span>
+              Stopped: <span class="text-yellow-400">{count_by_status(@processes, :stopped)}</span>
             </span>
             <span class="text-green-400/70 font-mono">
-              Errors: <span class="text-red-400"><%= count_by_status(@processes, :error) %></span>
+              Errors: <span class="text-red-400">{count_by_status(@processes, :error)}</span>
             </span>
           </div>
           <div class="flex items-center space-x-2">
             <span class="text-green-400/70 font-mono">
-              Total Memory: <span class="text-green-400"><%= format_bytes(total_memory(@processes)) %></span>
+              Total Memory:
+              <span class="text-green-400">{format_bytes(total_memory(@processes))}</span>
             </span>
           </div>
         </div>
@@ -123,7 +122,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
   end
 
   def mount(socket) do
-    {:ok, 
+    {:ok,
      socket
      |> assign(:selected_processes, MapSet.new())
      |> assign(:sort_column, :name)
@@ -152,15 +151,15 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
 
   def handle_event("sort", %{"column" => column}, socket) do
     column = String.to_atom(column)
-    
-    {sort_column, sort_direction} = 
+
+    {sort_column, sort_direction} =
       if socket.assigns.sort_column == column do
         {column, toggle_direction(socket.assigns.sort_direction)}
       else
         {column, :asc}
       end
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(:sort_column, sort_column)
      |> assign(:sort_direction, sort_direction)}
@@ -168,13 +167,14 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
 
   def handle_event("toggle_process", %{"process_id" => process_id}, socket) do
     selected = socket.assigns.selected_processes
-    
-    new_selected = if MapSet.member?(selected, process_id) do
-      MapSet.delete(selected, process_id)
-    else
-      MapSet.put(selected, process_id)
-    end
-    
+
+    new_selected =
+      if MapSet.member?(selected, process_id) do
+        MapSet.delete(selected, process_id)
+      else
+        MapSet.put(selected, process_id)
+      end
+
     {:noreply, assign(socket, :selected_processes, new_selected)}
   end
 
@@ -207,7 +207,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               />
             </th>
           <% end %>
-          
+
           <th class="px-3 py-2 text-left">
             <button
               class="flex items-center space-x-1 text-green-300 hover:text-green-400 font-mono text-xs font-bold"
@@ -218,12 +218,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               <span>Name</span>
               <%= if @sort_column == :name do %>
                 <span class="text-xs">
-                  <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                  {if @sort_direction == :asc, do: "↑", else: "↓"}
                 </span>
               <% end %>
             </button>
           </th>
-          
+
           <th class="px-3 py-2 text-left">
             <button
               class="flex items-center space-x-1 text-green-300 hover:text-green-400 font-mono text-xs font-bold"
@@ -234,16 +234,16 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               <span>PID</span>
               <%= if @sort_column == :pid do %>
                 <span class="text-xs">
-                  <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                  {if @sort_direction == :asc, do: "↑", else: "↓"}
                 </span>
               <% end %>
             </button>
           </th>
-          
+
           <th class="px-3 py-2 text-left">
             <span class="text-green-300 font-mono text-xs font-bold">Status</span>
           </th>
-          
+
           <th class="px-3 py-2 text-left">
             <button
               class="flex items-center space-x-1 text-green-300 hover:text-green-400 font-mono text-xs font-bold"
@@ -254,12 +254,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               <span>Memory</span>
               <%= if @sort_column == :memory do %>
                 <span class="text-xs">
-                  <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                  {if @sort_direction == :asc, do: "↑", else: "↓"}
                 </span>
               <% end %>
             </button>
           </th>
-          
+
           <th class="px-3 py-2 text-left">
             <button
               class="flex items-center space-x-1 text-green-300 hover:text-green-400 font-mono text-xs font-bold"
@@ -270,12 +270,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               <span>CPU</span>
               <%= if @sort_column == :cpu do %>
                 <span class="text-xs">
-                  <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                  {if @sort_direction == :asc, do: "↑", else: "↓"}
                 </span>
               <% end %>
             </button>
           </th>
-          
+
           <th class="px-3 py-2 text-left">
             <button
               class="flex items-center space-x-1 text-green-300 hover:text-green-400 font-mono text-xs font-bold"
@@ -286,12 +286,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               <span>Parent</span>
               <%= if @sort_column == :parent do %>
                 <span class="text-xs">
-                  <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                  {if @sort_direction == :asc, do: "↑", else: "↓"}
                 </span>
               <% end %>
             </button>
           </th>
-          
+
           <th class="px-3 py-2 text-left">
             <button
               class="flex items-center space-x-1 text-green-300 hover:text-green-400 font-mono text-xs font-bold"
@@ -302,12 +302,12 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
               <span>Strategy</span>
               <%= if @sort_column == :strategy do %>
                 <span class="text-xs">
-                  <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                  {if @sort_direction == :asc, do: "↑", else: "↓"}
                 </span>
               <% end %>
             </button>
           </th>
-          
+
           <%= if @show_actions do %>
             <th class="px-3 py-2 text-left">
               <span class="text-green-300 font-mono text-xs font-bold">Actions</span>
@@ -319,7 +319,10 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
         <%= for process <- sorted_processes(filtered_processes(@processes, @filters), @sort_column, @sort_direction) do %>
           <tr class={[
             "border-b border-green-500/10 hover:bg-green-500/5 transition-colors",
-            if(@selectable and MapSet.member?(@selected_processes, process.id), do: "bg-green-500/10", else: "")
+            if(@selectable and MapSet.member?(@selected_processes, process.id),
+              do: "bg-green-500/10",
+              else: ""
+            )
           ]}>
             <%= if @selectable do %>
               <td class="px-3 py-2">
@@ -333,53 +336,56 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
                 />
               </td>
             <% end %>
-            
+
             <td class="px-3 py-2 text-sm font-mono text-green-400">
-              <%= process.name %>
+              {process.name}
             </td>
-            
+
             <td class="px-3 py-2 text-sm font-mono text-green-400/70">
-              <%= process.pid %>
+              {process.pid}
             </td>
-            
+
             <td class="px-3 py-2">
               <span class={[
                 "inline-flex items-center space-x-1 px-2 py-1 rounded text-xs font-mono",
                 process_status_classes(process.status)
               ]}>
-                <span><%= process_status_icon(process.status) %></span>
-                <span><%= String.capitalize(to_string(process.status)) %></span>
+                <span>{process_status_icon(process.status)}</span>
+                <span>{String.capitalize(to_string(process.status))}</span>
               </span>
             </td>
-            
+
             <td class="px-3 py-2 text-sm font-mono text-green-400">
-              <%= format_bytes(process.memory) %>
+              {format_bytes(process.memory)}
             </td>
-            
+
             <td class="px-3 py-2 text-sm font-mono text-green-400">
-              <%= process.cpu_usage %>%
+              {process.cpu_usage}%
             </td>
-            
+
             <td class="px-3 py-2 text-sm font-mono text-green-400/70">
               <div class="flex flex-col">
                 <span class="truncate max-w-32" title={Map.get(process, :parent, "N/A")}>
-                  <%= Map.get(process, :parent, "N/A") %>
+                  {Map.get(process, :parent, "N/A")}
                 </span>
-                <span class="text-xs text-green-400/50 truncate max-w-32" title={Map.get(process, :parent_pid, "N/A")}>
-                  <%= Map.get(process, :parent_pid, "N/A") %>
+                <span
+                  class="text-xs text-green-400/50 truncate max-w-32"
+                  title={Map.get(process, :parent_pid, "N/A")}
+                >
+                  {Map.get(process, :parent_pid, "N/A")}
                 </span>
               </div>
             </td>
-            
+
             <td class="px-3 py-2 text-sm font-mono text-green-400">
               <span class={[
                 "inline-flex items-center px-2 py-1 rounded text-xs font-mono",
                 strategy_classes(Map.get(process, :strategy, :unknown))
               ]}>
-                <%= strategy_text(Map.get(process, :strategy, :unknown)) %>
+                {strategy_text(Map.get(process, :strategy, :unknown))}
               </span>
             </td>
-            
+
             <%= if @show_actions do %>
               <td class="px-3 py-2">
                 <div class="flex items-center space-x-1">
@@ -430,38 +436,38 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
         <div class="border border-green-500/20 rounded">
           <div class="bg-green-500/10 px-4 py-2 border-b border-green-500/20">
             <h4 class="text-sm font-mono font-bold text-green-300">
-              <%= group_name %> (<%= length(processes) %> processes)
+              {group_name} ({length(processes)} processes)
             </h4>
           </div>
           <div class="p-2">
             <%= for process <- sorted_processes(processes, @sort_column, @sort_direction) do %>
               <div class="flex items-center justify-between py-1 hover:bg-green-500/5 transition-colors">
                 <div class="flex items-center space-x-4">
-                  <span class="text-sm font-mono text-green-400"><%= process.name %></span>
-                  <span class="text-xs font-mono text-green-400/70"><%= process.pid %></span>
+                  <span class="text-sm font-mono text-green-400">{process.name}</span>
+                  <span class="text-xs font-mono text-green-400/70">{process.pid}</span>
                   <span class={[
                     "inline-flex items-center space-x-1 px-2 py-1 rounded text-xs font-mono",
                     process_status_classes(process.status)
                   ]}>
-                    <span><%= process_status_icon(process.status) %></span>
-                    <span><%= String.capitalize(to_string(process.status)) %></span>
+                    <span>{process_status_icon(process.status)}</span>
+                    <span>{String.capitalize(to_string(process.status))}</span>
                   </span>
                   <span class="text-xs font-mono text-green-400/50">
-                    Parent: <%= Map.get(process, :parent, "N/A") %>
+                    Parent: {Map.get(process, :parent, "N/A")}
                   </span>
                   <span class={[
                     "inline-flex items-center px-2 py-1 rounded text-xs font-mono",
                     strategy_classes(Map.get(process, :strategy, :unknown))
                   ]}>
-                    <%= strategy_text(Map.get(process, :strategy, :unknown)) %>
+                    {strategy_text(Map.get(process, :strategy, :unknown))}
                   </span>
                 </div>
                 <div class="flex items-center space-x-4">
                   <span class="text-xs font-mono text-green-400">
-                    <%= format_bytes(process.memory) %>
+                    {format_bytes(process.memory)}
                   </span>
                   <span class="text-xs font-mono text-green-400">
-                    <%= process.cpu_usage %>%
+                    {process.cpu_usage}%
                   </span>
                 </div>
               </div>
@@ -485,9 +491,11 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
   defp filter_by_status(processes, ""), do: processes
   defp filter_by_status(processes, :all), do: processes
   defp filter_by_status(processes, "all"), do: processes
+
   defp filter_by_status(processes, status) when is_atom(status) do
     Enum.filter(processes, &(&1.status == status))
   end
+
   defp filter_by_status(processes, status) when is_binary(status) do
     status_atom = String.to_atom(status)
     Enum.filter(processes, &(&1.status == status_atom))
@@ -495,17 +503,19 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
 
   defp filter_by_search(processes, nil), do: processes
   defp filter_by_search(processes, ""), do: processes
+
   defp filter_by_search(processes, search) do
     search = String.downcase(search)
+
     Enum.filter(processes, fn process ->
       String.contains?(String.downcase(process.name), search) ||
-      String.contains?(String.downcase(process.pid), search)
+        String.contains?(String.downcase(process.pid), search)
     end)
   end
 
   defp sorted_processes(processes, column, direction) do
     sorted = Enum.sort_by(processes, &Map.get(&1, column))
-    
+
     case direction do
       :asc -> sorted
       :desc -> Enum.reverse(sorted)
@@ -563,6 +573,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.ProcessListWidget do
       true -> "#{bytes}B"
     end
   end
+
   defp format_bytes(bytes), do: to_string(bytes)
 
   defp strategy_classes(:one_for_one), do: "bg-blue-500/20 text-blue-400"

@@ -7,6 +7,7 @@ defmodule OtpSupervisorWeb.ArsenalWebTest do
   """
 
   use OtpSupervisorWeb.ConnCase, async: false
+  @moduletag :ui
 
   # No manual setup needed - Arsenal operations should register automatically!
 

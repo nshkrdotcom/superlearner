@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
 
   @moduledoc """
   Log viewer widget for displaying and filtering system logs.
-  
+
   Provides comprehensive log viewing capabilities:
   - Real-time log streaming
   - Multi-level filtering (error, warning, info, debug)
@@ -39,13 +39,13 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
             Log Viewer
           </h3>
           <span class="text-xs text-green-400/70 font-mono">
-            (<%= length(filtered_logs(@logs, @log_level, @search_term)) %> entries)
+            ({length(filtered_logs(@logs, @log_level, @search_term))} entries)
           </span>
         </div>
-        
+
         <div class="flex items-center space-x-2">
           <!-- Log level filter -->
-          <select 
+          <select
             phx-target={@myself}
             phx-change="filter_level"
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
@@ -57,7 +57,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
             <option value="error">Error</option>
           </select>
           
-          <!-- Search input -->
+    <!-- Search input -->
           <input
             type="text"
             placeholder="Search logs..."
@@ -68,31 +68,37 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
             class="px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500 w-32"
           />
           
-          <!-- Auto-scroll toggle -->
+    <!-- Auto-scroll toggle -->
           <button
             phx-target={@myself}
             phx-click="toggle_auto_scroll"
             class={[
               "px-2 py-1 text-xs border border-green-500/30 rounded font-mono hover:bg-green-500/30 transition-colors",
-              if(@auto_scroll, do: "bg-green-500/20 text-green-400", else: "bg-gray-500/20 text-gray-400")
+              if(@auto_scroll,
+                do: "bg-green-500/20 text-green-400",
+                else: "bg-gray-500/20 text-gray-400"
+              )
             ]}
           >
             Auto Scroll
           </button>
           
-          <!-- Word wrap toggle -->
+    <!-- Word wrap toggle -->
           <button
             phx-target={@myself}
             phx-click="toggle_word_wrap"
             class={[
               "px-2 py-1 text-xs border border-green-500/30 rounded font-mono hover:bg-green-500/30 transition-colors",
-              if(@word_wrap, do: "bg-green-500/20 text-green-400", else: "bg-gray-500/20 text-gray-400")
+              if(@word_wrap,
+                do: "bg-green-500/20 text-green-400",
+                else: "bg-gray-500/20 text-gray-400"
+              )
             ]}
           >
             Wrap
           </button>
           
-          <!-- Clear logs -->
+    <!-- Clear logs -->
           <button
             phx-target={@myself}
             phx-click="clear_logs"
@@ -101,7 +107,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
             Clear
           </button>
           
-          <!-- Export logs -->
+    <!-- Export logs -->
           <button
             phx-target={@myself}
             phx-click="export_logs"
@@ -111,8 +117,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
           </button>
         </div>
       </div>
-
-      <!-- Log content -->
+      
+    <!-- Log content -->
       <div class="flex-1 flex flex-col min-h-0">
         <%= if filtered_logs(@logs, @log_level, @search_term) == [] do %>
           <div class="flex-1 flex items-center justify-center">
@@ -128,7 +134,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
             </div>
           </div>
         <% else %>
-          <div 
+          <div
             class={[
               "flex-1 overflow-auto bg-gray-800 text-xs font-mono",
               if(@word_wrap, do: "whitespace-pre-wrap", else: "whitespace-pre")
@@ -144,39 +150,39 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
                 ]}>
                   <!-- Line number -->
                   <span class="text-green-400/30 text-xs w-8 text-right flex-shrink-0 select-none">
-                    <%= index + 1 %>
+                    {index + 1}
                   </span>
                   
-                  <!-- Timestamp -->
+    <!-- Timestamp -->
                   <%= if @show_timestamps do %>
                     <span class="text-green-400/50 text-xs flex-shrink-0 w-20">
-                      <%= format_timestamp(log.timestamp) %>
+                      {format_timestamp(log.timestamp)}
                     </span>
                   <% end %>
                   
-                  <!-- Log level -->
+    <!-- Log level -->
                   <%= if @show_levels do %>
                     <span class={[
                       "text-xs font-bold px-1 rounded flex-shrink-0 w-12 text-center",
                       log_level_classes(log.level)
                     ]}>
-                      <%= log_level_text(log.level) %>
+                      {log_level_text(log.level)}
                     </span>
                   <% end %>
                   
-                  <!-- Source/module -->
+    <!-- Source/module -->
                   <%= if log.source do %>
                     <span class="text-blue-400/70 text-xs flex-shrink-0 max-w-24 truncate">
-                      <%= log.source %>
+                      {log.source}
                     </span>
                   <% end %>
                   
-                  <!-- Log message -->
+    <!-- Log message -->
                   <span class={[
                     "text-xs flex-1 min-w-0",
                     log_message_classes(log.level)
                   ]}>
-                    <%= highlight_search_term(log.message, @search_term) %>
+                    {highlight_search_term(log.message, @search_term)}
                   </span>
                 </div>
               <% end %>
@@ -184,8 +190,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
           </div>
         <% end %>
       </div>
-
-      <!-- Status bar -->
+      
+    <!-- Status bar -->
       <div class="border-t border-green-500/20 p-2">
         <div class="flex items-center justify-between text-xs">
           <div class="flex items-center space-x-4">
@@ -195,19 +201,20 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
                 <div class={[
                   "w-2 h-2 rounded-full",
                   log_level_indicator_color(level)
-                ]}></div>
+                ]}>
+                </div>
                 <span class="text-green-400/70 font-mono">
-                  <%= String.capitalize(to_string(level)) %>: <%= count %>
+                  {String.capitalize(to_string(level))}: {count}
                 </span>
               </div>
             <% end %>
           </div>
-          
+
           <div class="flex items-center space-x-4">
             <span class="text-green-400/70 font-mono">
-              Showing <%= length(filtered_logs(@logs, @log_level, @search_term)) %> of <%= length(@logs) %> logs
+              Showing {length(filtered_logs(@logs, @log_level, @search_term))} of {length(@logs)} logs
             </span>
-            
+
             <%= if @tail_mode do %>
               <div class="flex items-center space-x-1">
                 <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -264,20 +271,24 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
     logs
     |> filter_by_level(level)
     |> filter_by_search(search_term)
-    |> Enum.take(-1000)  # Keep last 1000 logs for performance
+    # Keep last 1000 logs for performance
+    |> Enum.take(-1000)
   end
 
   defp filter_by_level(logs, :all), do: logs
+
   defp filter_by_level(logs, level) do
     Enum.filter(logs, &(&1.level == level))
   end
 
   defp filter_by_search(logs, ""), do: logs
+
   defp filter_by_search(logs, search_term) do
     search_term = String.downcase(search_term)
+
     Enum.filter(logs, fn log ->
       String.contains?(String.downcase(log.message), search_term) ||
-      (log.source && String.contains?(String.downcase(log.source), search_term))
+        (log.source && String.contains?(String.downcase(log.source), search_term))
     end)
   end
 
@@ -325,10 +336,13 @@ defmodule OtpSupervisorWeb.Components.Widgets.LogViewerWidget do
   defp log_level_text(_), do: "UNK"
 
   defp highlight_search_term(message, ""), do: message
+
   defp highlight_search_term(message, search_term) do
     # This is a simple version - in a real implementation,
     # you'd want to use proper HTML escaping and highlighting
-    String.replace(message, search_term, 
+    String.replace(
+      message,
+      search_term,
       ~s(<span class="bg-yellow-500/30 text-yellow-400">#{search_term}</span>),
       global: true
     )

@@ -6,16 +6,16 @@ A comprehensive, production-grade educational platform for learning OTP (Open Te
 
 This project provides an advanced learning environment for OTP concepts, combining theoretical knowledge with practical implementation. Built with Phoenix LiveView, it offers:
 
-![Homepage - Main Interface](img/home_page.png)
-*Main landing page with navigation and system overview*
+![Supervisors - Interactive Management](img/supervisors.png)
+*Interactive supervisor management dashboard with real-time visualization*
 
-![Arsenal - Operations Dashboard](img/arsenal_page.png)
-*Advanced operations dashboard for OTP process management and debugging*
-
-![System Dashboard - Real-time Monitoring](img/system_page.png)
+![System Dashboard - Real-time Monitoring](img/system.png)
 *System-wide monitoring interface with analytics and health metrics*
 
-![Documentation - Learning Resources](img/docs_page.png)
+![Arsenal - Operations Dashboard](img/arsenal.png)
+*Advanced operations dashboard for OTP process management and debugging*
+
+![Documentation - Learning Resources](img/docs.png)
 *Comprehensive documentation and educational resources for OTP concepts*
 
 - **🔬 Interactive Sandbox Environments** - Isolated experimentation without system risk

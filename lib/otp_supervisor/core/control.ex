@@ -636,7 +636,7 @@ defmodule OTPSupervisor.Core.Control do
   # Sandbox Management Functions
 
   @doc """
-  Creates a new sandbox application with the given app name and options.
+  Creates a new sandbox with the specified supervisor module or application name and options.
 
   Returns a unique sandbox ID and sandbox information. The sandbox ID can be used
   to manage the sandbox lifecycle (restart, destroy, etc.).
@@ -644,15 +644,15 @@ defmodule OTPSupervisor.Core.Control do
   ## Examples
 
       iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
-      ...>   :otp_sandbox,
-      ...>   []
+      ...>   OtpSandbox.TestDemoSupervisor,
+      ...>   strategy: :one_for_one
       ...> )
-      iex> info.app_name
-      :otp_sandbox
+      iex> info.supervisor_module
+      OtpSandbox.TestDemoSupervisor
   """
-  def create_sandbox(app_name, opts \\ []) do
+  def create_sandbox(module_or_app, opts \\ []) do
     sandbox_id = "sandbox_#{:erlang.unique_integer([:positive])}"
-    OTPSupervisor.Core.SandboxManager.create_sandbox(sandbox_id, app_name, opts)
+    OTPSupervisor.Core.SandboxManager.create_sandbox(sandbox_id, module_or_app, opts)
   end
 
   @doc """

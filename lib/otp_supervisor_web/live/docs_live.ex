@@ -7,12 +7,12 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
 
   @moduledoc """
   Documentation center with comprehensive OTP system architecture docs.
-  
+
   Refactored to use LiveComponents for better reusability and maintainability.
   """
 
   def mount(_params, _session, socket) do
-    {:ok, 
+    {:ok,
      socket
      |> assign(:page_title, "OTP Supervisor Documentation")
      |> assign(:current_page, "docs")
@@ -37,8 +37,8 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
         metrics={status_bar_metrics(assigns)}
         navigation_links={TerminalNavigationLinks.page_navigation_links("docs", %{})}
       />
-
-      <!-- Main Content -->
+      
+    <!-- Main Content -->
       <.live_component
         module={TerminalPanelLayout}
         id="docs-panel-layout"
@@ -63,8 +63,8 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
 
   def handle_event("search", %{"query" => query}, socket) do
     results = search_documentation(query, socket.assigns.docs)
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(:search_query, query)
      |> assign(:search_results, results)}
@@ -72,12 +72,12 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
 
   def handle_event("select_doc", %{"doc_id" => doc_id}, socket) do
     doc = find_document(doc_id, socket.assigns.docs)
-    
+
     {:noreply, assign(socket, :selected_doc, doc)}
   end
 
   def handle_event("clear_search", _params, socket) do
-    {:noreply, 
+    {:noreply,
      socket
      |> assign(:search_query, "")
      |> assign(:search_results, [])}
@@ -100,24 +100,11 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
     [
       %{label: "Sections", value: length(assigns.docs || [])},
       %{label: "Search Results", value: length(assigns.search_results)},
-      %{label: "Current", value: if(assigns.selected_doc, do: assigns.selected_doc.title, else: "Welcome")}
+      %{
+        label: "Current",
+        value: if(assigns.selected_doc, do: assigns.selected_doc.title, else: "Welcome")
+      }
     ]
-  end
-
-  defp content_actions(assigns) do
-    actions = []
-    
-    actions = if assigns.selected_doc do
-      [%{type: :button, label: "Print", event: "print_doc"} | actions]
-    else
-      actions
-    end
-
-    if assigns.search_query != "" do
-      [%{type: :button, label: "Clear Search", event: "clear_search"} | actions]
-    else
-      actions
-    end
   end
 
   defp render_documentation_sidebar(assigns) do
@@ -144,13 +131,13 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <% end %>
         </div>
       </div>
-
-      <!-- Search Results or Documentation Tree -->
+      
+    <!-- Search Results or Documentation Tree -->
       <div class="flex-1 overflow-y-auto">
         <%= if @search_results != [] do %>
           <div class="p-4">
             <h4 class="text-sm font-mono font-bold mb-3 text-green-300">
-              Search Results (<%= length(@search_results) %>)
+              Search Results ({length(@search_results)})
             </h4>
             <%= for result <- @search_results do %>
               <button
@@ -158,8 +145,8 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
                 phx-value-doc-id={result.id}
                 class="block w-full text-left p-2 mb-1 rounded hover:bg-green-500/10 transition-colors"
               >
-                <div class="text-sm font-mono text-green-400"><%= result.title %></div>
-                <div class="text-xs text-green-400/70 mt-1"><%= result.excerpt %></div>
+                <div class="text-sm font-mono text-green-400">{result.title}</div>
+                <div class="text-xs text-green-400/70 mt-1">{result.excerpt}</div>
               </button>
             <% end %>
           </div>
@@ -172,14 +159,15 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
                 phx-value-doc-id={doc.id}
                 class={[
                   "block w-full text-left p-2 mb-1 rounded transition-colors font-mono text-sm",
-                  if(@selected_doc && @selected_doc.id == doc.id, 
-                     do: "bg-green-500/20 text-green-300", 
-                     else: "text-green-400 hover:bg-green-500/10")
+                  if(@selected_doc && @selected_doc.id == doc.id,
+                    do: "bg-green-500/20 text-green-300",
+                    else: "text-green-400 hover:bg-green-500/10"
+                  )
                 ]}
               >
                 <div class="flex items-center space-x-2">
-                  <span><%= doc.icon %></span>
-                  <span><%= doc.title %></span>
+                  <span>{doc.icon}</span>
+                  <span>{doc.title}</span>
                 </div>
               </button>
             <% end %>
@@ -196,18 +184,18 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
       <div class="flex-1 overflow-y-auto">
         <%= if @selected_doc do %>
           <div class="p-6">
-          <div class="prose prose-green max-w-none">
-            <div class="flex items-center space-x-3 mb-6">
-              <span class="text-2xl"><%= @selected_doc.icon %></span>
-              <h1 class="text-xl font-mono font-bold text-green-300 m-0"><%= @selected_doc.title %></h1>
-            </div>
-            
-            <div class="text-green-400 font-mono text-sm leading-relaxed space-y-4">
-              <%= Phoenix.HTML.raw(@selected_doc.content) %>
+            <div class="prose prose-green max-w-none">
+              <div class="flex items-center space-x-3 mb-6">
+                <span class="text-2xl">{@selected_doc.icon}</span>
+                <h1 class="text-xl font-mono font-bold text-green-300 m-0">{@selected_doc.title}</h1>
+              </div>
+
+              <div class="text-green-400 font-mono text-sm leading-relaxed space-y-4">
+                {Phoenix.HTML.raw(@selected_doc.content)}
+              </div>
             </div>
           </div>
-        </div>
-      <% else %>
+        <% else %>
           <div class="h-full flex items-center justify-center">
             <div class="text-center">
               <div class="text-6xl mb-4">📚</div>
@@ -235,9 +223,9 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
         icon: "🏗️",
         content: """
         <h2>OTP Supervisor System Architecture</h2>
-        
+
         <p>This system provides comprehensive monitoring and management of OTP (Open Telecom Platform) supervisors and their child processes. The architecture is designed for high availability, fault tolerance, and real-time monitoring capabilities.</p>
-        
+
         <h3>Core Components</h3>
         <ul>
           <li><strong>Supervisor Manager:</strong> Central coordination of all supervisor instances</li>
@@ -245,7 +233,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <li><strong>Arsenal System:</strong> Command execution and operation management</li>
           <li><strong>Dashboard:</strong> Visual monitoring and metrics display</li>
         </ul>
-        
+
         <h3>Key Features</h3>
         <ul>
           <li>Real-time process monitoring with WebSocket updates</li>
@@ -262,10 +250,10 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
         icon: "🏛️",
         content: """
         <h2>System Architecture</h2>
-        
+
         <h3>Supervision Tree</h3>
         <p>The system follows OTP principles with a well-defined supervision tree:</p>
-        
+
         <pre class="bg-gray-800 p-4 rounded">
         OtpSupervisor.Application
         ├── OtpSupervisor.Core.SupervisorManager
@@ -275,7 +263,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
             ├── OtpSupervisorWeb.Telemetry
             └── Phoenix.PubSub
         </pre>
-        
+
         <h3>Core Modules</h3>
         <ul>
           <li><strong>SupervisorManager:</strong> Manages supervisor instances and their lifecycle</li>
@@ -283,7 +271,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <li><strong>SandboxManager:</strong> Provides isolated environments for testing</li>
           <li><strong>Arsenal:</strong> Command execution and operation management</li>
         </ul>
-        
+
         <h3>Data Flow</h3>
         <p>The system uses a combination of GenServer processes, Phoenix PubSub for real-time updates, and LiveView for interactive web interfaces.</p>
         """
@@ -294,7 +282,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
         icon: "📊",
         content: """
         <h2>Monitoring and Metrics</h2>
-        
+
         <h3>Process Monitoring</h3>
         <p>The system continuously monitors:</p>
         <ul>
@@ -304,7 +292,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <li>CPU utilization per process</li>
           <li>Restart counts and error rates</li>
         </ul>
-        
+
         <h3>System Metrics</h3>
         <ul>
           <li><strong>Memory:</strong> Total system memory usage, per-process allocation</li>
@@ -312,7 +300,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <li><strong>Processes:</strong> Total process count, supervisor tree depth</li>
           <li><strong>Network:</strong> Connection counts, message throughput</li>
         </ul>
-        
+
         <h3>Alerting</h3>
         <p>The system provides configurable alerts for:</p>
         <ul>
@@ -329,17 +317,17 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
         icon: "⚡",
         content: """
         <h2>Arsenal Command System</h2>
-        
+
         <h3>Overview</h3>
         <p>The Arsenal system provides a comprehensive command execution framework for OTP operations. It supports over 200 predefined operations with real-time status tracking.</p>
-        
+
         <h3>Operation Types</h3>
         <ul>
           <li><strong>Active:</strong> Currently executing operations</li>
           <li><strong>Planned:</strong> Scheduled for future execution</li>
           <li><strong>Inactive:</strong> Disabled or completed operations</li>
         </ul>
-        
+
         <h3>Command Categories</h3>
         <ul>
           <li><strong>Process Management:</strong> Start, stop, restart processes</li>
@@ -347,7 +335,7 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <li><strong>System Operations:</strong> Memory cleanup, performance tuning</li>
           <li><strong>Diagnostics:</strong> Health checks, system analysis</li>
         </ul>
-        
+
         <h3>Execution Flow</h3>
         <ol>
           <li>Command selection from operation grid</li>
@@ -363,16 +351,16 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
         icon: "🔧",
         content: """
         <h2>API Reference</h2>
-        
+
         <h3>REST Endpoints</h3>
-        
+
         <h4>System Information</h4>
         <ul>
           <li><code>GET /api/v1/system</code> - System status and metrics</li>
           <li><code>GET /api/v1/system/processes</code> - All process information</li>
           <li><code>GET /api/v1/system/supervisors</code> - Supervisor tree data</li>
         </ul>
-        
+
         <h4>Process Management</h4>
         <ul>
           <li><code>POST /api/v1/process/start</code> - Start a new process</li>
@@ -380,14 +368,14 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
           <li><code>POST /api/v1/process/restart</code> - Restart a process</li>
           <li><code>GET /api/v1/process/:id</code> - Get process details</li>
         </ul>
-        
+
         <h4>Supervisor Operations</h4>
         <ul>
           <li><code>GET /api/v1/supervisor/:id</code> - Supervisor details</li>
           <li><code>POST /api/v1/supervisor/:id/restart</code> - Restart supervisor</li>
           <li><code>GET /api/v1/supervisor/:id/children</code> - Get child processes</li>
         </ul>
-        
+
         <h3>WebSocket Events</h3>
         <ul>
           <li><code>process_update</code> - Process status changes</li>
@@ -401,11 +389,11 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
 
   defp search_documentation(query, docs) when is_binary(query) and query != "" do
     query = String.downcase(query)
-    
+
     Enum.filter(docs, fn doc ->
       title_match = String.contains?(String.downcase(doc.title), query)
       content_match = String.contains?(String.downcase(doc.content), query)
-      
+
       title_match or content_match
     end)
     |> Enum.map(fn doc ->
@@ -419,7 +407,8 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
   defp extract_excerpt(content, query) do
     # Simple excerpt extraction - find the first occurrence of the query
     content
-    |> String.replace(~r/<[^>]*>/, "")  # Remove HTML tags
+    # Remove HTML tags
+    |> String.replace(~r/<[^>]*>/, "")
     |> String.split(~r/\s+/)
     |> Enum.chunk_every(20, 10)
     |> Enum.find(fn chunk ->
@@ -441,15 +430,4 @@ defmodule OtpSupervisorWeb.Live.DocsLive do
   defp find_document_by_section(section, docs) do
     Enum.find(docs, &(&1.id == section))
   end
-
-  # Action rendering helper
-  defp render_action(%{type: :button, label: label, event: event}) do
-    Phoenix.HTML.raw(~s(<button class="px-2 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors" phx-click="#{event}">#{label}</button>))
-  end
-
-  defp render_action(%{type: :link, label: label, href: href}) do
-    Phoenix.HTML.raw(~s(<a href="#{href}" class="px-2 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors">#{label}</a>))
-  end
-
-  defp render_action(_), do: nil
 end

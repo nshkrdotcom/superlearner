@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
 
   @moduledoc """
   Consistent terminal-themed navigation links across all pages.
-  
+
   Provides standardized navigation styling and behavior.
   """
 
@@ -24,23 +24,26 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
     ]}>
       <%= if @links != [] do %>
         <%= for link <- @links do %>
-          <.link 
+          <.link
             navigate={link.path}
             class={[
               link_classes(@size),
-              if(link_active?(link, @current_page), do: active_link_classes(), else: inactive_link_classes())
+              if(link_active?(link, @current_page),
+                do: active_link_classes(),
+                else: inactive_link_classes()
+              )
             ]}
           >
             <%= if @show_icons and link[:icon] do %>
-              <span class="flex-shrink-0"><%= link.icon %></span>
+              <span class="flex-shrink-0">{link.icon}</span>
             <% end %>
-            <span><%= link.label %></span>
+            <span>{link.label}</span>
             <%= if link[:badge] do %>
               <span class={[
                 badge_classes(),
                 badge_color_classes(link.badge)
               ]}>
-                <%= link.badge.value %>
+                {link.badge.value}
               </span>
             <% end %>
           </.link>
@@ -48,7 +51,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
       <% end %>
 
       <%= for custom_link <- @custom_link do %>
-        <%= render_slot(custom_link) %>
+        {render_slot(custom_link)}
       <% end %>
     </nav>
     """
@@ -87,25 +90,26 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
   # Page-specific navigation with context
   def page_navigation_links(page, context \\ %{}) do
     base_links = default_navigation_links()
-    
+
     # Add active status to base links
-    base_links_with_active = Enum.map(base_links, fn link ->
-      Map.put(link, :active, link_active?(link, page))
-    end)
-    
+    base_links_with_active =
+      Enum.map(base_links, fn link ->
+        Map.put(link, :active, link_active?(link, page))
+      end)
+
     case page do
       "docs" ->
         add_docs_navigation(base_links_with_active, context)
-      
+
       "dashboard" ->
         add_dashboard_navigation(base_links_with_active, context)
-      
+
       "supervisor" ->
         add_supervisor_navigation(base_links_with_active, context)
-      
+
       "arsenal" ->
         add_arsenal_navigation(base_links_with_active, context)
-      
+
       _ ->
         base_links_with_active
     end
@@ -153,35 +157,45 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
 
   defp link_active?(link, current_page) do
     case {link.key, current_page} do
-      {"dashboard", "dashboard"} -> true
-      {"supervisor", "supervisor"} -> true
-      {"docs", "docs"} -> true
-      {"arsenal", "arsenal"} -> true
-      _ -> link.key == current_page || link.path == current_page || String.contains?(current_page, link.key)
+      {"dashboard", "dashboard"} ->
+        true
+
+      {"supervisor", "supervisor"} ->
+        true
+
+      {"docs", "docs"} ->
+        true
+
+      {"arsenal", "arsenal"} ->
+        true
+
+      _ ->
+        link.key == current_page || link.path == current_page ||
+          String.contains?(current_page, link.key)
     end
   end
 
   # Page-specific navigation helpers
 
-  defp add_docs_navigation(links, context) do
+  defp add_docs_navigation(links, _context) do
     # For now, docs page handles its own internal navigation
     # No additional external routes needed
     links
   end
 
-  defp add_dashboard_navigation(links, context) do
+  defp add_dashboard_navigation(links, _context) do
     # Dashboard page handles its own internal navigation
     # No additional external routes needed
     links
   end
 
-  defp add_supervisor_navigation(links, context) do
+  defp add_supervisor_navigation(links, _context) do
     # Supervisor page handles its own internal navigation
     # No additional external routes needed
     links
   end
 
-  defp add_arsenal_navigation(links, context) do
+  defp add_arsenal_navigation(links, _context) do
     # Arsenal page handles its own internal navigation
     # No additional external routes needed
     links

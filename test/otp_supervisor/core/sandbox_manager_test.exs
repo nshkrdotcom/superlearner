@@ -1,6 +1,7 @@
 defmodule OTPSupervisor.Core.SandboxManagerTest do
   use ExUnit.Case, async: false
   import SupervisorTestHelper
+  import SandboxTestHelper
   import ExUnit.CaptureLog
 
   @moduledoc """
@@ -13,6 +14,10 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
 
   alias OTPSupervisor.Core.SandboxManager
   alias OtpSandbox.TestDemoSupervisor
+
+  setup do
+    setup_sandbox_test(nil)
+  end
 
   describe "sandbox manager lifecycle" do
     test "starts successfully and initializes ETS table" do
@@ -34,25 +39,20 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
 
   describe "sandbox creation and destruction" do
     test "creates sandbox with unique naming" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_create_#{unique_id}"
-
-      # Create sandbox
-      {:ok, sandbox_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor,
-          strategy: :one_for_one
-        )
+      # Create sandbox using helper
+      {:ok, sandbox_info} = create_test_sandbox(strategy: :one_for_one)
 
       # Verify sandbox info structure
-      assert sandbox_info.id == sandbox_id
+      assert is_binary(sandbox_info.id)
       assert sandbox_info.supervisor_module == TestDemoSupervisor
       assert is_pid(sandbox_info.supervisor_pid)
       assert Process.alive?(sandbox_info.supervisor_pid)
       assert sandbox_info.opts[:strategy] == :one_for_one
       assert is_integer(sandbox_info.created_at)
       assert sandbox_info.restart_count == 0
+
+      # Verify sandbox is functional
+      assert :ok = verify_sandbox_functional(sandbox_info)
 
       # Verify children are running
       children = Supervisor.which_children(sandbox_info.supervisor_pid)
@@ -64,55 +64,32 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       assert :counter_1 in child_names
       assert :counter_2 in child_names
       assert :printer_1 in child_names
-
-      # Cleanup
-      :ok = SandboxManager.destroy_sandbox(sandbox_id)
     end
 
     test "destroys sandbox completely" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_destroy_#{unique_id}"
+      # Create sandbox using helper
+      {:ok, sandbox_info} = create_test_sandbox(strategy: :one_for_all, cleanup: false)
+      sandbox_id = sandbox_info.id
 
-      # Create sandbox
-      {:ok, sandbox_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor,
-          strategy: :one_for_all
-        )
+      # Destroy sandbox using helper
+      :ok = destroy_test_sandbox(sandbox_id)
 
-      supervisor_pid = sandbox_info.supervisor_pid
-
-      # Monitor supervisor for death
-      ref = Process.monitor(supervisor_pid)
-
-      # Destroy sandbox
-      :ok = SandboxManager.destroy_sandbox(sandbox_id)
-
-      # Wait for supervisor to die (OTP pattern - no sleep)
-      receive do
-        {:DOWN, ^ref, :process, ^supervisor_pid, _reason} -> :ok
-      after
-        1000 -> flunk("Supervisor did not terminate")
-      end
-
-      # Verify supervisor is dead
-      refute Process.alive?(supervisor_pid)
+      # Wait for cleanup to complete
+      :ok = wait_for_sandbox_cleanup(sandbox_id)
 
       # Verify sandbox removed from manager
       {:error, :not_found} = SandboxManager.get_sandbox_info(sandbox_id)
+
+      # Verify sandbox is not in the list
+      sandboxes = SandboxManager.list_sandboxes()
+      sandbox_ids = Enum.map(sandboxes, & &1.id)
+      refute sandbox_id in sandbox_ids
     end
 
     test "prevents duplicate sandbox IDs" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_duplicate_#{unique_id}"
-
-      # Create first sandbox
-      {:ok, _sandbox_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor
-        )
+      # Create first sandbox using helper
+      {:ok, sandbox_info} = create_test_sandbox(cleanup: false)
+      sandbox_id = sandbox_info.id
 
       # Attempt to create duplicate
       {:error, {:already_exists, existing_info}} =
@@ -124,41 +101,30 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       assert existing_info.id == sandbox_id
 
       # Cleanup
-      :ok = SandboxManager.destroy_sandbox(sandbox_id)
+      :ok = destroy_test_sandbox(sandbox_id)
     end
   end
 
   describe "sandbox restart functionality" do
     test "restarts sandbox with same configuration" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_restart_#{unique_id}"
-
-      # Create sandbox with specific configuration
+      # Create sandbox with specific configuration using helper
       {:ok, original_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor,
+        create_test_sandbox(
           strategy: :rest_for_one,
-          custom_opt: :test_value
+          custom_opt: :test_value,
+          cleanup: false
         )
 
+      sandbox_id = original_info.id
       original_pid = original_info.supervisor_pid
-      _original_opts = original_info.opts
-
-      # Monitor original supervisor
-      ref = Process.monitor(original_pid)
 
       # Restart sandbox
       {:ok, restarted_info} =
         ExUnit.CaptureLog.with_log(fn -> SandboxManager.restart_sandbox(sandbox_id) end)
         |> elem(0)
 
-      # Wait for original supervisor to die
-      receive do
-        {:DOWN, ^ref, :process, ^original_pid, _reason} -> :ok
-      after
-        1000 -> flunk("Original supervisor did not terminate")
-      end
+      # Wait for restart to complete
+      :ok = wait_for_sandbox_ready(sandbox_id)
 
       # Verify new supervisor is different
       new_pid = restarted_info.supervisor_pid
@@ -177,7 +143,7 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       assert length(children) == 3
 
       # Cleanup
-      :ok = SandboxManager.destroy_sandbox(sandbox_id)
+      :ok = destroy_test_sandbox(sandbox_id)
     end
 
     test "handles restart of non-existent sandbox" do
@@ -187,16 +153,9 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
 
   describe "sandbox introspection" do
     test "provides sandbox information" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_info_#{unique_id}"
-
-      # Create sandbox
-      {:ok, _created_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor,
-          strategy: :one_for_one
-        )
+      # Create sandbox using helper
+      {:ok, created_info} = create_test_sandbox(strategy: :one_for_one, cleanup: false)
+      sandbox_id = created_info.id
 
       # Get sandbox info
       {:ok, sandbox_info} = SandboxManager.get_sandbox_info(sandbox_id)
@@ -207,36 +166,29 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       assert Process.alive?(sandbox_info.supervisor_pid)
 
       # Cleanup
-      :ok = SandboxManager.destroy_sandbox(sandbox_id)
+      :ok = destroy_test_sandbox(sandbox_id)
     end
 
     test "provides sandbox PID lookup" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_pid_#{unique_id}"
-
-      # Create sandbox
-      {:ok, sandbox_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor
-        )
+      # Create sandbox using helper
+      {:ok, sandbox_info} = create_test_sandbox(cleanup: false)
+      sandbox_id = sandbox_info.id
 
       # Get PID via lookup
       {:ok, pid} = SandboxManager.get_sandbox_pid(sandbox_id)
-      assert pid == sandbox_info.supervisor_pid
+      # Should return app_pid, not supervisor_pid
+      assert pid == sandbox_info.app_pid
 
       # Cleanup
-      :ok = SandboxManager.destroy_sandbox(sandbox_id)
+      :ok = destroy_test_sandbox(sandbox_id)
     end
 
     test "lists all active sandboxes" do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id_1 = "test_list_1_#{unique_id}"
-      sandbox_id_2 = "test_list_2_#{unique_id}"
-
-      # Create multiple sandboxes
-      {:ok, _info1} = SandboxManager.create_sandbox(sandbox_id_1, TestDemoSupervisor)
-      {:ok, _info2} = SandboxManager.create_sandbox(sandbox_id_2, TestDemoSupervisor)
+      # Create multiple sandboxes using helper
+      {:ok, info1} = create_test_sandbox(cleanup: false)
+      {:ok, info2} = create_test_sandbox(cleanup: false)
+      sandbox_id_1 = info1.id
+      sandbox_id_2 = info2.id
 
       # List sandboxes
       sandboxes = SandboxManager.list_sandboxes()
@@ -246,8 +198,8 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       assert sandbox_id_2 in sandbox_ids
 
       # Cleanup
-      :ok = SandboxManager.destroy_sandbox(sandbox_id_1)
-      :ok = SandboxManager.destroy_sandbox(sandbox_id_2)
+      :ok = destroy_test_sandbox(sandbox_id_1)
+      :ok = destroy_test_sandbox(sandbox_id_2)
     end
   end
 
@@ -257,38 +209,28 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
     end
 
     test "detects and cleans up crashed supervisors", %{sup_pid: _crash_supervisor_pid} do
-      unique_id = :erlang.unique_integer([:positive])
-      sandbox_id = "test_crash_#{unique_id}"
+      # Create sandbox using helper
+      {:ok, sandbox_info} = create_test_sandbox(cleanup: false)
+      sandbox_id = sandbox_info.id
+      app_pid = sandbox_info.app_pid
 
-      # Create sandbox with the isolated supervisor
-      {:ok, sandbox_info} =
-        SandboxManager.create_sandbox(
-          sandbox_id,
-          TestDemoSupervisor
-        )
+      # Monitor the application (not supervisor)
+      ref = Process.monitor(app_pid)
 
-      supervisor_pid = sandbox_info.supervisor_pid
-
-      # Monitor the supervisor
-      ref = Process.monitor(supervisor_pid)
-
-      # Kill the supervisor directly and capture expected warning log
+      # Kill the application directly and capture expected warning log
       capture_log(fn ->
-        Process.exit(supervisor_pid, :kill)
+        Process.exit(app_pid, :kill)
 
-        # Wait for supervisor to die
+        # Wait for application to die
         receive do
-          {:DOWN, ^ref, :process, ^supervisor_pid, :killed} -> :ok
+          {:DOWN, ^ref, :process, ^app_pid, :killed} -> :ok
         after
-          1000 -> flunk("Supervisor did not die")
+          1000 -> flunk("Application did not die")
         end
 
-        # Force SandboxManager to process DOWN message with synchronous call
-        _sandboxes = SandboxManager.list_sandboxes()
+        # Wait for SandboxManager to process the DOWN message
+        :ok = wait_for_sandbox_cleanup(sandbox_id)
       end)
-
-      # Wait for SandboxManager to process the DOWN message using proper OTP synchronization
-      :ok = SandboxManager.sync()
 
       # Verify sandbox was cleaned up
       {:error, :not_found} = SandboxManager.get_sandbox_info(sandbox_id)
@@ -297,15 +239,12 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
 
   describe "concurrent operations" do
     test "handles multiple concurrent sandbox operations" do
-      unique_id = :erlang.unique_integer([:positive])
-
-      # Create multiple sandboxes concurrently
+      # Create multiple sandboxes concurrently using helper
       tasks =
-        for i <- 1..5 do
+        for _i <- 1..5 do
           Task.async(fn ->
-            sandbox_id = "concurrent_#{i}_#{unique_id}"
-            {:ok, info} = SandboxManager.create_sandbox(sandbox_id, TestDemoSupervisor)
-            {sandbox_id, info}
+            {:ok, info} = create_test_sandbox(cleanup: false)
+            {info.id, info}
           end)
         end
 
@@ -319,7 +258,7 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
       cleanup_tasks =
         for {sandbox_id, _info} <- results do
           Task.async(fn ->
-            :ok = SandboxManager.destroy_sandbox(sandbox_id)
+            :ok = destroy_test_sandbox(sandbox_id)
           end)
         end
 

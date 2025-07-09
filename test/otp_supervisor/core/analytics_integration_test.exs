@@ -44,14 +44,21 @@ defmodule OTPSupervisor.Core.AnalyticsIntegrationTest do
       assert stats.total_restarts > 0
     end
 
-    test "analytics work with demo supervisor", %{} do
-      # Test with the real demo supervisor
-      {:ok, demo_history} = Control.get_restart_history(:demo_one_for_one)
-      assert is_list(demo_history)
+    test "analytics work with sandbox supervisor", %{} do
+      # Create a sandbox to test analytics
+      {:ok, sandbox_info} = Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
+      supervisor_pid = sandbox_info.supervisor_pid
+
+      # Test with the sandbox supervisor
+      {:ok, sandbox_history} = Control.get_restart_history(supervisor_pid)
+      assert is_list(sandbox_history)
 
       # Should be able to get failure rate
-      {:ok, failure_rate} = Control.get_failure_rate(:demo_one_for_one, 10_000)
+      {:ok, failure_rate} = Control.get_failure_rate(supervisor_pid, 10_000)
       assert is_map(failure_rate)
+
+      # Cleanup
+      :ok = Control.destroy_sandbox(sandbox_info.id)
     end
   end
 

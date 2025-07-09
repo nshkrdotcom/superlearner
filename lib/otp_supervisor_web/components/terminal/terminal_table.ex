@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
 
   @moduledoc """
   Terminal-themed data table with sorting, filtering, and actions.
-  
+
   Provides a consistent table interface with terminal styling across all pages.
   """
 
@@ -40,14 +40,14 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
         <!-- Header -->
         <div class="flex items-center justify-between p-3 border-b border-green-500/20">
           <div class="flex items-center space-x-4">
-            <h3 class="text-sm font-mono font-bold"><%= @title %></h3>
+            <h3 class="text-sm font-mono font-bold">{@title}</h3>
             <%= if @rows != [] do %>
               <span class="text-xs text-green-400/70 font-mono">
-                (<%= length(@rows) %> rows)
+                ({length(@rows)} rows)
               </span>
             <% end %>
           </div>
-          
+
           <div class="flex items-center space-x-2">
             <%= if @filterable and @rows != [] do %>
               <input
@@ -59,12 +59,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
                 value={@filter_text || ""}
               />
             <% end %>
-            
-            <%= render_slot(@actions) %>
+
+            {render_slot(@actions)}
           </div>
         </div>
-
-        <!-- Table content -->
+        
+    <!-- Table content -->
         <div class={[
           "overflow-auto",
           @max_height
@@ -76,7 +76,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
           <% else %>
             <%= if @rows == [] do %>
               <div class="p-8 text-center">
-                <div class="text-green-400/50 text-sm font-mono"><%= @empty_message %></div>
+                <div class="text-green-400/50 text-sm font-mono">{@empty_message}</div>
               </div>
             <% else %>
               <table class="w-full">
@@ -92,7 +92,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
                         />
                       </th>
                     <% end %>
-                    
+
                     <%= for column <- @columns do %>
                       <th class="px-3 py-2 text-left">
                         <%= if @sortable and column[:sortable] != false do %>
@@ -102,21 +102,21 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
                             phx-click="sort"
                             phx-value-column={column.key}
                           >
-                            <span><%= column.label %></span>
+                            <span>{column.label}</span>
                             <%= if @sort_column == column.key do %>
                               <span class="text-xs">
-                                <%= if @sort_direction == :asc, do: "↑", else: "↓" %>
+                                {if @sort_direction == :asc, do: "↑", else: "↓"}
                               </span>
                             <% end %>
                           </button>
                         <% else %>
                           <span class="text-green-300 font-mono text-xs font-bold">
-                            <%= column.label %>
+                            {column.label}
                           </span>
                         <% end %>
                       </th>
                     <% end %>
-                    
+
                     <%= if @row_actions != [] do %>
                       <th class="px-3 py-2 text-left">
                         <span class="text-green-300 font-mono text-xs font-bold">Actions</span>
@@ -128,7 +128,10 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
                   <%= for {row, _index} <- Enum.with_index(filtered_and_sorted_rows(@rows, assigns)) do %>
                     <tr class={[
                       "border-b border-green-500/10 hover:bg-green-500/5 transition-colors",
-                      if(@selectable and Map.get(@selected_rows, row_id(row), false), do: "bg-green-500/10", else: "")
+                      if(@selectable and Map.get(@selected_rows, row_id(row), false),
+                        do: "bg-green-500/10",
+                        else: ""
+                      )
                     ]}>
                       <%= if @selectable do %>
                         <td class="px-3 py-2">
@@ -142,17 +145,17 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
                           />
                         </td>
                       <% end %>
-                      
+
                       <%= for column <- @columns do %>
                         <td class="px-3 py-2 text-sm font-mono">
-                          <%= format_cell_value(row, column) %>
+                          {format_cell_value(row, column)}
                         </td>
                       <% end %>
-                      
+
                       <%= if @row_actions != [] do %>
                         <td class="px-3 py-2">
                           <div class="flex items-center space-x-2">
-                            <%= render_slot(@row_actions) %>
+                            {render_slot(@row_actions)}
                           </div>
                         </td>
                       <% end %>
@@ -169,7 +172,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
   end
 
   def mount(socket) do
-    {:ok, 
+    {:ok,
      socket
      |> assign(:sort_column, nil)
      |> assign(:sort_direction, :asc)
@@ -183,15 +186,15 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
 
   def handle_event("sort", %{"column" => column}, socket) do
     column = String.to_existing_atom(column)
-    
-    {sort_column, sort_direction} = 
+
+    {sort_column, sort_direction} =
       if socket.assigns.sort_column == column do
         {column, toggle_direction(socket.assigns.sort_direction)}
       else
         {column, :asc}
       end
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(:sort_column, sort_column)
      |> assign(:sort_direction, sort_direction)}
@@ -203,22 +206,24 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
 
   def handle_event("toggle_row", %{"row-id" => row_id}, socket) do
     selected_rows = socket.assigns.selected_rows
-    new_selected_rows = 
+
+    new_selected_rows =
       if Map.get(selected_rows, row_id, false) do
         Map.delete(selected_rows, row_id)
       else
         Map.put(selected_rows, row_id, true)
       end
-    
+
     {:noreply, assign(socket, :selected_rows, new_selected_rows)}
   end
 
   def handle_event("toggle_all", _params, socket) do
-    all_selected = Enum.all?(socket.assigns.rows, fn row -> 
-      Map.get(socket.assigns.selected_rows, row_id(row), false) 
-    end)
-    
-    new_selected_rows = 
+    all_selected =
+      Enum.all?(socket.assigns.rows, fn row ->
+        Map.get(socket.assigns.selected_rows, row_id(row), false)
+      end)
+
+    new_selected_rows =
       if all_selected do
         %{}
       else
@@ -226,7 +231,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
           Map.put(acc, row_id(row), true)
         end)
       end
-    
+
     {:noreply, assign(socket, :selected_rows, new_selected_rows)}
   end
 
@@ -240,7 +245,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
 
   defp filter_rows(rows, filter_text) when is_binary(filter_text) and filter_text != "" do
     filter_text = String.downcase(filter_text)
-    
+
     Enum.filter(rows, fn row ->
       row
       |> Map.values()
@@ -258,10 +263,11 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
   defp sort_rows(rows, nil, _), do: rows
 
   defp sort_rows(rows, column, direction) do
-    sorted = Enum.sort_by(rows, fn row -> 
-      Map.get(row, column, "") |> sort_value()
-    end)
-    
+    sorted =
+      Enum.sort_by(rows, fn row ->
+        Map.get(row, column, "") |> sort_value()
+      end)
+
     case direction do
       :asc -> sorted
       :desc -> Enum.reverse(sorted)
@@ -281,7 +287,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
 
   defp format_cell_value(row, column) do
     value = Map.get(row, column.key, "")
-    
+
     case column[:format] do
       :bytes -> format_bytes(value)
       :percentage -> "#{value}%"
@@ -318,7 +324,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalTable do
     days = div(seconds, 86400)
     hours = div(rem(seconds, 86400), 3600)
     minutes = div(rem(seconds, 3600), 60)
-    
+
     cond do
       days > 0 -> "#{days}d #{hours}h"
       hours > 0 -> "#{hours}h #{minutes}m"

@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
 
   @moduledoc """
   Consistent data formatting functions for terminal-themed components.
-  
+
   Provides standardized formatting for common data types across all pages.
   """
 
@@ -12,7 +12,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
   """
   def format_bytes(assigns) do
     ~H"""
-    <span class="font-mono"><%= format_bytes_value(@value) %></span>
+    <span class="font-mono">{format_bytes_value(@value)}</span>
     """
   end
 
@@ -21,7 +21,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
   """
   def format_uptime(assigns) do
     ~H"""
-    <span class="font-mono"><%= format_uptime_value(@value) %></span>
+    <span class="font-mono">{format_uptime_value(@value)}</span>
     """
   end
 
@@ -34,8 +34,8 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
       "inline-flex items-center space-x-1 font-mono text-sm",
       status_color(@status)
     ]}>
-      <span><%= status_icon(@status) %></span>
-      <span><%= format_status_text(@status) %></span>
+      <span>{status_icon(@status)}</span>
+      <span>{format_status_text(@status)}</span>
     </span>
     """
   end
@@ -45,7 +45,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
   """
   def format_number(assigns) do
     ~H"""
-    <span class="font-mono"><%= format_number_value(@value) %></span>
+    <span class="font-mono">{format_number_value(@value)}</span>
     """
   end
 
@@ -58,7 +58,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
       "font-mono",
       percentage_color(@value, @threshold)
     ]}>
-      <%= format_percentage_value(@value) %>%
+      {format_percentage_value(@value)}%
     </span>
     """
   end
@@ -68,7 +68,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
   """
   def format_timestamp(assigns) do
     ~H"""
-    <span class="font-mono text-green-400/70"><%= format_timestamp_value(@value) %></span>
+    <span class="font-mono text-green-400/70">{format_timestamp_value(@value)}</span>
     """
   end
 
@@ -82,15 +82,15 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
         "font-mono",
         memory_usage_color(@used, @total)
       ]}>
-        <%= format_bytes_value(@used) %>
+        {format_bytes_value(@used)}
       </span>
       <span class="text-green-400/50 font-mono">/</span>
-      <span class="text-green-400/70 font-mono"><%= format_bytes_value(@total) %></span>
+      <span class="text-green-400/70 font-mono">{format_bytes_value(@total)}</span>
       <span class={[
         "text-xs font-mono",
         memory_usage_color(@used, @total)
       ]}>
-        (<%= format_percentage_value((@used / @total) * 100) %>%)
+        ({format_percentage_value(@used / @total * 100)}%)
       </span>
     </div>
     """
@@ -106,11 +106,11 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
         "font-mono",
         cpu_usage_color(@value)
       ]}>
-        <%= format_percentage_value(@value) %>%
+        {format_percentage_value(@value)}%
       </span>
       <%= if @cores do %>
         <span class="text-green-400/50 font-mono text-xs">
-          (<%= @cores %> cores)
+          ({@cores} cores)
         </span>
       <% end %>
     </div>
@@ -127,11 +127,11 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
         "font-mono",
         process_count_color(@count, @limit)
       ]}>
-        <%= format_number_value(@count) %>
+        {format_number_value(@count)}
       </span>
       <%= if @limit do %>
         <span class="text-green-400/50 font-mono">/</span>
-        <span class="text-green-400/70 font-mono"><%= format_number_value(@limit) %></span>
+        <span class="text-green-400/70 font-mono">{format_number_value(@limit)}</span>
       <% end %>
     </div>
     """
@@ -147,12 +147,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
         "inline-flex items-center space-x-1 font-mono text-sm",
         health_color(@health)
       ]}>
-        <span><%= health_icon(@health) %></span>
-        <span><%= String.capitalize(to_string(@health)) %></span>
+        <span>{health_icon(@health)}</span>
+        <span>{String.capitalize(to_string(@health))}</span>
       </span>
       <%= if @children_count do %>
         <span class="text-green-400/50 font-mono text-xs">
-          (<%= @children_count %> children)
+          ({@children_count} children)
         </span>
       <% end %>
     </div>
@@ -168,8 +168,8 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
       "inline-flex items-center space-x-1 px-2 py-1 rounded text-xs font-mono",
       operation_status_style(@status)
     ]}>
-      <span><%= operation_status_icon(@status) %></span>
-      <span><%= String.capitalize(to_string(@status)) %></span>
+      <span>{operation_status_icon(@status)}</span>
+      <span>{String.capitalize(to_string(@status))}</span>
     </span>
     """
   end
@@ -183,9 +183,9 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
       "inline-flex items-center space-x-1 font-mono text-sm",
       trend_color(@trend)
     ]}>
-      <span><%= trend_symbol(@trend) %></span>
+      <span>{trend_symbol(@trend)}</span>
       <%= if @value do %>
-        <span><%= @value %></span>
+        <span>{@value}</span>
       <% end %>
     </span>
     """
@@ -210,7 +210,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
     hours = div(rem(seconds, 86400), 3600)
     minutes = div(rem(seconds, 3600), 60)
     secs = rem(seconds, 60)
-    
+
     cond do
       days > 0 -> "#{days}d #{hours}h #{minutes}m"
       hours > 0 -> "#{hours}h #{minutes}m #{secs}s"
@@ -297,7 +297,8 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
   defp percentage_color(_, _), do: "text-green-400"
 
   defp memory_usage_color(used, total) when is_number(used) and is_number(total) and total > 0 do
-    percentage = (used / total) * 100
+    percentage = used / total * 100
+
     cond do
       percentage >= 90 -> "text-red-400"
       percentage >= 70 -> "text-yellow-400"
@@ -317,8 +318,10 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
 
   defp cpu_usage_color(_), do: "text-green-400"
 
-  defp process_count_color(count, limit) when is_number(count) and is_number(limit) and limit > 0 do
-    percentage = (count / limit) * 100
+  defp process_count_color(count, limit)
+       when is_number(count) and is_number(limit) and limit > 0 do
+    percentage = count / limit * 100
+
     cond do
       percentage >= 90 -> "text-red-400"
       percentage >= 70 -> "text-yellow-400"
@@ -348,9 +351,15 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalDataFormatters do
   defp health_icon(:unknown), do: "?"
   defp health_icon(_), do: "●"
 
-  defp operation_status_style(:active), do: "bg-green-500/20 text-green-400 border border-green-500/30"
-  defp operation_status_style(:planned), do: "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-  defp operation_status_style(:inactive), do: "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+  defp operation_status_style(:active),
+    do: "bg-green-500/20 text-green-400 border border-green-500/30"
+
+  defp operation_status_style(:planned),
+    do: "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+
+  defp operation_status_style(:inactive),
+    do: "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+
   defp operation_status_style(:error), do: "bg-red-500/20 text-red-400 border border-red-500/30"
   defp operation_status_style(_), do: "bg-green-500/20 text-green-400 border border-green-500/30"
 

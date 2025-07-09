@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
 
   @moduledoc """
   Terminal-themed metric display widget with real-time updates.
-  
+
   Displays metrics in a bordered container with terminal styling.
   """
 
@@ -35,11 +35,11 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
       ]}>
         <!-- Header -->
         <div class="flex items-center justify-between p-3 border-b border-green-500/20">
-          <h3 class="text-sm font-mono font-bold"><%= @title %></h3>
-          <%= render_slot(@actions) %>
+          <h3 class="text-sm font-mono font-bold">{@title}</h3>
+          {render_slot(@actions)}
         </div>
-
-        <!-- Metrics content -->
+        
+    <!-- Metrics content -->
         <div class="flex-1 p-3">
           <%= if @metrics == [] do %>
             <div class="text-green-400/50 text-sm font-mono">No metrics available</div>
@@ -47,20 +47,20 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
             <div class="grid grid-cols-1 gap-2">
               <%= for metric <- @metrics do %>
                 <div class="flex items-center justify-between">
-                  <span class="text-green-300 text-sm font-mono"><%= metric.label %></span>
+                  <span class="text-green-300 text-sm font-mono">{metric.label}</span>
                   <div class="flex items-center space-x-2">
                     <span class={[
                       "text-sm font-mono font-bold",
                       metric_value_color(metric)
                     ]}>
-                      <%= format_metric_value(metric) %>
+                      {format_metric_value(metric)}
                     </span>
                     <%= if Map.has_key?(metric, :trend) do %>
                       <span class={[
                         "text-xs font-mono",
                         trend_color(metric.trend)
                       ]}>
-                        <%= trend_symbol(metric.trend) %>
+                        {trend_symbol(metric.trend)}
                       </span>
                     <% end %>
                   </div>
@@ -68,7 +68,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
                 <%= if Map.has_key?(metric, :bar) and metric.bar do %>
                   <div class="mt-1">
                     <div class="h-1 bg-gray-700 rounded overflow-hidden">
-                      <div 
+                      <div
                         class={[
                           "h-full rounded transition-all duration-300",
                           progress_bar_color(metric.value, metric.max_value || 100)
@@ -83,12 +83,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
             </div>
           <% end %>
         </div>
-
-        <!-- Footer with timestamp if provided -->
+        
+    <!-- Footer with timestamp if provided -->
         <%= if assigns[:last_updated] do %>
           <div class="px-3 py-2 border-t border-green-500/20">
             <div class="text-xs text-green-400/50 font-mono">
-              Last updated: <%= @last_updated %>
+              Last updated: {@last_updated}
             </div>
           </div>
         <% end %>
@@ -103,7 +103,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
 
   def update(assigns, socket) do
     socket = assign(socket, assigns)
-    
+
     # Set up auto-refresh if interval is provided
     if assigns[:update_interval] && assigns.update_interval > 0 do
       Process.send_after(self(), :refresh_metrics, assigns.update_interval)
@@ -162,9 +162,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
   defp metric_value_color(%{status: :error}), do: "text-red-400"
   defp metric_value_color(%{status: :warning}), do: "text-yellow-400"
   defp metric_value_color(%{status: :success}), do: "text-green-400"
-  defp metric_value_color(%{value: value, threshold: threshold}) when is_number(value) and is_number(threshold) do
+
+  defp metric_value_color(%{value: value, threshold: threshold})
+       when is_number(value) and is_number(threshold) do
     if value > threshold, do: "text-red-400", else: "text-green-400"
   end
+
   defp metric_value_color(_), do: "text-green-400"
 
   defp trend_color(:up), do: "text-green-400"
@@ -177,14 +180,17 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget do
   defp trend_symbol(:stable), do: "→"
   defp trend_symbol(_), do: ""
 
-  defp progress_percentage(value, max_value) when is_number(value) and is_number(max_value) and max_value > 0 do
+  defp progress_percentage(value, max_value)
+       when is_number(value) and is_number(max_value) and max_value > 0 do
     min(100, (value / max_value * 100) |> Float.round(1))
   end
 
   defp progress_percentage(_, _), do: 0
 
-  defp progress_bar_color(value, max_value) when is_number(value) and is_number(max_value) and max_value > 0 do
+  defp progress_bar_color(value, max_value)
+       when is_number(value) and is_number(max_value) and max_value > 0 do
     percentage = value / max_value * 100
+
     cond do
       percentage > 90 -> "bg-red-500"
       percentage > 70 -> "bg-yellow-500"

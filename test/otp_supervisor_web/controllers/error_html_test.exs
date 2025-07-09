@@ -1,5 +1,6 @@
 defmodule OtpSupervisorWeb.ErrorHTMLTest do
   use OtpSupervisorWeb.ConnCase, async: true
+  @moduletag :ui
 
   # Bring render_to_string/4 for testing custom views
   import Phoenix.Template
