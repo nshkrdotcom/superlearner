@@ -229,12 +229,28 @@ create_startup_script() {
     local node_num=$1
     get_node_config $node_num
     
-    local config_arg=""
     if [[ $node_num == 2 ]]; then
-        config_arg="--erl \"-config dev2\""
-    fi
-    
-    cat > scripts/start_node$node_num.sh << EOF
+        cat > scripts/start_node$node_num.sh << EOF
+#!/bin/bash
+# Start Node $node_num ($NODE_ROLE)
+
+cd "\$(dirname "\$0")/.."
+
+echo "🚀 Starting Node $node_num ($NODE_ROLE) - $NODE_NAME"
+echo "Web interface: http://localhost:$NODE_PORT"
+echo "Press Ctrl+C to stop"
+echo "=================================================="
+
+# Set environment
+export MIX_ENV=dev
+export NODE_ROLE=$NODE_ROLE
+export MIX_CONFIG=config/dev2.exs
+
+# Start with proper node name, cookie, and config
+exec iex --name $NODE_NAME --cookie secret_cluster_cookie -S mix phx.server
+EOF
+    else
+        cat > scripts/start_node$node_num.sh << EOF
 #!/bin/bash
 # Start Node $node_num ($NODE_ROLE)
 
@@ -250,8 +266,9 @@ export MIX_ENV=dev
 export NODE_ROLE=$NODE_ROLE
 
 # Start with proper node name, cookie, and config
-exec iex --name $NODE_NAME --cookie secret_cluster_cookie $config_arg -S mix phx.server
+exec iex --name $NODE_NAME --cookie secret_cluster_cookie -S mix phx.server
 EOF
+    fi
     
     chmod +x scripts/start_node$node_num.sh
     print_status "Node $node_num startup script created at scripts/start_node$node_num.sh"
@@ -317,7 +334,8 @@ start_node() {
     
     # Start with proper node name, cookie, and config
     if [[ $node_num == 2 ]]; then
-        exec iex --name $NODE_NAME --cookie secret_cluster_cookie --erl "-config dev2" -S mix phx.server
+        export MIX_CONFIG=config/dev2.exs
+        exec iex --name $NODE_NAME --cookie secret_cluster_cookie -S mix phx.server
     else
         exec iex --name $NODE_NAME --cookie secret_cluster_cookie -S mix phx.server
     fi
