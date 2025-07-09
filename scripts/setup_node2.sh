@@ -74,7 +74,7 @@ import_config "dev.exs"
 
 # Node 2 specific overrides
 config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4001],
+  http: [ip: {127, 0, 0, 1}, port: 4010],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -82,7 +82,7 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
 
 # Node 2 specific configuration  
 config :superlearner, :node_name, :"superlearner2@localhost"
-config :superlearner, :node_port, 4001
+config :superlearner, :node_port, 4010
 config :superlearner, :node_role, :secondary
 
 # Database configuration - use same database but different pool name to avoid conflicts
@@ -106,7 +106,7 @@ cat > scripts/start_node2.sh << 'EOF'
 cd "$(dirname "$0")/.."
 
 echo "🚀 Starting Node 2 (Secondary) - superlearner2@localhost"
-echo "Web interface: http://localhost:4001"
+echo "Web interface: http://localhost:4010"
 echo "Press Ctrl+C to stop"
 echo "=================================================="
 
@@ -128,7 +128,7 @@ cat > scripts/test_node2.sh << 'EOF'
 # Test Node 2 connectivity
 
 echo "Testing Node 2 connectivity..."
-curl -s http://localhost:4001 > /dev/null && echo "✅ Node 2 web interface is accessible" || echo "❌ Node 2 web interface is not accessible"
+curl -s http://localhost:4010 > /dev/null && echo "✅ Node 2 web interface is accessible" || echo "❌ Node 2 web interface is not accessible"
 
 # Test if node is running
 if pgrep -f "superlearner2@localhost" > /dev/null; then
@@ -160,7 +160,7 @@ print_status "Node 2 setup complete!"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "1. Run: ./scripts/start_node2.sh"
-echo "2. Access web interface: http://localhost:4001"
+echo "2. Access web interface: http://localhost:4010"
 echo "3. Test connectivity: ./scripts/test_node2.sh"
 echo "4. In IEx console, verify node: Node.self()"
 echo "5. Check cluster: Node.list() (should show Node 1)"

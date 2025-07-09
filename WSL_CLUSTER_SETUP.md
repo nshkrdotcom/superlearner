@@ -53,7 +53,7 @@ config :superlearner,
   node_name: :"superlearner2@localhost"
 
 config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-  http: [port: 4001],
+  http: [port: 4010],
   debug_errors: true,
   code_reloader: true,
   check_origin: false
@@ -65,7 +65,7 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
 MIX_ENV=dev iex --name superlearner2@localhost --cookie secret_cluster_cookie --erl "-config dev2" -S mix phx.server
 ```
 
-**Access Node 2:** http://localhost:4001
+**Access Node 2:** http://localhost:4010
 
 ## Cluster Formation Verification
 
@@ -305,7 +305,7 @@ iex --name superlearner@localhost --cookie secret_cluster_cookie -S mix phx.serv
 ```bash
 #!/bin/bash
 cd "$(dirname "$0")/.."
-echo "Starting Node 2 on port 4001..."
+echo "Starting Node 2 on port 4010..."
 MIX_ENV=dev iex --name superlearner2@localhost --cookie secret_cluster_cookie --erl "-config dev2" -S mix phx.server
 ```
 
@@ -328,9 +328,9 @@ Once you have both nodes running and connected:
 
 | Component | Node 1 | Node 2 |
 |-----------|---------|--------|
-| Phoenix Web | 4000 | 4001 |
+| Phoenix Web | 4000 | 4010 |
 | Node Name | superlearner@localhost | superlearner2@localhost |
-| Web Access | http://localhost:4000 | http://localhost:4001 |
+| Web Access | http://localhost:4000 | http://localhost:4010 |
 | EPMD | Shared (4369) | Shared (4369) |
 | Erlang Cookie | secret_cluster_cookie | secret_cluster_cookie |
 

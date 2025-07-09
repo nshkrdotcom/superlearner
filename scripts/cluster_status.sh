@@ -46,10 +46,10 @@ echo ""
 
 # Check Node 2 status
 echo -e "${BLUE}Node 2 Status (superlearner2@localhost):${NC}"
-if curl -s http://localhost:4001 > /dev/null; then
-    print_success "✅ Web interface accessible at http://localhost:4001"
+if curl -s http://localhost:4010 > /dev/null; then
+    print_success "✅ Web interface accessible at http://localhost:4010"
 else
-    print_error "❌ Web interface not accessible at http://localhost:4001"
+    print_error "❌ Web interface not accessible at http://localhost:4010"
 fi
 
 if pgrep -f "superlearner2@localhost" > /dev/null; then
@@ -98,7 +98,7 @@ check_port() {
 }
 
 check_port 4000 "Node 1 Phoenix"
-check_port 4001 "Node 2 Phoenix"
+check_port 4010 "Node 2 Phoenix"
 check_port 4369 "EPMD"
 
 echo ""
@@ -151,7 +151,7 @@ echo "Stop Node 2: ./scripts/stop_node2.sh"
 echo ""
 echo -e "${BLUE}Web Interfaces:${NC}"
 echo "Node 1: http://localhost:4000"
-echo "Node 2: http://localhost:4001"
+echo "Node 2: http://localhost:4010"
 echo ""
 echo -e "${BLUE}Manual Testing in IEx:${NC}"
 echo "Node.self()           # Check current node"
