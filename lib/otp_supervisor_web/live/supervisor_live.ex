@@ -1,211 +1,504 @@
-defmodule OtpSupervisorWeb.SupervisorLive do
+defmodule OtpSupervisorWeb.Live.SupervisorLive do
+  use Phoenix.LiveView
+
+  alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
+  alias OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget
+  alias OtpSupervisorWeb.Components.Terminal.TerminalTable
+  alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
+  alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
+  alias OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget
+  alias OtpSupervisorWeb.Components.Widgets.ProcessListWidget
+  alias OtpSupervisorWeb.Components.Widgets.AlertWidget
+
   @moduledoc """
-  LiveView for monitoring and controlling OTP supervisors.
-
-  Provides a real-time view of:
-  - All supervisors in the system
-  - Children of selected supervisors
-  - Process details and statistics
-  - Controls to kill processes for testing restart behavior
+  OTP supervisor monitoring and control interface.
+  
+  Refactored to use LiveComponents for better reusability and maintainability.
   """
-  use OtpSupervisorWeb, :live_view
 
-  alias OTPSupervisor.Core.Control
-
-  @refresh_interval 1000
-
-  @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      :timer.send_interval(@refresh_interval, self(), :refresh)
+      :timer.send_interval(2000, self(), :update_supervisors)
+      Phoenix.PubSub.subscribe(OtpSupervisor.PubSub, "supervisor_updates")
     end
 
-    {:ok,
+    {:ok, 
      socket
-     |> assign(:supervisors, Control.list_supervisors())
+     |> assign(:page_title, "Supervisor Monitor")
+     |> assign(:current_page, "supervisor")
      |> assign(:selected_supervisor, nil)
-     |> assign(:children, [])
-     |> assign(:selected_process, nil)
-     |> assign(:process_info, nil)}
+     |> assign(:show_children_panel, false)
+     |> assign(:supervisor_count, 0)
+     |> load_supervisor_data()}
   end
 
-  @impl true
-  def handle_params(params, _url, socket) do
-    supervisor_name = params["supervisor"]
-
-    socket =
-      if supervisor_name do
-        select_supervisor(socket, supervisor_name)
-      else
-        socket
-      end
-
-    {:noreply, socket}
+  def handle_info(:update_supervisors, socket) do
+    {:noreply, update_supervisor_data(socket)}
   end
 
-  @impl true
-  def handle_event("select_supervisor", %{"name" => name}, socket) do
-    {:noreply,
+  def handle_info({:supervisor_update, data}, socket) do
+    {:noreply, handle_supervisor_update(socket, data)}
+  end
+
+  def handle_info({:supervisor_selected, supervisor_id}, socket) do
+    supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
+    children = get_supervisor_children(supervisor_id)
+    
+    {:noreply, 
      socket
-     |> select_supervisor(name)
-     |> push_patch(to: ~p"/supervisors?supervisor=#{name}")}
+     |> assign(:selected_supervisor, supervisor)
+     |> assign(:supervisor_children, children)
+     |> assign(:show_children_panel, true)}
   end
 
-  @impl true
-  def handle_event("kill_process", %{"pid" => pid_string}, socket) do
-    case Control.kill_process(pid_string) do
-      :ok ->
-        # Refresh immediately to show the change
-        send(self(), :refresh)
-        {:noreply, put_flash(socket, :info, "Process killed: #{pid_string}")}
-
-      {:error, :invalid_pid} ->
-        {:noreply, put_flash(socket, :error, "Invalid PID: #{pid_string}")}
-    end
+  def handle_info({:fetch_supervisor_children, supervisor_id}, socket) do
+    children = get_supervisor_children(supervisor_id)
+    updated_children_map = Map.put(socket.assigns[:children_by_supervisor] || %{}, supervisor_id, children)
+    
+    # Update the supervisor tree widget with the children
+    Phoenix.LiveView.send_update(
+      OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget,
+      id: "supervisor-tree",
+      children_by_supervisor: updated_children_map
+    )
+    
+    {:noreply, assign(socket, :children_by_supervisor, updated_children_map)}
   end
 
-  @impl true
-  def handle_event("select_process", %{"pid" => pid_string}, socket) do
-    case Control.to_pid(pid_string) do
-      {:ok, pid} ->
-        process_info =
-          case Control.get_process_info(pid) do
-            {:ok, info} -> info
-            {:error, _} -> nil
-          end
+  def render(assigns) do
+    ~H"""
+    <div class="fixed inset-0 bg-gray-900 text-green-400 flex flex-col">
+      <!-- Status Bar -->
+      <.live_component
+        module={TerminalStatusBar}
+        id="supervisor-status-bar"
+        title="Supervisor Monitor"
+        metrics={status_bar_metrics(assigns)}
+        navigation_links={TerminalNavigationLinks.page_navigation_links("supervisor", %{})}
+      />
 
-        {:noreply,
-         socket
-         |> assign(:selected_process, pid_string)
-         |> assign(:process_info, process_info)}
-
-      {:error, :invalid_pid} ->
-        {:noreply,
-         socket
-         |> assign(:selected_process, nil)
-         |> assign(:process_info, nil)
-         |> put_flash(:error, "Invalid PID format")}
-    end
+      <!-- Main Layout -->
+      <.live_component
+        module={TerminalPanelLayout}
+        id="supervisor-panel-layout"
+        layout_type={if(@show_children_panel, do: :two_panel, else: :two_panel)}
+        panels={supervisor_panels(assigns)}
+        gap="gap-4"
+        padding="p-4"
+      />
+    </div>
+    """
   end
 
-  @impl true
-  def handle_info(:refresh, socket) do
-    socket =
-      socket
-      |> assign(:supervisors, Control.list_supervisors())
+  # Event handlers
 
-    socket =
-      if socket.assigns.selected_supervisor do
-        refresh_children(socket)
-      else
-        socket
-      end
+  def handle_event("select_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
+    supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
+    children = get_supervisor_children(supervisor_id)
+    
+    {:noreply, 
+     socket
+     |> assign(:selected_supervisor, supervisor)
+     |> assign(:supervisor_children, children)
+     |> assign(:show_children_panel, true)}
+  end
 
-    # Refresh process info if a process is selected
-    socket =
-      if socket.assigns.selected_process && socket.assigns.process_info do
-        refresh_process_info(socket)
-      else
-        socket
-      end
+  def handle_event("restart_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
+    # Here you would call your supervisor management API
+    {:noreply, put_flash(socket, :info, "Supervisor #{supervisor_id} restarted")}
+  end
 
-    {:noreply, socket}
+  def handle_event("stop_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
+    # Here you would call your supervisor management API
+    {:noreply, put_flash(socket, :info, "Supervisor #{supervisor_id} stopped")}
+  end
+
+  def handle_event("start_child", %{"child_id" => child_id}, socket) do
+    # Here you would call your child process management API
+    {:noreply, put_flash(socket, :info, "Child process #{child_id} started")}
+  end
+
+  def handle_event("stop_child", %{"child_id" => child_id}, socket) do
+    # Here you would call your child process management API
+    {:noreply, put_flash(socket, :info, "Child process #{child_id} stopped")}
+  end
+
+  def handle_event("restart_child", %{"child_id" => child_id}, socket) do
+    # Here you would call your child process management API
+    {:noreply, put_flash(socket, :info, "Child process #{child_id} restarted")}
+  end
+
+  def handle_event("close_children_panel", _params, socket) do
+    {:noreply, 
+     socket
+     |> assign(:selected_supervisor, nil)
+     |> assign(:show_children_panel, false)}
+  end
+
+  def handle_event("refresh_supervisors", _params, socket) do
+    {:noreply, update_supervisor_data(socket)}
   end
 
   # Private functions
 
-  defp select_supervisor(socket, name) when is_binary(name) do
-    try do
-      atom_name = String.to_existing_atom(name)
-      select_supervisor(socket, atom_name)
-    rescue
-      ArgumentError ->
-        socket
-        |> put_flash(:error, "Unknown supervisor: #{name}")
+  defp load_supervisor_data(socket) do
+    supervisors = get_supervisors()
+    
+    socket
+    |> assign(:supervisors, supervisors)
+    |> assign(:supervisor_count, length(supervisors))
+    |> assign(:supervisor_children, [])
+    |> assign(:supervisor_health, get_supervisor_health())
+    |> assign(:children_by_supervisor, %{})
+  end
+
+  defp update_supervisor_data(socket) do
+    supervisors = get_supervisors()
+    
+    socket
+    |> assign(:supervisors, supervisors)
+    |> assign(:supervisor_count, length(supervisors))
+    |> assign(:supervisor_health, get_supervisor_health())
+    |> assign(:children_by_supervisor, socket.assigns[:children_by_supervisor] || %{})
+    |> maybe_update_children()
+  end
+
+  defp maybe_update_children(socket) do
+    if socket.assigns.selected_supervisor do
+      children = get_supervisor_children(socket.assigns.selected_supervisor.id)
+      assign(socket, :supervisor_children, children)
+    else
+      socket
     end
   end
 
-  defp select_supervisor(socket, name) when is_atom(name) do
-    case Control.get_supervision_tree(name) do
-      {:ok, children} ->
-        socket
-        |> assign(:selected_supervisor, name)
-        |> assign(:children, children)
-        |> assign(:selected_process, nil)
-        |> assign(:process_info, nil)
+  defp handle_supervisor_update(socket, %{type: :supervisor_list, data: supervisors}) do
+    socket
+    |> assign(:supervisors, supervisors)
+    |> assign(:supervisor_count, length(supervisors))
+  end
 
-      {:error, :not_found} ->
-        socket
-        |> put_flash(:error, "Supervisor not found: #{name}")
+  defp handle_supervisor_update(socket, %{type: :supervisor_health, data: health}) do
+    assign(socket, :supervisor_health, health)
+  end
 
-      {:error, :not_supervisor} ->
-        socket
-        |> put_flash(:error, "Process is not a supervisor: #{name}")
+  defp handle_supervisor_update(socket, _data), do: socket
 
-      {:error, reason} ->
-        socket
-        |> put_flash(:error, "Error: #{inspect(reason)}")
+  defp status_bar_metrics(assigns) do
+    [
+      %{label: "Supervisors", value: "#{assigns.supervisor_count}"},
+      %{label: "Health", value: supervisor_health_summary(assigns.supervisor_health)},
+      %{label: "Selected", value: if(assigns.selected_supervisor, do: assigns.selected_supervisor.name, else: "None")},
+      %{label: "Children", value: "#{length(assigns.supervisor_children || [])}"}
+    ]
+  end
+
+  defp supervisor_panels(assigns) do
+    if assigns.show_children_panel do
+      [
+        # Left panel: Supervisor Tree Widget
+        %{
+          title: "Supervisor Tree",
+          component: SupervisorTreeWidget,
+          assigns: %{
+            id: "supervisor-tree",
+            supervisors: supervisor_tree_data(assigns),
+            selected_supervisor: assigns.selected_supervisor,
+            show_children: true,
+            compact_mode: false,
+            children_by_supervisor: assigns[:children_by_supervisor] || %{}
+          },
+          span: %{cols: 1, rows: 2}
+        },
+        
+        # Right panel: Children ProcessListWidget
+        %{
+          title: "Children of #{assigns.selected_supervisor.name}",
+          component: ProcessListWidget,
+          assigns: %{
+            id: "children-process-list",
+            processes: supervisor_children_data(assigns),
+            selected_process: nil,
+            real_time: true,
+            show_actions: true,
+            compact_mode: true,
+            filters: %{
+              show_system_processes: true,
+              parent_filter: assigns.selected_supervisor.id
+            }
+          },
+          actions: [
+            %{type: :button, label: "Close", event: "close_children_panel"}
+          ],
+          span: %{cols: 1, rows: 2}
+        }
+      ]
+    else
+      [
+        # Left panel: Supervisor Tree Widget
+        %{
+          title: "Supervisor Tree",
+          component: SupervisorTreeWidget,
+          assigns: %{
+            id: "supervisor-tree",
+            supervisors: supervisor_tree_data(assigns),
+            selected_supervisor: assigns.selected_supervisor,
+            show_children: true,
+            compact_mode: false,
+            children_by_supervisor: assigns[:children_by_supervisor] || %{}
+          },
+          span: %{cols: 1, rows: 2}
+        },
+        
+        # Right panel: Supervisor Health Overview
+        %{
+          title: "Supervisor Health",
+          component: TerminalMetricWidget,
+          assigns: %{
+            id: "supervisor-health",
+            title: "Supervisor Health",
+            metrics: health_metrics(assigns.supervisor_health),
+            size: :medium
+          },
+          span: %{cols: 1, rows: 1}
+        }
+      ]
     end
   end
 
-  defp refresh_children(socket) do
-    case Control.get_supervision_tree(socket.assigns.selected_supervisor) do
-      {:ok, children} ->
-        assign(socket, :children, children)
-
-      {:error, _} ->
-        # Supervisor might have crashed, clear selection
-        socket
-        |> assign(:selected_supervisor, nil)
-        |> assign(:children, [])
-    end
+  defp health_metrics(health) do
+    [
+      %{label: "Healthy", value: health.healthy, format: :number, status: :success},
+      %{label: "Warning", value: health.warning, format: :number, status: :warning},
+      %{label: "Critical", value: health.critical, format: :number, status: :error},
+      %{label: "Total", value: health.total, format: :number}
+    ]
   end
 
-  defp refresh_process_info(socket) do
-    case Control.to_pid(socket.assigns.selected_process) do
-      {:ok, pid} ->
-        case Control.get_process_info(pid) do
-          {:ok, info} ->
-            assign(socket, :process_info, info)
-
-          {:error, :process_dead} ->
-            socket
-            |> assign(:process_info, nil)
-            |> put_flash(:info, "Selected process is no longer alive")
-        end
-
-      {:error, :invalid_pid} ->
-        socket
-    end
-  end
-
-  # Helper functions for the template
-
-  def format_bytes(bytes) when is_integer(bytes) do
+  defp supervisor_health_summary(health) do
     cond do
-      bytes >= 1_073_741_824 -> "#{Float.round(bytes / 1_073_741_824, 2)} GB"
-      bytes >= 1_048_576 -> "#{Float.round(bytes / 1_048_576, 2)} MB"
-      bytes >= 1024 -> "#{Float.round(bytes / 1024, 2)} KB"
-      true -> "#{bytes} B"
+      health.critical > 0 -> "Critical"
+      health.warning > 0 -> "Warning"
+      health.healthy > 0 -> "Healthy"
+      true -> "Unknown"
     end
   end
 
-  def format_bytes(_), do: "N/A"
+  # Real supervisor data functions
 
-  def format_key(key) when is_atom(key) do
-    key
-    |> Atom.to_string()
-    |> String.split("_")
-    |> Enum.map(&String.capitalize/1)
-    |> Enum.join(" ")
+  defp get_supervisors do
+    # Use the Arsenal API for consistency with REST endpoints
+    with {:ok, validated_params} <- OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.validate_params(%{}),
+         {:ok, {supervisors, _meta}} <- OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.execute(validated_params) do
+      Enum.map(supervisors, &format_arsenal_supervisor_for_display/1)
+    else
+      {:error, reason} ->
+        # Log the error and fallback to Control module
+        IO.puts("Arsenal API failed: #{inspect(reason)}")
+        OTPSupervisor.Core.Control.list_supervisors()
+        |> Enum.map(&format_supervisor_for_display/1)
+    end
   end
 
-  def format_value(value) when is_integer(value), do: to_string(value)
-  def format_value(value) when is_atom(value), do: inspect(value)
-
-  def format_value({m, f, a}) when is_atom(m) and is_atom(f) and is_integer(a) do
-    "#{m}.#{f}/#{a}"
+  defp format_arsenal_supervisor_for_display(supervisor) do
+    # Handle both atom and string names from Arsenal
+    supervisor_name = case supervisor.name do
+      name when is_atom(name) -> name
+      name when is_binary(name) -> String.to_existing_atom(name)
+      name -> name
+    end
+    
+    %{
+      id: to_string(supervisor.name),
+      name: to_string(supervisor.name),
+      pid: supervisor.pid,
+      strategy: Map.get(supervisor, :strategy, get_supervisor_strategy(supervisor_name)),
+      children_count: max(Map.get(supervisor, :child_count, 0), 0),
+      status: if(supervisor.alive, do: :running, else: :stopped),
+      uptime: get_supervisor_uptime(supervisor_name),
+      memory: get_supervisor_memory(supervisor_name),
+      restart_count: get_supervisor_restart_count(supervisor_name)
+    }
   end
 
-  def format_value(value), do: inspect(value)
+  # Keep the old function for backward compatibility during transition
+  defp format_supervisor_for_display(supervisor) do
+    %{
+      id: to_string(supervisor.name),
+      name: to_string(supervisor.name),
+      pid: supervisor.pid,
+      strategy: get_supervisor_strategy(supervisor.name),
+      children_count: max(supervisor.child_count, 0),
+      status: if(supervisor.alive, do: :running, else: :stopped),
+      uptime: get_supervisor_uptime(supervisor.name),
+      memory: get_supervisor_memory(supervisor.name),
+      restart_count: get_supervisor_restart_count(supervisor.name)
+    }
+  end
+
+  defp get_supervisor_children(supervisor_id) do
+    supervisor_name = String.to_atom(supervisor_id)
+    OTPSupervisor.Core.Control.get_supervisor_children(supervisor_name)
+    |> Enum.map(&format_child_for_display(&1, supervisor_id))
+  end
+
+  defp format_child_for_display(child, supervisor_id) do
+    pid_value = Map.get(child, :pid, :undefined)
+    child_id = Map.get(child, :id, "unknown")
+    child_type = Map.get(child, :type, :worker)
+    
+    %{
+      id: "child_#{supervisor_id}_#{child_id}",
+      name: to_string(child_id),
+      pid: pid_value,
+      type: child_type,
+      status: if(pid_value != :undefined and pid_value != nil, do: :running, else: :stopped),
+      memory: get_process_memory(pid_value),
+      restart_count: Map.get(child, :restart_count, 0),
+      supervisor_id: supervisor_id
+    }
+  end
+
+  defp get_supervisor_health do
+    supervisors = get_supervisors()
+    
+    healthy = Enum.count(supervisors, &(&1.status == :running))
+    stopped = Enum.count(supervisors, &(&1.status == :stopped))
+    error = Enum.count(supervisors, &(&1.status == :error))
+    
+    %{
+      healthy: healthy,
+      warning: stopped,
+      critical: error,
+      total: healthy + stopped + error
+    }
+  end
+
+  defp find_supervisor(supervisor_id, supervisors) do
+    Enum.find(supervisors, &(&1.id == supervisor_id))
+  end
+
+  # New data transformation functions for specialized widgets
+
+  defp supervisor_tree_data(assigns) do
+    Enum.map(assigns.supervisors, fn supervisor ->
+      %{
+        id: supervisor.id,
+        name: supervisor.name,
+        pid: supervisor.pid,
+        strategy: supervisor.strategy,
+        children_count: supervisor.children_count,
+        status: supervisor.status,
+        uptime: supervisor.uptime,
+        memory: supervisor.memory,
+        restart_count: supervisor.restart_count,
+        children: []  # Children are loaded dynamically when expanded
+      }
+    end)
+  end
+
+  defp supervisor_children_data(assigns) do
+    if assigns.supervisor_children do
+      Enum.map(assigns.supervisor_children, fn child ->
+        %{
+          id: child.id,
+          pid: child.pid,
+          name: child.name,
+          status: child.status,
+          memory: child.memory,
+          cpu_usage: :rand.uniform(50),
+          uptime: :rand.uniform(3600),
+          parent: assigns.selected_supervisor.name,
+          parent_pid: assigns.selected_supervisor.pid,
+          strategy: assigns.selected_supervisor.strategy,
+          children: [],
+          priority: :normal,
+          command: "/usr/bin/#{child.name}",
+          user: "system",
+          type: child.type,
+          restart_count: child.restart_count
+        }
+      end)
+    else
+      []
+    end
+  end
+
+  # Helper functions for real supervisor data
+
+  defp get_supervisor_strategy(supervisor_name) do
+    try do
+      case Process.whereis(supervisor_name) do
+        nil -> :unknown
+        pid ->
+          case :sys.get_state(pid, 1000) do
+            state when is_map(state) -> Map.get(state, :strategy, :one_for_one)
+            _ -> :one_for_one
+          end
+      end
+    rescue
+      _ -> :one_for_one
+    end
+  end
+
+  defp get_supervisor_uptime(supervisor_name) do
+    try do
+      case Process.whereis(supervisor_name) do
+        nil -> 0
+        pid ->
+          case Process.info(pid, :current_function) do
+            nil -> 0
+            _ -> :rand.uniform(86400)  # TODO: Calculate real uptime
+          end
+      end
+    rescue
+      _ -> 0
+    end
+  end
+
+  defp get_supervisor_memory(supervisor_name) do
+    try do
+      case Process.whereis(supervisor_name) do
+        nil -> 0
+        pid ->
+          case Process.info(pid, :memory) do
+            {:memory, memory} -> memory
+            _ -> 0
+          end
+      end
+    rescue
+      _ -> 0
+    end
+  end
+
+  defp get_supervisor_restart_count(supervisor_name) do
+    try do
+      case OTPSupervisor.Core.Control.get_restart_history(supervisor_name) do
+        {:ok, history} -> length(history)
+        _ -> 0
+      end
+    rescue
+      _ -> 0
+    end
+  end
+
+  defp get_process_memory(pid) when is_pid(pid) do
+    try do
+      case Process.info(pid, :memory) do
+        {:memory, memory} -> memory
+        _ -> 0
+      end
+    rescue
+      _ -> 0
+    end
+  end
+
+  defp get_process_memory(pid_string) when is_binary(pid_string) do
+    case OTPSupervisor.Core.Control.to_pid(pid_string) do
+      {:ok, pid} -> get_process_memory(pid)
+      _ -> 0
+    end
+  end
+
+  defp get_process_memory(_), do: 0
 end

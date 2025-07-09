@@ -1,4 +1,4 @@
-defmodule OTPSupervisor.Sandbox.TestDemoSupervisorTest do
+defmodule OtpSandbox.TestDemoSupervisorTest do
   use ExUnit.Case, async: true
   # import SupervisorTestHelper
 
@@ -7,7 +7,7 @@ defmodule OTPSupervisor.Sandbox.TestDemoSupervisorTest do
   Verifies proper isolation and configuration options.
   """
 
-  alias OTPSupervisor.Sandbox.TestDemoSupervisor
+  alias OtpSandbox.TestDemoSupervisor
 
   describe "enhanced supervisor functionality" do
     test "supports unique naming for isolation" do
@@ -88,14 +88,14 @@ defmodule OTPSupervisor.Sandbox.TestDemoSupervisorTest do
       printer_name = :"printer_1_#{unique_id}"
 
       # Test counter functionality
-      original_value = OTPSupervisor.Sandbox.Workers.Counter.get_value(counter_name)
-      OTPSupervisor.Sandbox.Workers.Counter.increment(counter_name)
-      new_value = OTPSupervisor.Sandbox.Workers.Counter.get_value(counter_name)
+      original_value = OtpSandbox.Workers.Counter.get_value(counter_name)
+      OtpSandbox.Workers.Counter.increment(counter_name)
+      new_value = OtpSandbox.Workers.Counter.get_value(counter_name)
       assert new_value == original_value + 1
 
       # Test printer functionality
       assert :ok =
-               OTPSupervisor.Sandbox.Workers.Printer.print(
+               OtpSandbox.Workers.Printer.print(
                  printer_name,
                  "test message"
                )

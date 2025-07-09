@@ -3,7 +3,7 @@ defmodule OtpSupervisorWeb.SupervisorLiveTest do
 
   import Phoenix.LiveViewTest
   alias OtpSupervisorWeb.SupervisorLive
-  alias OTPSupervisor.Sandbox.Workers.Counter
+  alias OtpSandbox.Workers.Counter
   alias OTPSupervisor.Core.Control
 
   # Import our test helper for proper isolation

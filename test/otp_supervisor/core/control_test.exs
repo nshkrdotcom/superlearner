@@ -3,8 +3,8 @@ defmodule OTPSupervisor.Core.ControlTest do
   import ExUnit.CaptureLog
 
   alias OTPSupervisor.Core.Control
-  alias OTPSupervisor.Sandbox.Workers.Counter
-  alias OTPSupervisor.Sandbox.Workers.Printer
+  alias OtpSandbox.Workers.Counter
+  alias OtpSandbox.Workers.Printer
   import SupervisorTestHelper
 
   # Simple test worker for our tests
@@ -988,12 +988,12 @@ defmodule OTPSupervisor.Core.ControlTest do
     test "creates sandbox with automatic ID generation" do
       {:ok, sandbox_info} =
         Control.create_sandbox(
-          OTPSupervisor.Sandbox.TestDemoSupervisor,
+          OtpSandbox.TestDemoSupervisor,
           strategy: :one_for_one
         )
 
       assert is_binary(sandbox_info.id)
-      assert sandbox_info.supervisor_module == OTPSupervisor.Sandbox.TestDemoSupervisor
+      assert sandbox_info.supervisor_module == OtpSandbox.TestDemoSupervisor
       assert is_pid(sandbox_info.supervisor_pid)
       assert Process.alive?(sandbox_info.supervisor_pid)
 
@@ -1002,7 +1002,7 @@ defmodule OTPSupervisor.Core.ControlTest do
     end
 
     test "destroys sandbox by ID" do
-      {:ok, sandbox_info} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+      {:ok, sandbox_info} = Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
       supervisor_pid = sandbox_info.supervisor_pid
 
       # Monitor for death
@@ -1023,7 +1023,7 @@ defmodule OTPSupervisor.Core.ControlTest do
     test "restarts sandbox preserving configuration" do
       {:ok, original_info} =
         Control.create_sandbox(
-          OTPSupervisor.Sandbox.TestDemoSupervisor,
+          OtpSandbox.TestDemoSupervisor,
           strategy: :rest_for_one,
           test_opt: :value
         )
@@ -1043,8 +1043,8 @@ defmodule OTPSupervisor.Core.ControlTest do
     end
 
     test "lists active sandboxes" do
-      {:ok, sandbox1} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
-      {:ok, sandbox2} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+      {:ok, sandbox1} = Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
+      {:ok, sandbox2} = Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
 
       sandboxes = Control.list_sandboxes()
       sandbox_ids = Enum.map(sandboxes, & &1.id)
@@ -1060,7 +1060,7 @@ defmodule OTPSupervisor.Core.ControlTest do
     end
 
     test "gets sandbox information" do
-      {:ok, created_info} = Control.create_sandbox(OTPSupervisor.Sandbox.TestDemoSupervisor)
+      {:ok, created_info} = Control.create_sandbox(OtpSandbox.TestDemoSupervisor)
 
       {:ok, retrieved_info} = Control.get_sandbox_info(created_info.id)
 

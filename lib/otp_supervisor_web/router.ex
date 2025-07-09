@@ -5,7 +5,7 @@ defmodule OtpSupervisorWeb.Router do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {OtpSupervisorWeb.Layouts, :root}
+    plug :put_root_layout, html: {OtpSupervisorWeb.Components.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
   end
@@ -25,10 +25,10 @@ defmodule OtpSupervisorWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    live "/supervisors", SupervisorLive
-    live "/system", SystemDashboardLive
-    live "/arsenal", ArsenalLive
-    live "/docs", DocsLive
+    live "/supervisors", Live.SupervisorLive
+    live "/system", Live.SystemDashboardLive
+    live "/arsenal", Live.ArsenalLive
+    live "/docs", Live.DocsLive
   end
 
   # Arsenal API documentation endpoints

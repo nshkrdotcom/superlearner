@@ -1,9 +1,9 @@
-defmodule OTPSupervisor.Sandbox.Workers.CounterTest do
+defmodule OtpSandbox.Workers.CounterTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
   import SupervisorTestHelper
 
-  alias OTPSupervisor.Sandbox.Workers.Counter
+  alias OtpSandbox.Workers.Counter
 
   @moduledoc """
   Comprehensive tests for the Counter worker GenServer.

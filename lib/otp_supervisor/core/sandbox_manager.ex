@@ -1,10 +1,10 @@
 defmodule OTPSupervisor.Core.SandboxManager do
   @moduledoc """
-  Manages the lifecycle of sandbox supervision trees.
+  Manages the lifecycle of sandbox OTP applications.
 
   This manager provides a clean API for starting, stopping, and reconfiguring
-  entire sandbox supervision trees using proper OTP lifecycle operations.
-  This is a real-world pattern for managing subsystems in OTP applications.
+  entire sandbox applications using proper OTP application lifecycle operations.
+  This uses dynamic application loading for true isolation.
   """
 
   use GenServer
@@ -16,8 +16,8 @@ defmodule OTPSupervisor.Core.SandboxManager do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def create_sandbox(sandbox_id, supervisor_module, opts \\ []) do
-    GenServer.call(__MODULE__, {:create_sandbox, sandbox_id, supervisor_module, opts})
+  def create_sandbox(sandbox_id, app_name, opts \\ []) do
+    GenServer.call(__MODULE__, {:create_sandbox, sandbox_id, app_name, opts})
   end
 
   def destroy_sandbox(sandbox_id) do
@@ -62,7 +62,8 @@ defmodule OTPSupervisor.Core.SandboxManager do
 
     state = %{
       sandboxes: %{},
-      next_id: 1
+      next_id: 1,
+      sandbox_code_paths: %{}
     }
 
     Logger.info("SandboxManager started")
@@ -70,30 +71,30 @@ defmodule OTPSupervisor.Core.SandboxManager do
   end
 
   @impl true
-  def handle_call({:create_sandbox, sandbox_id, supervisor_module, opts}, _from, state) do
+  def handle_call({:create_sandbox, sandbox_id, app_name, opts}, _from, state) do
     case Map.get(state.sandboxes, sandbox_id) do
       nil ->
-        # Create new sandbox
-        case start_sandbox_supervisor(sandbox_id, supervisor_module, opts) do
-          {:ok, pid, full_opts} ->
+        # Create new sandbox application
+        case start_sandbox_application(sandbox_id, app_name, opts) do
+          {:ok, app_pid, full_opts} ->
             sandbox_info = %{
               id: sandbox_id,
-              supervisor_module: supervisor_module,
-              supervisor_pid: pid,
+              app_name: app_name,
+              app_pid: app_pid,
               opts: full_opts,
               created_at: System.system_time(:millisecond),
               restart_count: 0
             }
 
-            # Monitor the supervisor
-            ref = Process.monitor(pid)
+            # Monitor the application
+            ref = Process.monitor(app_pid)
 
             # Store in ETS for fast lookup
             :ets.insert(:sandboxes, {sandbox_id, sandbox_info})
 
             new_sandboxes = Map.put(state.sandboxes, sandbox_id, {sandbox_info, ref})
 
-            Logger.info("Created sandbox #{sandbox_id} with PID #{inspect(pid)}")
+            Logger.info("Created sandbox #{sandbox_id} with app #{app_name} PID #{inspect(app_pid)}")
             {:reply, {:ok, sandbox_info}, %{state | sandboxes: new_sandboxes}}
 
           {:error, reason} ->
@@ -112,8 +113,8 @@ defmodule OTPSupervisor.Core.SandboxManager do
         # Stop monitoring
         Process.demonitor(ref, [:flush])
 
-        # Gracefully stop the supervisor
-        case stop_sandbox_supervisor(sandbox_info.supervisor_pid) do
+        # Gracefully stop the application
+        case stop_sandbox_application(sandbox_info.app_name, sandbox_info.app_pid) do
           :ok ->
             # Remove from state and ETS
             :ets.delete(:sandboxes, sandbox_id)
@@ -135,32 +136,32 @@ defmodule OTPSupervisor.Core.SandboxManager do
   def handle_call({:restart_sandbox, sandbox_id}, _from, state) do
     case Map.get(state.sandboxes, sandbox_id) do
       {sandbox_info, ref} ->
-        # Stop current supervisor
+        # Stop current application
         Process.demonitor(ref, [:flush])
-        stop_sandbox_supervisor(sandbox_info.supervisor_pid)
+        stop_sandbox_application(sandbox_info.app_name, sandbox_info.app_pid)
 
-        # Start new supervisor with same configuration
-        case start_sandbox_supervisor(
+        # Start new application with same configuration
+        case start_sandbox_application(
                sandbox_id,
-               sandbox_info.supervisor_module,
+               sandbox_info.app_name,
                sandbox_info.opts
              ) do
-          {:ok, new_pid, _opts} ->
+          {:ok, new_app_pid, _opts} ->
             # Update sandbox info
             updated_info = %{
               sandbox_info
-              | supervisor_pid: new_pid,
+              | app_pid: new_app_pid,
                 restart_count: sandbox_info.restart_count + 1
             }
 
-            # Monitor new supervisor
-            new_ref = Process.monitor(new_pid)
+            # Monitor new application
+            new_ref = Process.monitor(new_app_pid)
 
             # Update state and ETS
             :ets.insert(:sandboxes, {sandbox_id, updated_info})
             new_sandboxes = Map.put(state.sandboxes, sandbox_id, {updated_info, new_ref})
 
-            Logger.info("Restarted sandbox #{sandbox_id} with new PID #{inspect(new_pid)}")
+            Logger.info("Restarted sandbox #{sandbox_id} with new app PID #{inspect(new_app_pid)}")
             {:reply, {:ok, updated_info}, %{state | sandboxes: new_sandboxes}}
 
           {:error, reason} ->
@@ -190,7 +191,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
   def handle_call({:get_sandbox_pid, sandbox_id}, _from, state) do
     case :ets.lookup(:sandboxes, sandbox_id) do
       [{^sandbox_id, sandbox_info}] ->
-        {:reply, {:ok, sandbox_info.supervisor_pid}, state}
+        {:reply, {:ok, sandbox_info.app_pid}, state}
 
       [] ->
         {:reply, {:error, :not_found}, state}
@@ -248,35 +249,55 @@ defmodule OTPSupervisor.Core.SandboxManager do
 
   # Private Functions
 
-  defp start_sandbox_supervisor(sandbox_id, supervisor_module, opts) do
-    # Create unique name for this sandbox
-    unique_id = :erlang.unique_integer([:positive])
-    sandbox_name = :"sandbox_#{sandbox_id}_#{unique_id}"
+  defp start_sandbox_application(_sandbox_id, app_name, opts) do
+    # Ensure the sandbox application code path is loaded
+    sandbox_path = Path.join([File.cwd!(), "sandbox", "examples", to_string(app_name)])
+    lib_path = Path.join(sandbox_path, "lib")
+    
+    if File.exists?(lib_path) do
+      Code.prepend_path(lib_path)
+    end
 
-    # Merge options with sandbox-specific configuration
-    full_opts =
-      Keyword.merge(opts,
-        name: sandbox_name,
-        unique_id: unique_id,
-        sandbox_id: sandbox_id
-      )
-
-    case supervisor_module.start_link(full_opts) do
-      {:ok, pid} ->
-        # CRITICAL FIX: Unlink the supervisor - we only want to monitor it, not be linked to it
-        # This prevents SandboxManager from dying when the sandbox supervisor is killed
-        Process.unlink(pid)
-        {:ok, pid, full_opts}
-
+    # Load the application if not already loaded
+    case Application.load(app_name) do
+      :ok -> :ok
+      {:error, {:already_loaded, ^app_name}} -> :ok
+      {:error, reason} -> {:error, {:load_failed, reason}}
+    end
+    
+    # Start the application
+    case Application.start(app_name) do
+      :ok ->
+        # Get the application master pid for monitoring
+        case :application_controller.get_master(app_name) do
+          pid when is_pid(pid) -> {:ok, pid, opts}
+          _ -> {:error, :no_master_pid}
+        end
+        
+      {:error, {:already_started, ^app_name}} ->
+        {:error, :already_started}
+        
       {:error, reason} ->
-        {:error, reason}
+        {:error, {:start_failed, reason}}
     end
   end
 
-  defp stop_sandbox_supervisor(supervisor_pid) do
+  defp stop_sandbox_application(app_name, _app_pid) do
     try do
-      # Give the supervisor 5 seconds to shut down gracefully
-      Supervisor.stop(supervisor_pid, :normal, 5000)
+      # Stop the application
+      case Application.stop(app_name) do
+        :ok -> :ok
+        {:error, {:not_started, ^app_name}} -> :ok
+        {:error, reason} -> {:error, {:stop_failed, reason}}
+      end
+      
+      # Unload the application
+      case Application.unload(app_name) do
+        :ok -> :ok
+        {:error, {:not_loaded, ^app_name}} -> :ok
+        {:error, reason} -> {:error, {:unload_failed, reason}}
+      end
+      
       :ok
     catch
       :exit, reason -> {:error, reason}

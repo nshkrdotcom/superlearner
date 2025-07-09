@@ -146,46 +146,30 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSupervisors do
   end
 
   defp discover_supervisors do
-    Process.list()
-    |> Enum.map(&get_process_supervisor_info/1)
-    |> Enum.filter(& &1)
+    # Use the existing working Control module instead of reimplementing
+    OTPSupervisor.Core.Control.list_supervisors()
+    |> Enum.map(&convert_control_format_to_arsenal_format/1)
   end
 
-  defp get_process_supervisor_info(pid) do
-    case Process.info(pid, [:registered_name, :dictionary, :initial_call]) do
-      [registered_name: name, dictionary: dict, initial_call: initial_call] ->
-        if is_supervisor_process?(initial_call, dict) do
-          %{
-            name: name || pid,
-            pid: pid,
-            alive: Process.alive?(pid),
-            initial_call: initial_call,
-            application: get_process_application(pid)
-          }
-        end
+  defp convert_control_format_to_arsenal_format(supervisor) do
+    %{
+      name: supervisor.name,
+      pid: supervisor.pid,
+      alive: supervisor.alive,
+      application: get_process_application_from_name(supervisor.name)
+    }
+  end
 
-      _ ->
-        nil
+  defp get_process_application_from_name(name) when is_atom(name) do
+    case Process.whereis(name) do
+      nil -> :system
+      pid -> get_process_application_from_pid(pid)
     end
   end
 
-  defp is_supervisor_process?({Supervisor, :init, 1}, _), do: true
-  defp is_supervisor_process?({DynamicSupervisor, :init, 1}, _), do: true
-  defp is_supervisor_process?({Task.Supervisor, :init, 1}, _), do: true
+  defp get_process_application_from_name(_), do: :system
 
-  defp is_supervisor_process?(_, dict) do
-    # Check process dictionary for supervisor indicators
-    Enum.any?(dict, fn
-      {:"$initial_call", {Supervisor, :init, 1}} -> true
-      {:"$initial_call", {DynamicSupervisor, :init, 1}} -> true
-      {:"$initial_call", {Task.Supervisor, :init, 1}} -> true
-      # Handle Task.Supervisor pattern
-      {:"$initial_call", {:supervisor, Task.Supervisor, 1}} -> true
-      _ -> false
-    end)
-  end
-
-  defp get_process_application(pid) do
+  defp get_process_application_from_pid(pid) do
     case :application.get_application(pid) do
       {:ok, app} -> app
       :undefined -> :system

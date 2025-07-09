@@ -9,7 +9,7 @@ defmodule OTPSupervisor.Core.SandboxIntegrationTest do
   """
 
   alias OTPSupervisor.Core.Control
-  alias OTPSupervisor.Sandbox.TestDemoSupervisor
+  alias OtpSandbox.TestDemoSupervisor
 
   describe "end-to-end sandbox lifecycle with analytics" do
     test "sandbox operations integrate with analytics system" do

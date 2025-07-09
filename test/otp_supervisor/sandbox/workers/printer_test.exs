@@ -1,7 +1,7 @@
-defmodule OTPSupervisor.Sandbox.Workers.PrinterTest do
+defmodule OtpSandbox.Workers.PrinterTest do
   use ExUnit.Case, async: true
 
-  alias OTPSupervisor.Sandbox.Workers.Printer
+  alias OtpSandbox.Workers.Printer
 
   import ExUnit.CaptureLog
   import SupervisorTestHelper

@@ -1,4 +1,4 @@
-defmodule OTPSupervisor.Sandbox.Supervisors.DemoSupervisor do
+defmodule OtpSandbox.Supervisors.DemoSupervisor do
   @moduledoc """
   A demonstration supervisor with different restart strategies.
 
@@ -28,9 +28,9 @@ defmodule OTPSupervisor.Sandbox.Supervisors.DemoSupervisor do
       # Observe the pre-started supervisor
       iex> Supervisor.which_children(:demo_one_for_one)
       [
-        {:printer_1, #PID<0.328.0>, :worker, [OTPSupervisor.Sandbox.Workers.Printer]},
-        {:counter_2, #PID<0.327.0>, :worker, [OTPSupervisor.Sandbox.Workers.Counter]},
-        {:counter_1, #PID<0.326.0>, :worker, [OTPSupervisor.Sandbox.Workers.Counter]}
+        {:printer_1, #PID<0.328.0>, :worker, [OtpSandbox.Workers.Printer]},
+        {:counter_2, #PID<0.327.0>, :worker, [OtpSandbox.Workers.Counter]},
+        {:counter_1, #PID<0.326.0>, :worker, [OtpSandbox.Workers.Counter]}
       ]
       
       # Kill a child and watch it restart with a new PID
@@ -68,21 +68,21 @@ defmodule OTPSupervisor.Sandbox.Supervisors.DemoSupervisor do
       %{
         id: :counter_1,
         start:
-          {OTPSupervisor.Sandbox.Workers.Counter, :start_link,
+          {OtpSandbox.Workers.Counter, :start_link,
            [[name: :counter_1, initial_value: 0]]}
       },
       # Second counter with initial value 100
       %{
         id: :counter_2,
         start:
-          {OTPSupervisor.Sandbox.Workers.Counter, :start_link,
+          {OtpSandbox.Workers.Counter, :start_link,
            [[name: :counter_2, initial_value: 100]]}
       },
       # Printer worker
       %{
         id: :printer_1,
         start:
-          {OTPSupervisor.Sandbox.Workers.Printer, :start_link,
+          {OtpSandbox.Workers.Printer, :start_link,
            [[name: :printer_1, id: "printer-1"]]}
       }
     ]

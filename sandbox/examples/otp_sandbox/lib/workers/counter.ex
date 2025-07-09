@@ -1,4 +1,4 @@
-defmodule OTPSupervisor.Sandbox.Workers.Counter do
+defmodule OtpSandbox.Workers.Counter do
   @moduledoc """
   A simple counter GenServer for demonstration.
 
@@ -9,7 +9,7 @@ defmodule OTPSupervisor.Sandbox.Workers.Counter do
   ## IEx Examples
 
       # Interacting with the pre-started counter
-      iex> alias OTPSupervisor.Sandbox.Workers.Counter
+      iex> alias OtpSandbox.Workers.Counter
       iex> Counter.get_value(:counter_1)
       0
       iex> Counter.increment(:counter_1)

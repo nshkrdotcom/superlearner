@@ -12,7 +12,7 @@ defmodule OTPSupervisor.Core.SandboxManagerTest do
   """
 
   alias OTPSupervisor.Core.SandboxManager
-  alias OTPSupervisor.Sandbox.TestDemoSupervisor
+  alias OtpSandbox.TestDemoSupervisor
 
   describe "sandbox manager lifecycle" do
     test "starts successfully and initializes ETS table" do

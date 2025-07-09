@@ -90,15 +90,15 @@ defmodule OTPSupervisor.Core.CleanupValidationTest do
     test "worker processes functional", %{supervisor: _supervisor} do
       # Test counter functionality
       if Process.whereis(:counter_1) do
-        original_value = OTPSupervisor.Sandbox.Workers.Counter.get_value(:counter_1)
-        OTPSupervisor.Sandbox.Workers.Counter.increment(:counter_1)
-        new_value = OTPSupervisor.Sandbox.Workers.Counter.get_value(:counter_1)
+        original_value = OtpSandbox.Workers.Counter.get_value(:counter_1)
+        OtpSandbox.Workers.Counter.increment(:counter_1)
+        new_value = OtpSandbox.Workers.Counter.get_value(:counter_1)
         assert new_value == original_value + 1
       end
 
       # Test printer functionality
       if Process.whereis(:printer_1) do
-        assert :ok = OTPSupervisor.Sandbox.Workers.Printer.print(:printer_1, "test")
+        assert :ok = OtpSandbox.Workers.Printer.print(:printer_1, "test")
       end
     end
   end

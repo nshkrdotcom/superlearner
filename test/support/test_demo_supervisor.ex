@@ -8,8 +8,8 @@ defmodule TestDemoSupervisor do
   """
   use Supervisor
 
-  alias OTPSupervisor.Sandbox.Workers.Counter
-  alias OTPSupervisor.Sandbox.Workers.Printer
+  alias OtpSandbox.Workers.Counter
+  alias OtpSandbox.Workers.Printer
 
   def start_link(opts \\ []) do
     strategy = Keyword.get(opts, :strategy, :one_for_one)

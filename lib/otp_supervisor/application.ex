@@ -26,10 +26,7 @@ defmodule OtpSupervisor.Application do
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
       # Start to serve requests, typically the last entry
-      OtpSupervisorWeb.Endpoint,
-      # Start our demo supervisor
-      {OTPSupervisor.Sandbox.Supervisors.DemoSupervisor,
-       name: :demo_one_for_one, strategy: :one_for_one}
+      OtpSupervisorWeb.Endpoint
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

@@ -1,906 +1,455 @@
-defmodule OtpSupervisorWeb.DocsLive do
+defmodule OtpSupervisorWeb.Live.DocsLive do
+  use Phoenix.LiveView
+
+  alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
+  alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
+  alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
+
   @moduledoc """
-  Documentation center with comprehensive OTP system architecture docs
+  Documentation center with comprehensive OTP system architecture docs.
+  
+  Refactored to use LiveComponents for better reusability and maintainability.
   """
-  use OtpSupervisorWeb, :live_view
 
   def mount(_params, _session, socket) do
-    {:ok,
+    {:ok, 
      socket
-     |> assign(:page_title, "Documentation")
-     |> assign(:current_section, "supervisor-architecture")
-     |> assign(:search_query, "")}
+     |> assign(:page_title, "OTP Supervisor Documentation")
+     |> assign(:current_page, "docs")
+     |> assign(:search_query, "")
+     |> assign(:search_results, [])
+     |> assign(:selected_doc, nil)
+     |> load_documentation}
   end
 
-  def handle_event("navigate_section", %{"section" => section}, socket) do
-    {:noreply, assign(socket, :current_section, section)}
+  def handle_params(params, _url, socket) do
+    {:noreply, handle_navigation(socket, params)}
   end
 
-  def handle_event("search", %{"search" => query}, socket) do
-    {:noreply, assign(socket, :search_query, query)}
+  def render(assigns) do
+    ~H"""
+    <div class="fixed inset-0 bg-gray-900 text-green-400 flex flex-col">
+      <!-- Status Bar -->
+      <.live_component
+        module={TerminalStatusBar}
+        id="docs-status-bar"
+        title="OTP Supervisor Documentation"
+        metrics={status_bar_metrics(assigns)}
+        navigation_links={TerminalNavigationLinks.page_navigation_links("docs", %{})}
+      />
+
+      <!-- Main Content -->
+      <.live_component
+        module={TerminalPanelLayout}
+        id="docs-panel-layout"
+        layout_type={:two_panel}
+        panels={[
+          %{
+            slot: render_documentation_sidebar(assigns),
+            class: ["w-80", "min-w-80"]
+          },
+          %{
+            slot: render_documentation_content(assigns)
+          }
+        ]}
+        gap="gap-4"
+        padding="p-4"
+      />
+    </div>
+    """
   end
 
-  def get_doc_sections do
+  # Event handlers
+
+  def handle_event("search", %{"query" => query}, socket) do
+    results = search_documentation(query, socket.assigns.docs)
+    
+    {:noreply, 
+     socket
+     |> assign(:search_query, query)
+     |> assign(:search_results, results)}
+  end
+
+  def handle_event("select_doc", %{"doc_id" => doc_id}, socket) do
+    doc = find_document(doc_id, socket.assigns.docs)
+    
+    {:noreply, assign(socket, :selected_doc, doc)}
+  end
+
+  def handle_event("clear_search", _params, socket) do
+    {:noreply, 
+     socket
+     |> assign(:search_query, "")
+     |> assign(:search_results, [])}
+  end
+
+  # Private functions
+
+  defp handle_navigation(socket, %{"section" => section}) do
+    doc = find_document_by_section(section, socket.assigns.docs)
+    assign(socket, :selected_doc, doc)
+  end
+
+  defp handle_navigation(socket, _params), do: socket
+
+  defp load_documentation(socket) do
+    assign(socket, :docs, get_documentation_structure())
+  end
+
+  defp status_bar_metrics(assigns) do
+    [
+      %{label: "Sections", value: length(assigns.docs || [])},
+      %{label: "Search Results", value: length(assigns.search_results)},
+      %{label: "Current", value: if(assigns.selected_doc, do: assigns.selected_doc.title, else: "Welcome")}
+    ]
+  end
+
+  defp content_actions(assigns) do
+    actions = []
+    
+    actions = if assigns.selected_doc do
+      [%{type: :button, label: "Print", event: "print_doc"} | actions]
+    else
+      actions
+    end
+
+    if assigns.search_query != "" do
+      [%{type: :button, label: "Clear Search", event: "clear_search"} | actions]
+    else
+      actions
+    end
+  end
+
+  defp render_documentation_sidebar(assigns) do
+    ~H"""
+    <div class="h-full flex flex-col">
+      <!-- Search -->
+      <div class="p-4 border-b border-green-500/20">
+        <div class="relative">
+          <input
+            type="text"
+            placeholder="Search documentation..."
+            class="w-full px-3 py-2 bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:border-green-500"
+            value={@search_query}
+            phx-keyup="search"
+            phx-debounce="300"
+          />
+          <%= if @search_query != "" do %>
+            <button
+              phx-click="clear_search"
+              class="absolute right-2 top-2 text-green-400/70 hover:text-green-400"
+            >
+              ✕
+            </button>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Search Results or Documentation Tree -->
+      <div class="flex-1 overflow-y-auto">
+        <%= if @search_results != [] do %>
+          <div class="p-4">
+            <h4 class="text-sm font-mono font-bold mb-3 text-green-300">
+              Search Results (<%= length(@search_results) %>)
+            </h4>
+            <%= for result <- @search_results do %>
+              <button
+                phx-click="select_doc"
+                phx-value-doc-id={result.id}
+                class="block w-full text-left p-2 mb-1 rounded hover:bg-green-500/10 transition-colors"
+              >
+                <div class="text-sm font-mono text-green-400"><%= result.title %></div>
+                <div class="text-xs text-green-400/70 mt-1"><%= result.excerpt %></div>
+              </button>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="p-4">
+            <h4 class="text-sm font-mono font-bold mb-3 text-green-300">Documentation Sections</h4>
+            <%= for doc <- @docs || [] do %>
+              <button
+                phx-click="select_doc"
+                phx-value-doc-id={doc.id}
+                class={[
+                  "block w-full text-left p-2 mb-1 rounded transition-colors font-mono text-sm",
+                  if(@selected_doc && @selected_doc.id == doc.id, 
+                     do: "bg-green-500/20 text-green-300", 
+                     else: "text-green-400 hover:bg-green-500/10")
+                ]}
+              >
+                <div class="flex items-center space-x-2">
+                  <span><%= doc.icon %></span>
+                  <span><%= doc.title %></span>
+                </div>
+              </button>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp render_documentation_content(assigns) do
+    ~H"""
+    <div class="h-full flex flex-col">
+      <div class="flex-1 overflow-y-auto">
+        <%= if @selected_doc do %>
+          <div class="p-6">
+          <div class="prose prose-green max-w-none">
+            <div class="flex items-center space-x-3 mb-6">
+              <span class="text-2xl"><%= @selected_doc.icon %></span>
+              <h1 class="text-xl font-mono font-bold text-green-300 m-0"><%= @selected_doc.title %></h1>
+            </div>
+            
+            <div class="text-green-400 font-mono text-sm leading-relaxed space-y-4">
+              <%= Phoenix.HTML.raw(@selected_doc.content) %>
+            </div>
+          </div>
+        </div>
+      <% else %>
+          <div class="h-full flex items-center justify-center">
+            <div class="text-center">
+              <div class="text-6xl mb-4">📚</div>
+              <h2 class="text-xl font-mono font-bold text-green-300 mb-2">
+                Welcome to OTP Supervisor Documentation
+              </h2>
+              <p class="text-green-400/70 font-mono text-sm max-w-md">
+                Select a documentation section from the sidebar to get started, or use the search to find specific topics.
+              </p>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  # Documentation data
+
+  defp get_documentation_structure do
     [
       %{
-        id: "supervisor-architecture",
-        title: "SUPERVISOR ARCHITECTURE",
-        description: "OTP supervision tree design and patterns"
+        id: "overview",
+        title: "System Overview",
+        icon: "🏗️",
+        content: """
+        <h2>OTP Supervisor System Architecture</h2>
+        
+        <p>This system provides comprehensive monitoring and management of OTP (Open Telecom Platform) supervisors and their child processes. The architecture is designed for high availability, fault tolerance, and real-time monitoring capabilities.</p>
+        
+        <h3>Core Components</h3>
+        <ul>
+          <li><strong>Supervisor Manager:</strong> Central coordination of all supervisor instances</li>
+          <li><strong>Process Monitor:</strong> Real-time tracking of process health and performance</li>
+          <li><strong>Arsenal System:</strong> Command execution and operation management</li>
+          <li><strong>Dashboard:</strong> Visual monitoring and metrics display</li>
+        </ul>
+        
+        <h3>Key Features</h3>
+        <ul>
+          <li>Real-time process monitoring with WebSocket updates</li>
+          <li>Hierarchical supervisor tree visualization</li>
+          <li>Process lifecycle management and control</li>
+          <li>Performance metrics and alerting</li>
+          <li>Command execution through Arsenal interface</li>
+        </ul>
+        """
       },
       %{
-        id: "sandbox-system",
-        title: "SANDBOX SYSTEM",
-        description: "Dynamic supervisor lifecycle management"
+        id: "architecture",
+        title: "Architecture Details",
+        icon: "🏛️",
+        content: """
+        <h2>System Architecture</h2>
+        
+        <h3>Supervision Tree</h3>
+        <p>The system follows OTP principles with a well-defined supervision tree:</p>
+        
+        <pre class="bg-gray-800 p-4 rounded">
+        OtpSupervisor.Application
+        ├── OtpSupervisor.Core.SupervisorManager
+        ├── OtpSupervisor.Core.ProcessMonitor
+        ├── OtpSupervisor.Core.SandboxManager
+        └── OtpSupervisorWeb.Endpoint
+            ├── OtpSupervisorWeb.Telemetry
+            └── Phoenix.PubSub
+        </pre>
+        
+        <h3>Core Modules</h3>
+        <ul>
+          <li><strong>SupervisorManager:</strong> Manages supervisor instances and their lifecycle</li>
+          <li><strong>ProcessMonitor:</strong> Monitors process health and performance metrics</li>
+          <li><strong>SandboxManager:</strong> Provides isolated environments for testing</li>
+          <li><strong>Arsenal:</strong> Command execution and operation management</li>
+        </ul>
+        
+        <h3>Data Flow</h3>
+        <p>The system uses a combination of GenServer processes, Phoenix PubSub for real-time updates, and LiveView for interactive web interfaces.</p>
+        """
       },
       %{
-        id: "arsenal-operations",
-        title: "ARSENAL OPERATIONS",
-        description: "REST API operation framework"
+        id: "monitoring",
+        title: "Monitoring & Metrics",
+        icon: "📊",
+        content: """
+        <h2>Monitoring and Metrics</h2>
+        
+        <h3>Process Monitoring</h3>
+        <p>The system continuously monitors:</p>
+        <ul>
+          <li>Process health status (running, stopped, error)</li>
+          <li>Memory usage and garbage collection metrics</li>
+          <li>Message queue lengths and processing rates</li>
+          <li>CPU utilization per process</li>
+          <li>Restart counts and error rates</li>
+        </ul>
+        
+        <h3>System Metrics</h3>
+        <ul>
+          <li><strong>Memory:</strong> Total system memory usage, per-process allocation</li>
+          <li><strong>CPU:</strong> System-wide CPU utilization and per-core metrics</li>
+          <li><strong>Processes:</strong> Total process count, supervisor tree depth</li>
+          <li><strong>Network:</strong> Connection counts, message throughput</li>
+        </ul>
+        
+        <h3>Alerting</h3>
+        <p>The system provides configurable alerts for:</p>
+        <ul>
+          <li>High memory usage (>80% threshold)</li>
+          <li>CPU spikes (>90% utilization)</li>
+          <li>Process crashes and restart loops</li>
+          <li>Supervisor tree instability</li>
+        </ul>
+        """
       },
       %{
-        id: "monitoring-analytics",
-        title: "MONITORING & ANALYTICS",
-        description: "Real-time process monitoring system"
+        id: "arsenal",
+        title: "Arsenal System",
+        icon: "⚡",
+        content: """
+        <h2>Arsenal Command System</h2>
+        
+        <h3>Overview</h3>
+        <p>The Arsenal system provides a comprehensive command execution framework for OTP operations. It supports over 200 predefined operations with real-time status tracking.</p>
+        
+        <h3>Operation Types</h3>
+        <ul>
+          <li><strong>Active:</strong> Currently executing operations</li>
+          <li><strong>Planned:</strong> Scheduled for future execution</li>
+          <li><strong>Inactive:</strong> Disabled or completed operations</li>
+        </ul>
+        
+        <h3>Command Categories</h3>
+        <ul>
+          <li><strong>Process Management:</strong> Start, stop, restart processes</li>
+          <li><strong>Supervisor Control:</strong> Manage supervisor trees</li>
+          <li><strong>System Operations:</strong> Memory cleanup, performance tuning</li>
+          <li><strong>Diagnostics:</strong> Health checks, system analysis</li>
+        </ul>
+        
+        <h3>Execution Flow</h3>
+        <ol>
+          <li>Command selection from operation grid</li>
+          <li>Parameter validation and configuration</li>
+          <li>Execution with real-time progress tracking</li>
+          <li>Result collection and status reporting</li>
+        </ol>
+        """
       },
       %{
-        id: "process-control",
-        title: "PROCESS CONTROL",
-        description: "Process introspection and manipulation"
-      },
-      %{
-        id: "testing-patterns",
-        title: "TESTING PATTERNS",
-        description: "OTP testing strategies and helpers"
+        id: "api",
+        title: "API Reference",
+        icon: "🔧",
+        content: """
+        <h2>API Reference</h2>
+        
+        <h3>REST Endpoints</h3>
+        
+        <h4>System Information</h4>
+        <ul>
+          <li><code>GET /api/v1/system</code> - System status and metrics</li>
+          <li><code>GET /api/v1/system/processes</code> - All process information</li>
+          <li><code>GET /api/v1/system/supervisors</code> - Supervisor tree data</li>
+        </ul>
+        
+        <h4>Process Management</h4>
+        <ul>
+          <li><code>POST /api/v1/process/start</code> - Start a new process</li>
+          <li><code>POST /api/v1/process/stop</code> - Stop a process</li>
+          <li><code>POST /api/v1/process/restart</code> - Restart a process</li>
+          <li><code>GET /api/v1/process/:id</code> - Get process details</li>
+        </ul>
+        
+        <h4>Supervisor Operations</h4>
+        <ul>
+          <li><code>GET /api/v1/supervisor/:id</code> - Supervisor details</li>
+          <li><code>POST /api/v1/supervisor/:id/restart</code> - Restart supervisor</li>
+          <li><code>GET /api/v1/supervisor/:id/children</code> - Get child processes</li>
+        </ul>
+        
+        <h3>WebSocket Events</h3>
+        <ul>
+          <li><code>process_update</code> - Process status changes</li>
+          <li><code>system_metrics</code> - Real-time system metrics</li>
+          <li><code>supervisor_change</code> - Supervisor tree updates</li>
+        </ul>
+        """
       }
     ]
   end
 
-  def get_doc_content("supervisor-architecture") do
-    """
-    # SUPERVISOR ARCHITECTURE OVERVIEW
-
-    ## BOOT-TIME SUPERVISION TREE
-
-    The main application supervisor (OtpSupervisor.Supervisor) orchestrates 
-    the entire system using a :one_for_one restart strategy:
-
-    OtpSupervisor.Supervisor (:one_for_one)
-    ├── OtpSupervisorWeb.Telemetry          [Phoenix telemetry]
-    ├── DNSCluster                          [Service discovery]
-    ├── Phoenix.PubSub                      [Pub/sub messaging]
-    ├── Finch                               [HTTP client]
-    ├── TracerRegistry                      [Message tracing]
-    ├── AnalyticsServer                     [Supervisor monitoring]
-    ├── SandboxManager                      [Dynamic supervisors]
-    ├── Arsenal.Registry                    [Operation discovery]
-    ├── OtpSupervisorWeb.Endpoint          [Phoenix web server]
-    └── DemoSupervisor                      [Demo processes]
-        ├── :counter_1                      [Counter worker (val: 0)]
-        ├── :counter_2                      [Counter worker (val: 100)]
-        └── :printer_1                      [Printer worker]
-
-    ## SUPERVISOR TYPES
-
-    ### PERMANENT SUPERVISORS
-    - Started at application boot
-    - Registered with predictable names
-    - Core system functionality
-    - Managed by main application supervisor
-
-    ### DYNAMIC SUPERVISORS  
-    - Created at runtime via SandboxManager
-    - Generated unique names (collision-safe)
-    - Isolated testing and temporary workloads
-    - Monitored but not linked (fault isolation)
-
-    ## RESTART STRATEGIES
-
-    ### :one_for_one (Default)
-    - Only failed child is restarted
-    - Other children continue unaffected
-    - Best for independent processes
-
-    ### :one_for_all
-    - All children restart if one fails
-    - Useful for interdependent processes
-    - More disruptive but ensures consistency
-
-    ### :rest_for_one
-    - Failed child and subsequent children restart
-    - Maintains child start order dependencies
-    - Compromise between independence and consistency
-
-    ## DETECTION ALGORITHMS
-
-    The system uses multiple supervisor detection strategies:
-
-    ### Control.list_supervisors()
-    - Scans Process.registered() for supervisor names
-    - Examines process dictionary :$initial_call
-    - Filters by supervisor module types
-    - Returns 56 total supervisors in current system
-
-    ### Arsenal.ListSupervisors
-    - Comprehensive Process.list() scanning
-    - Enhanced detection patterns
-    - Application attribution
-    - Pagination and child details
-
-    ## PROCESS ISOLATION
-
-    ### SandboxManager Isolation
-    - Uses Process.unlink() to prevent cascade failures
-    - Monitors created supervisors without linking
-    - Cleans up on supervisor death via :DOWN messages
-    - ETS-based O(1) sandbox lookup
-
-    ### Registration Patterns
-    Boot-time: :demo_one_for_one, :analytics_server
-    Dynamic:   :"sandbox_\#{id}_\#{unique_id}"
-    Workers:   :"counter_1_\#{unique_id}", :"printer_1_\#{unique_id}"
-    """
-  end
-
-  def get_doc_content("sandbox-system") do
-    """
-    # SANDBOX SYSTEM ARCHITECTURE
-
-    ## SANDBOXMANAGER OVERVIEW
-
-    The SandboxManager implements a sophisticated supervisor-of-supervisors
-    pattern for dynamic process lifecycle management:
-
-    ### CORE FEATURES
-    - Dynamic supervisor creation at runtime
-    - Process isolation via unlinking
-    - ETS-based fast lookup (:sandboxes table)
-    - Monitoring without linking for fault tolerance
-    - Unique name generation to prevent conflicts
-
-    ### LIFECYCLE OPERATIONS
-
-    #### CREATE_SANDBOX
-    1. Generate unique sandbox name: :"sandbox_\#{id}_\#{unique_id}"
-    2. Start supervisor with merged options
-    3. Unlink supervisor (critical for isolation)
-    4. Monitor supervisor process
-    5. Store metadata in ETS and GenServer state
-
-    #### DESTROY_SANDBOX
-    1. Stop monitoring supervisor
-    2. Gracefully shutdown supervisor (5s timeout)
-    3. Remove from ETS table and state
-    4. Clean up all associated resources
-
-    #### RESTART_SANDBOX
-    1. Stop current supervisor
-    2. Start new supervisor with same configuration
-    3. Update monitoring reference
-    4. Increment restart count
-    5. Update metadata
-
-    ### DATA STRUCTURES
-
-    #### ETS Table (:sandboxes)
-    {sandbox_id, %{
-      id: sandbox_id,
-      supervisor_module: module,
-      supervisor_pid: pid,
-      opts: keyword_list,
-      created_at: timestamp,
-      restart_count: integer
-    }}
-
-    #### GenServer State
-    %{
-      sandboxes: %{
-        sandbox_id => {sandbox_info, monitor_ref}
-      },
-      next_id: integer
-    }
-
-    ### FAULT TOLERANCE
-
-    #### Monitor Handling
-    - Receives :DOWN messages when supervisors die
-    - Automatically cleans up dead sandbox entries
-    - Logs death reasons for debugging
-    - Maintains system consistency
-
-    #### Critical Design Decision
-    Process.unlink(pid) after supervisor creation prevents SandboxManager
-    from dying when sandbox supervisors are killed, ensuring system stability.
-
-    ### API EXAMPLES
-
-    #### Creating Test Supervisors
-    {:ok, info} = SandboxManager.create_sandbox(
-      "test_env_1",
-      TestSupervisor,
-      [strategy: :one_for_all, workers: 5]
-    )
-
-    #### Runtime Management
-    SandboxManager.restart_sandbox("test_env_1")
-    SandboxManager.destroy_sandbox("test_env_1")
-    SandboxManager.list_sandboxes()
-
-    ### INTEGRATION WITH DEMO SUPERVISOR
-
-    The :demo_one_for_one supervisor is PERMANENT (boot-time) while
-    sandbox supervisors are DYNAMIC (runtime). Both coexist:
-
-    - Demo supervisor: Fixed infrastructure for demonstrations
-    - Sandbox supervisors: Isolated environments for testing
-    - No conflicts due to unique naming schemes
-    - Independent lifecycle management
-    """
-  end
-
-  def get_doc_content("arsenal-operations") do
-    """
-    # ARSENAL OPERATIONS FRAMEWORK
-
-    ## ARCHITECTURE OVERVIEW
-
-    Arsenal provides a dynamic REST API generation framework for OTP
-    operations with automatic discovery, validation, and execution.
-
-    ### CORE COMPONENTS
-
-    #### Arsenal.Registry
-    - GenServer-based operation discovery
-    - ETS table for O(1) operation lookup
-    - Automatic registration of operation modules
-    - Support for 200+ planned operations
-
-    #### ArsenalPlug
-    - HTTP middleware for dynamic routing
-    - Path reconstruction from catch-all routes
-    - Parameter extraction and validation
-    - Error handling and response formatting
-
-    #### Operation Modules
-    - Standardized behavior interface
-    - REST configuration metadata
-    - Parameter validation logic
-    - Execution and response formatting
-
-    ### OPERATION LIFECYCLE
-
-    #### 1. DISCOVERY
-    Registry scans for modules implementing Arsenal.Operation behavior:
-
-    @known_operations [
-      OTPSupervisor.Core.Arsenal.Operations.GetProcessInfo,
-      OTPSupervisor.Core.Arsenal.Operations.KillProcess,
-      OTPSupervisor.Core.Arsenal.Operations.ListSupervisors,
-      OTPSupervisor.Core.Arsenal.Operations.SendMessage,
-      OTPSupervisor.Core.Arsenal.Operations.TraceProcess
-    ]
-
-    #### 2. REGISTRATION
-    Each operation provides rest_config/0 with:
-    - HTTP method and path pattern
-    - Parameter definitions and validation rules
-    - Response schemas and error codes
-    - Operation summary and description
-
-    #### 3. ROUTING
-    ArsenalPlug dynamically matches requests:
-    - Reconstructs paths from Phoenix catch-all routes
-    - Applies regex pattern matching
-    - Handles URL encoding for PID parameters
-    - Falls back to manual controllers on no match
-
-    #### 4. EXECUTION
-    - Parameter merging (path, query, body)
-    - Validation via operation module
-    - Safe execution with error handling
-    - Response formatting and HTTP status
-
-    ### HYBRID ARCHITECTURE
-
-    Arsenal coexists with manual Phoenix controllers:
-
-    #### Arsenal-First Approach
-    1. ArsenalPlug attempts operation matching
-    2. On match: Execute Arsenal operation
-    3. On no match: Fall through to manual controller
-    4. Catch-all routes return Arsenal 404 errors
-
-    #### Route Configuration
-    scope "/api/v1", OtpSupervisorWeb.Api.V1 do
-      pipe_through [:api, ArsenalPlug]
+  defp search_documentation(query, docs) when is_binary(query) and query != "" do
+    query = String.downcase(query)
+    
+    Enum.filter(docs, fn doc ->
+      title_match = String.contains?(String.downcase(doc.title), query)
+      content_match = String.contains?(String.downcase(doc.content), query)
       
-      # Manual controllers (non-conflicting)
-      get "/processes", ProcessController, :index
-      get "/system/health", SystemController, :health
-    end
-
-    scope "/api/v1", OtpSupervisorWeb do
-      pipe_through [:api, ArsenalPlug]
-      match :*, "/*path", ArsenalController, :operation_handler
-    end
-
-    ### ACTIVE OPERATIONS
-
-    #### GetProcessInfo
-    GET /api/v1/processes/:pid/info
-    - Complete process introspection
-    - Memory, message queue, status
-    - Links, monitors, registered name
-
-    #### KillProcess  
-    DELETE /api/v1/processes/:pid
-    - Graceful or forced termination
-    - Configurable exit reasons
-    - Critical process protection
-
-    #### ListSupervisors
-    GET /api/v1/supervisors
-    - System-wide supervisor discovery
-    - Application attribution
-    - Children information (optional)
-    - Pagination support
-
-    #### SendMessage
-    POST /api/v1/processes/:pid/message
-    - Arbitrary message sending
-    - Support for send, cast, call types
-    - Response tracking capabilities
-    - Timeout configuration
-
-    #### TraceProcess
-    POST /api/v1/processes/:pid/trace
-    - Enable process tracing
-    - Configurable trace types
-    - Data collection and retrieval
-    - Performance monitoring
-
-    ### ERROR HANDLING
-
-    #### Validation Errors (422)
-    - Parameter type mismatches
-    - Missing required parameters
-    - Invalid PID formats
-    - Out-of-range values
-
-    #### Process Errors (404)
-    - Process not found/dead
-    - Invalid process references
-    - Permission denied
-
-    #### Execution Errors (500)
-    - Operation timeouts
-    - System errors
-    - Unexpected failures
-
-    ### PLANNED OPERATIONS (195)
-
-    Categories include:
-    - Process Lifecycle (12 ops)
-    - Advanced Control (10 ops)  
-    - Supervisor Management (15 ops)
-    - System Introspection (15 ops)
-    - Messaging (12 ops)
-    - Tracing/Debugging (15 ops)
-    - State Management (8 ops)
-    - Error Handling (7 ops)
-    - Application Management (6 ops)
-    - Resource Management (8 ops)
-    - Performance Monitoring (8 ops)
-    - Security (5 ops)
-    - Testing (5 ops)
-    - OTP Patterns (6 ops)
-    - Distributed Operations (5 ops)
-    - Events (4 ops)
-    - Hot Code Reloading (4 ops)
-    - System Integration (6 ops)
-    """
+      title_match or content_match
+    end)
+    |> Enum.map(fn doc ->
+      excerpt = extract_excerpt(doc.content, query)
+      Map.put(doc, :excerpt, excerpt)
+    end)
   end
 
-  def get_doc_content("monitoring-analytics") do
-    """
-    # MONITORING & ANALYTICS SYSTEM
+  defp search_documentation(_query, _docs), do: []
 
-    ## ANALYTICSSERVER ARCHITECTURE
-
-    Real-time supervisor monitoring with restart detection and analysis.
-
-    ### MONITORING STRATEGY
-
-    #### Process-Based Monitoring
-    Due to OTP 27 telemetry limitations, uses periodic process scanning:
-
-    - Scans all supervisors every 5 seconds
-    - Compares supervisor children between scans
-    - Detects child restarts via PID changes
-    - Records restart events with timestamps
-
-    #### Data Collection
-    - Supervisor metadata (PID, strategy, intensity)
-    - Child process information (PIDs, types, modules)
-    - Restart events with reasons and context
-    - Failure rate calculations over time windows
-
-    ### DATA STRUCTURES
-
-    #### State Schema
-    %{
-      restart_history: %{
-        supervisor_pid => [
-          %{event_type, child_id, timestamp, metadata}
-        ]
-      },
-      supervisor_info: %{
-        supervisor_pid => %{name, strategy, intensity, period}
-      },
-      supervisor_children: %{
-        supervisor_pid => %{child_id => child_info}
-      },
-      total_restarts: integer(),
-      start_time: timestamp()
-    }
-
-    #### Event Types
-    - :child_started - New child process detected
-    - :child_restarted - Child PID changed (restart detected)
-    - :child_terminated - Child no longer present
-    - :supervisor_started - New supervisor detected
-    - :supervisor_stopped - Supervisor no longer running
-
-    ### RESTART DETECTION ALGORITHM
-
-    #### Child Comparison Logic
-    1. Get current supervisor children via Supervisor.which_children/1
-    2. Compare with previous scan results
-    3. Detect PID changes for same child IDs
-    4. Record restart events with metadata
-    5. Update child tracking state
-
-    #### Restart Event Recording
-    For each detected restart:
-    - Record timestamp (millisecond precision)
-    - Capture child ID and new PID
-    - Store supervisor context
-    - Maintain bounded history (1000 events per supervisor)
-
-    ### ANALYTICS FEATURES
-
-    #### Failure Rate Calculation
-    get_failure_rate(supervisor_pid, time_window_ms) ->
-      - Count restarts within time window
-      - Calculate rate per second
-      - Provide restart count and rate
-
-    #### Supervisor Statistics
-    - Total restarts across all supervisors
-    - Per-supervisor restart counts
-    - Uptime calculations
-    - Children statistics (active, specs, workers, supervisors)
-
-    #### Historical Analysis
-    - Restart history with full event context
-    - Time-based filtering
-    - Trend analysis over configurable windows
-    - Pattern detection for debugging
-
-    ### INTEGRATION POINTS
-
-    #### Control Module Integration
-    - get_restart_history/1 - Retrieve supervisor restart events
-    - get_supervisor_analytics/0 - Global statistics
-    - get_failure_rate/2 - Calculated failure rates
-
-    #### Web Interface Integration
-    - Real-time metrics display
-    - Historical charts and graphs
-    - Alert thresholds and notifications
-    - Export capabilities for analysis
-
-    ### PERFORMANCE CONSIDERATIONS
-
-    #### Memory Management
-    - Bounded event history prevents memory leaks
-    - Periodic cleanup of old events
-    - Efficient ETS usage for fast lookups
-
-    #### Monitoring Overhead
-    - 5-second scan interval balances accuracy vs performance
-    - Lazy supervisor discovery reduces CPU usage
-    - Efficient diff algorithms minimize processing
-
-    ### PRODUCTION MONITORING
-
-    #### Health Checks
-    - AnalyticsServer process monitoring
-    - Scan interval verification
-    - Memory usage tracking
-    - Error rate monitoring
-
-    #### Alerting Integration
-    Ready for integration with external monitoring:
-    - Prometheus metrics export
-    - StatsD integration
-    - Custom webhook notifications
-    - Email/SMS alert capabilities
-    """
-  end
-
-  def get_doc_content("process-control") do
-    """
-    # PROCESS CONTROL SYSTEM
-
-    ## CONTROL MODULE OVERVIEW
-
-    Comprehensive process introspection and manipulation API for OTP systems.
-
-    ### PROCESS DISCOVERY
-
-    #### list_all_processes(opts)
-    Scans all system processes with classification:
-
-    - Process type detection (:supervisor, :genserver, :worker)
-    - Registration name discovery
-    - Filtering by process type
-    - Pagination support for large systems
-
-    #### Process Classification Algorithm
-    1. Get initial_call from process dictionary
-    2. Match against known OTP behavior modules
-    3. Classify as supervisor, genserver, or worker
-    4. Handle edge cases (dead processes, unknown types)
-
-    ### SUPERVISOR OPERATIONS
-
-    #### list_supervisors()
-    - Filters registered processes for supervisors only
-    - Returns supervisor metadata (name, PID, alive, child_count)
-    - Uses is_supervisor_pid/1 for accurate detection
-    - Handles 56+ supervisors in current system
-
-    #### get_supervision_tree(supervisor)
-    - Retrieves complete child information
-    - Handles both atom names and PIDs
-    - Returns formatted child data with metadata
-    - Error handling for invalid supervisors
-
-    ### PROCESS INTROSPECTION
-
-    #### get_process_info(pid)
-    Comprehensive process information:
-    - Memory usage (bytes)
-    - Message queue length
-    - Process status (:running, :waiting, etc.)
-    - Heap and stack sizes
-    - Reduction count
-    - Current function
-
-    #### get_process_state(pid)
-    Safe GenServer state extraction:
-    - Uses :sys.get_state/2 with timeout
-    - Handles non-GenServer processes gracefully
-    - Timeout protection (100ms)
-    - Error categorization
-
-    ### PROCESS MANIPULATION
-
-    #### kill_process(pid_or_string)
-    - Supports PID objects and string representations
-    - Handles both "#PID<...>" and "<...>" formats
-    - Immediate termination with :kill signal
-    - Return value normalization
-
-    #### to_pid(identifier)
-    Flexible PID conversion:
-    - String PID parsing with format normalization
-    - Registered name lookup via Process.whereis/1
-    - PID object passthrough
-    - Comprehensive error handling
-
-    ### PROCESS RELATIONSHIPS
-
-    #### build_process_graph()
-    Complete system relationship mapping:
-    - Process list with classifications
-    - Link relationships between processes
-    - Monitor relationships
-    - Visual representation data
-
-    #### Link Analysis
-    - Bidirectional failure propagation connections
-    - Critical for understanding fault tolerance
-    - Supervision tree visualization
-    - Dependency analysis
-
-    #### Monitor Analysis
-    - Unidirectional observation relationships
-    - Non-intrusive process watching
-    - Event notification patterns
-    - Debugging aid for complex systems
-
-    ### ADVANCED FEATURES
-
-    #### Sandbox Integration
-    - create_sandbox/2 - Isolated supervisor creation
-    - destroy_sandbox/1 - Clean resource disposal
-    - restart_sandbox/1 - Fresh supervisor instances
-    - list_sandboxes/0 - Active sandbox enumeration
-
-    #### Analytics Integration
-    - get_restart_history/1 - Historical restart data
-    - get_supervisor_analytics/0 - System-wide statistics
-    - get_failure_rate/2 - Calculated failure rates
-    - simulate_crash/3 - Controlled failure testing
-
-    ### ERROR HANDLING
-
-    #### Graceful Degradation
-    - Dead process detection and handling
-    - Timeout protection for unresponsive processes
-    - Invalid input validation and normalization
-    - Comprehensive error categorization
-
-    #### Error Types
-    - :process_dead - Process no longer exists
-    - :not_found - Invalid process reference
-    - :not_supervisor - Process is not a supervisor
-    - :invalid_pid - Malformed PID string
-
-    ### PERFORMANCE OPTIMIZATIONS
-
-    #### Caching Strategies
-    - Process.registered/0 caching for supervisor lists
-    - Lazy evaluation of expensive operations
-    - Bounded result sets for large systems
-
-    #### Batch Operations
-    - Efficient bulk process information gathering
-    - Parallel processing where safe
-    - Memory-conscious large dataset handling
-
-    ### SAFETY CONSIDERATIONS
-
-    #### Production Safety
-    - Read-only operations by default
-    - Explicit confirmation for destructive operations
-    - Timeout protection against hanging
-    - Graceful error handling
-
-    #### Critical Process Protection
-    - System process identification
-    - Prevention of accidental critical process termination
-    - Warning systems for dangerous operations
-    - Audit logging for security compliance
-    """
-  end
-
-  def get_doc_content("testing-patterns") do
-    """
-    # TESTING PATTERNS & STRATEGIES
-
-    ## OTP TESTING ARCHITECTURE
-
-    Comprehensive testing framework for supervisor and process behavior.
-
-    ### TESTING INFRASTRUCTURE
-
-    #### SupervisorTestHelper
-    Specialized helper module for OTP testing:
-
-    - Unique supervisor name generation
-    - Automatic cleanup after tests
-    - Process isolation between test cases
-    - Consistent test environment setup
-
-    #### Test Supervisor Creation
-    create_test_supervisor(module, opts) ->
-      - Generates unique supervisor names
-      - Prevents test interference
-      - Automatic registration cleanup
-      - Consistent initialization patterns
-
-    ### ARSENAL OPERATION TESTING
-
-    #### Integration Test Patterns
-
-    ##### GetProcessInfo Tests
-    - Process information accuracy validation
-    - Dead process handling
-    - Memory and queue statistics verification
-    - Response format consistency
-
-    ##### KillProcess Tests
-    - Process termination verification
-    - Supervisor restart behavior testing
-    - Different exit reason handling
-    - Critical process protection
-
-    ##### SendMessage Tests
-    - Message delivery verification
-    - Different message types (send, cast, call)
-    - Timeout handling
-    - Response tracking
-
-    ##### TraceProcess Tests
-    - Trace activation/deactivation
-    - Data collection verification
-    - Performance impact measurement
-    - Multiple trace type handling
-
-    ### SUPERVISOR BEHAVIOR TESTING
-
-    #### Restart Strategy Testing
-    Test each restart strategy behavior:
-
-    ##### :one_for_one Testing
-    1. Start supervisor with multiple children
-    2. Kill one child process
-    3. Verify only that child restarts
-    4. Confirm other children unaffected
-
-    ##### :one_for_all Testing  
-    1. Start supervisor with multiple children
-    2. Kill one child process
-    3. Verify all children restart
-    4. Confirm PID changes for all children
-
-    ##### :rest_for_one Testing
-    1. Start supervisor with ordered children
-    2. Kill middle child
-    3. Verify child and subsequent children restart
-    4. Confirm earlier children unaffected
-
-    ### SANDBOX TESTING PATTERNS
-
-    #### Isolation Testing
-    - Sandbox creation without main system impact
-    - Resource cleanup verification
-    - Process leakage prevention
-    - Concurrent sandbox testing
-
-    #### Lifecycle Testing
-    - Create/destroy cycle verification
-    - Restart behavior validation
-    - Failure handling robustness
-    - Memory leak prevention
-
-    ### PROCESS TESTING STRATEGIES
-
-    #### GenServer Testing
-    - State consistency verification
-    - Message handling correctness
-    - Crash recovery behavior
-    - Performance characteristics
-
-    #### Worker Process Testing
-    - Functional behavior verification
-    - Error condition handling
-    - Resource management
-    - Integration with supervisors
-
-    ### MONITORING TESTING
-
-    #### Analytics Testing
-    - Restart detection accuracy
-    - Event recording completeness
-    - Statistical calculation correctness
-    - Historical data integrity
-
-    #### Real-time Monitoring
-    - Live update verification
-    - Performance metric accuracy
-    - Alert threshold testing
-    - Dashboard data consistency
-
-    ### FAULT INJECTION TESTING
-
-    #### Controlled Failure Testing
-    simulate_crash/3 patterns:
-    - Different crash reasons (:normal, :kill, :shutdown)
-    - Timing-based failures
-    - Resource exhaustion simulation
-    - Network partition simulation
-
-    #### Chaos Engineering
-    - Random process termination
-    - Resource limit testing
-    - Network failure simulation
-    - Performance degradation testing
-
-    ### TEST DATA MANAGEMENT
-
-    #### Test Process Creation
-    - Lightweight test processes
-    - Predictable behavior patterns
-    - Easy cleanup and disposal
-    - Minimal resource usage
-
-    #### Test State Management
-    - Isolated test state
-    - Consistent initial conditions
-    - Deterministic test outcomes
-    - Parallel test execution safety
-
-    ### PERFORMANCE TESTING
-
-    #### Load Testing
-    - High child count supervisors
-    - Rapid restart scenarios
-    - Memory usage under load
-    - Response time measurement
-
-    #### Stress Testing
-    - System resource exhaustion
-    - Maximum concurrent operations
-    - Recovery behavior verification
-    - Stability under pressure
-
-    ### INTEGRATION TESTING
-
-    #### End-to-End Testing
-    - Complete request/response cycles
-    - Multi-component interaction
-    - Real-world scenario simulation
-    - Cross-module integration
-
-    #### API Testing
-    - HTTP endpoint verification
-    - Parameter validation testing
-    - Error response consistency
-    - Authentication/authorization
-
-    ### TESTING BEST PRACTICES
-
-    #### Test Organization
-    - Logical test grouping by functionality
-    - Consistent naming conventions
-    - Comprehensive edge case coverage
-    - Clear test documentation
-
-    #### Test Reliability
-    - Deterministic test outcomes
-    - Proper cleanup procedures
-    - Race condition prevention
-    - Timeout handling
-
-    #### Test Maintenance
-    - Regular test review and updates
-    - Deprecated functionality removal
-    - Performance regression detection
-    - Documentation synchronization
-    """
-  end
-
-  def get_doc_content(_), do: "Documentation section not found."
-
-  def render_markdown(content) do
+  defp extract_excerpt(content, query) do
+    # Simple excerpt extraction - find the first occurrence of the query
     content
-    |> String.split("\n")
-    |> Enum.map(&format_line/1)
-    |> Enum.join("")
+    |> String.replace(~r/<[^>]*>/, "")  # Remove HTML tags
+    |> String.split(~r/\s+/)
+    |> Enum.chunk_every(20, 10)
+    |> Enum.find(fn chunk ->
+      chunk
+      |> Enum.join(" ")
+      |> String.downcase()
+      |> String.contains?(String.downcase(query))
+    end)
+    |> case do
+      nil -> String.slice(content, 0, 100) <> "..."
+      chunk -> Enum.join(chunk, " ") <> "..."
+    end
   end
 
-  defp format_line("# " <> title),
-    do:
-      "<h1 class='text-green-300 text-2xl font-bold border-b border-green-500/30 pb-2 mb-6'>#{title}</h1>"
+  defp find_document(doc_id, docs) do
+    Enum.find(docs, &(&1.id == doc_id))
+  end
 
-  defp format_line("## " <> title),
-    do: "<h2 class='text-green-300 text-xl font-bold mt-8 mb-4'>#{title}</h2>"
+  defp find_document_by_section(section, docs) do
+    Enum.find(docs, &(&1.id == section))
+  end
 
-  defp format_line("### " <> title),
-    do: "<h3 class='text-green-300 text-lg font-bold mt-6 mb-3'>#{title}</h3>"
+  # Action rendering helper
+  defp render_action(%{type: :button, label: label, event: event}) do
+    Phoenix.HTML.raw(~s(<button class="px-2 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors" phx-click="#{event}">#{label}</button>))
+  end
 
-  defp format_line("#### " <> title),
-    do: "<h4 class='text-green-300 text-md font-bold mt-4 mb-2'>#{title}</h4>"
+  defp render_action(%{type: :link, label: label, href: href}) do
+    Phoenix.HTML.raw(~s(<a href="#{href}" class="px-2 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors">#{label}</a>))
+  end
 
-  defp format_line(""), do: "<br>"
-
-  defp format_line("    " <> code),
-    do:
-      "<pre class='bg-black border border-green-500/30 p-3 text-green-400 text-sm ml-4'>#{code}</pre>"
-
-  defp format_line("- " <> item), do: "<div class='ml-4'>• #{item}</div>"
-  defp format_line(line), do: "<p class='text-green-400 mb-2'>#{line}</p>"
+  defp render_action(_), do: nil
 end

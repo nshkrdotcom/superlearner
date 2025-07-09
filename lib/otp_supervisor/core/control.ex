@@ -636,7 +636,7 @@ defmodule OTPSupervisor.Core.Control do
   # Sandbox Management Functions
 
   @doc """
-  Creates a new sandbox supervisor with the given supervisor module and options.
+  Creates a new sandbox application with the given app name and options.
 
   Returns a unique sandbox ID and sandbox information. The sandbox ID can be used
   to manage the sandbox lifecycle (restart, destroy, etc.).
@@ -644,24 +644,24 @@ defmodule OTPSupervisor.Core.Control do
   ## Examples
 
       iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
-      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor,
-      ...>   [strategy: :one_for_one]
+      ...>   :otp_sandbox,
+      ...>   []
       ...> )
-      iex> info.supervisor_module
-      OTPSupervisor.Sandbox.TestDemoSupervisor
+      iex> info.app_name
+      :otp_sandbox
   """
-  def create_sandbox(supervisor_module, opts \\ []) do
+  def create_sandbox(app_name, opts \\ []) do
     sandbox_id = "sandbox_#{:erlang.unique_integer([:positive])}"
-    OTPSupervisor.Core.SandboxManager.create_sandbox(sandbox_id, supervisor_module, opts)
+    OTPSupervisor.Core.SandboxManager.create_sandbox(sandbox_id, app_name, opts)
   end
 
   @doc """
-  Destroys a sandbox by stopping its supervisor and cleaning up all resources.
+  Destroys a sandbox by stopping its application and cleaning up all resources.
 
   ## Examples
 
       iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
-      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor
+      ...>   :otp_sandbox
       ...> )
       iex> :ok = OTPSupervisor.Core.Control.destroy_sandbox(info.id)
   """
@@ -672,13 +672,13 @@ defmodule OTPSupervisor.Core.Control do
   @doc """
   Restarts a sandbox with the same configuration.
 
-  The supervisor is stopped and a new one is started with the same options.
+  The application is stopped and a new one is started with the same options.
   The restart count is incremented.
 
   ## Examples
 
       iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
-      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor
+      ...>   :otp_sandbox
       ...> )
       iex> {:ok, restarted} = OTPSupervisor.Core.Control.restart_sandbox(info.id)
       iex> restarted.restart_count
@@ -709,7 +709,7 @@ defmodule OTPSupervisor.Core.Control do
   ## Examples
 
       iex> {:ok, info} = OTPSupervisor.Core.Control.create_sandbox(
-      ...>   OTPSupervisor.Sandbox.TestDemoSupervisor
+      ...>   :otp_sandbox
       ...> )
       iex> {:ok, retrieved} = OTPSupervisor.Core.Control.get_sandbox_info(info.id)
       iex> retrieved.id == info.id

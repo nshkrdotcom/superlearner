@@ -1,4 +1,4 @@
-defmodule OTPSupervisor.Sandbox.Workers.Printer do
+defmodule OtpSandbox.Workers.Printer do
   @moduledoc """
   A simple printer GenServer that logs messages.
 
@@ -9,7 +9,7 @@ defmodule OTPSupervisor.Sandbox.Workers.Printer do
   ## IEx Examples
 
       # Interacting with the pre-started printer
-      iex> alias OTPSupervisor.Sandbox.Workers.Printer
+      iex> alias OtpSandbox.Workers.Printer
       iex> Printer.print(:printer_1, "Hello from IEx!")
       :ok
       # [info] [Printer printer-1] Hello from IEx!

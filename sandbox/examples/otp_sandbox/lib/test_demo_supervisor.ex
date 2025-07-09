@@ -1,4 +1,4 @@
-defmodule OTPSupervisor.Sandbox.TestDemoSupervisor do
+defmodule OtpSandbox.TestDemoSupervisor do
   @moduledoc """
   Production-grade demo supervisor with unique naming for sandbox isolation.
 
@@ -23,19 +23,19 @@ defmodule OTPSupervisor.Sandbox.TestDemoSupervisor do
       %{
         id: :counter_1,
         start:
-          {OTPSupervisor.Sandbox.Workers.Counter, :start_link,
+          {OtpSandbox.Workers.Counter, :start_link,
            [[name: :"counter_1_#{unique_id}", initial_value: 0]]}
       },
       %{
         id: :counter_2,
         start:
-          {OTPSupervisor.Sandbox.Workers.Counter, :start_link,
+          {OtpSandbox.Workers.Counter, :start_link,
            [[name: :"counter_2_#{unique_id}", initial_value: 100]]}
       },
       %{
         id: :printer_1,
         start:
-          {OTPSupervisor.Sandbox.Workers.Printer, :start_link,
+          {OtpSandbox.Workers.Printer, :start_link,
            [[name: :"printer_1_#{unique_id}", id: "printer-#{unique_id}"]]}
       }
     ]
