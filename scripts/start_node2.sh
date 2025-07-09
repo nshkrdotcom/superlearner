@@ -9,8 +9,8 @@ echo "Press Ctrl+C to stop"
 echo "=================================================="
 
 # Set environment
-export MIX_ENV=dev
+export MIX_ENV=dev2  
 export NODE_ROLE=secondary
 
 # Start with proper node name, cookie, and config
-exec iex --name superlearner2@localhost --cookie secret_cluster_cookie -S mix phx.server --config config/dev2.exs
+exec iex --name superlearner2@localhost --cookie secret_cluster_cookie -S mix phx.server
