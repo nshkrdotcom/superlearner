@@ -1,9 +1,6 @@
 #!/bin/bash
-# stop_node1.sh - Stop Node 1 wrapper
+# Stop Node 1
 
-# Get the directory of this script
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-
-# Source common functions and stop node 1
-source "$SCRIPT_DIR/cluster_common.sh"
-stop_node 1
+echo "Stopping Node 1..."
+pkill -f "superlearner@localhost"
+echo "Node 1 stopped"

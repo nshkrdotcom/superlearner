@@ -1,9 +1,16 @@
 #!/bin/bash
-# start_node1.sh - Start Node 1 (Primary) wrapper
+# Start Node 1 (primary)
 
-# Get the directory of this script
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "$0")/.."
 
-# Source common functions and start node 1
-source "$SCRIPT_DIR/cluster_common.sh"
-start_node 1
+echo "🚀 Starting Node 1 (primary) - superlearner@localhost"
+echo "Web interface: http://localhost:4000"
+echo "Press Ctrl+C to stop"
+echo "=================================================="
+
+# Set environment
+export MIX_ENV=dev
+export NODE_ROLE=primary
+
+# Start with proper node name, cookie, and config
+exec iex --name superlearner@localhost --cookie secret_cluster_cookie -S mix phx.server

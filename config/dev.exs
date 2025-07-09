@@ -21,7 +21,10 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]}
-  ],
+  ]
+
+# Watch static and templates for browser reloading.
+config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
@@ -44,6 +47,6 @@ config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime
 
 # Node 1 specific configuration
-config :otp_supervisor, :node_name, :"superlearner@localhost"
+config :otp_supervisor, :node_name, :superlearner@localhost
 config :otp_supervisor, :node_port, 4000
 config :otp_supervisor, :node_role, :primary

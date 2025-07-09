@@ -12,7 +12,7 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   secret_key_base: "a-very-long-secret-key-base-for-development-only-change-in-production"
 
 # Node 2 specific configuration  
-config :otp_supervisor, :node_name, :"superlearner2@localhost"
+config :otp_supervisor, :node_name, :superlearner2@localhost
 config :otp_supervisor, :node_port, 4010
 config :otp_supervisor, :node_role, :secondary
 

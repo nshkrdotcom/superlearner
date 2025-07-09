@@ -11,7 +11,6 @@ echo "=================================================="
 # Set environment
 export MIX_ENV=dev
 export NODE_ROLE=secondary
-export MIX_CONFIG=config/dev2.exs
 
 # Start with proper node name, cookie, and config
-exec iex --name superlearner2@localhost --cookie secret_cluster_cookie -S mix phx.server
+exec iex --name superlearner2@localhost --cookie secret_cluster_cookie -S mix phx.server --config config/dev2.exs

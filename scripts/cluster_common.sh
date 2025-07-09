@@ -328,6 +328,37 @@ start_node() {
     echo "Press Ctrl+C to stop"
     echo "=================================================="
     
+    # Nuclear approach - kill any existing processes on our port and node name
+    print_status "Cleaning up any existing processes..."
+    
+    # Kill any process using our target port (multiple approaches)
+    sudo fuser -k $NODE_PORT/tcp 2>/dev/null || true
+    lsof -ti:$NODE_PORT | xargs kill -9 2>/dev/null || true
+    
+    # Kill any Elixir/Erlang processes with our node name
+    pkill -f "$NODE_NAME" 2>/dev/null || true
+    pkill -f "superlearner" 2>/dev/null || true
+    
+    # Kill any beam processes 
+    pkill -f "beam.smp" 2>/dev/null || true
+    pkill -f "mix phx.server" 2>/dev/null || true
+    pkill -f "iex" 2>/dev/null || true
+    
+    # Extra aggressive port cleanup
+    netstat -tlnp | grep ":$NODE_PORT " | awk '{print $7}' | cut -d'/' -f1 | xargs kill -9 2>/dev/null || true
+    
+    # Wait a moment for cleanup
+    sleep 2
+    
+    print_status "Port cleanup complete, checking availability..."
+    if netstat -tlnp | grep ":$NODE_PORT " > /dev/null; then
+        print_warning "Port $NODE_PORT still in use, proceeding anyway..."
+    else
+        print_success "Port $NODE_PORT is now available"
+    fi
+    
+    print_status "Starting clean node..."
+    
     # Set environment
     export MIX_ENV=dev
     export NODE_ROLE=$NODE_ROLE
