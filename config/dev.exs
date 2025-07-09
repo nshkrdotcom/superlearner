@@ -13,15 +13,15 @@ config :otp_supervisor, OtpSupervisor.Repo,
 # For development, we disable any cache and enable
 # debugging and code reloading.
 config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PHX_PORT") || "4000")],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "a-very-long-secret-key-base-for-development-only-change-in-production",
-  watchers: [
+  watchers: if(System.get_env("NODE_ROLE") == "secondary", do: [], else: [
     esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]}
-  ]
+  ])
 
 # Watch static and templates for browser reloading.
 config :otp_supervisor, OtpSupervisorWeb.Endpoint,
@@ -47,6 +47,6 @@ config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime
 
 # Node 1 specific configuration
-config :otp_supervisor, :node_name, :superlearner@localhost
+config :otp_supervisor, :node_name, :"superlearner@localhost"
 config :otp_supervisor, :node_port, 4000
 config :otp_supervisor, :node_role, :primary
