@@ -49,13 +49,13 @@ jobs:
         elixir --version
     
     - name: Compile application
-      run: mix compile
+      run: mix compile --force --no-elixir-version-check
     
     - name: Check formatting
       run: mix format --check-formatted
     
     - name: Run tests with verbose output
-      run: mix test --trace
+      run: mix test --trace --max-cases 1 --no-elixir-version-check
     
     - name: Run dialyzer
       run: mix dialyzer
