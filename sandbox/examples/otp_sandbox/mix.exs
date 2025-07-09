@@ -6,6 +6,7 @@ defmodule OtpSandbox.MixProject do
       app: :otp_sandbox,
       version: "0.1.0",
       elixir: "~> 1.18",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -18,6 +19,9 @@ defmodule OtpSandbox.MixProject do
       mod: {OtpSandbox.Application, []}
     ]
   end
+
+  # Specifies which paths to compile per environment.
+  defp elixirc_paths(_), do: ["lib"]
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
