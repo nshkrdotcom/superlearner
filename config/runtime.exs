@@ -20,6 +20,22 @@ if System.get_env("PHX_SERVER") do
   config :otp_supervisor, OtpSupervisorWeb.Endpoint, server: true
 end
 
+# Development environment overrides
+if config_env() == :dev do
+  # Override port if PHX_PORT is set
+  if System.get_env("PHX_PORT") do
+    port = String.to_integer(System.get_env("PHX_PORT"))
+    config :otp_supervisor, OtpSupervisorWeb.Endpoint,
+      http: [ip: {127, 0, 0, 1}, port: port]
+  end
+  
+  # Disable watchers for secondary nodes
+  if System.get_env("NODE_ROLE") == "secondary" do
+    config :otp_supervisor, OtpSupervisorWeb.Endpoint,
+      watchers: []
+  end
+end
+
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
