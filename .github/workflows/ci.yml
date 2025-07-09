@@ -43,12 +43,19 @@ jobs:
         echo "=== Specific file check ==="
         ls -la test/otp_supervisor/core/message_tracer_test.exs || echo "File not found"
         file test/otp_supervisor/core/message_tracer_test.exs || echo "File command failed"
+        echo "=== MIX_ENV ==="
+        echo $MIX_ENV
+        echo "=== Elixir version ==="
+        elixir --version
+    
+    - name: Compile application
+      run: mix compile
     
     - name: Check formatting
       run: mix format --check-formatted
     
-    - name: Run tests
-      run: mix test
+    - name: Run tests with verbose output
+      run: mix test --trace
     
     - name: Run dialyzer
       run: mix dialyzer
