@@ -47,6 +47,6 @@ config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime
 
 # Node 1 specific configuration
-config :otp_supervisor, :node_name, :superlearner2@localhost
+config :otp_supervisor, :node_name, :superlearner2@U2402
 config :otp_supervisor, :node_port, 4010
 config :otp_supervisor, :node_role, :primary
