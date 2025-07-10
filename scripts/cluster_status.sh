@@ -29,14 +29,14 @@ print_success() {
 }
 
 # Check Node 1 status
-echo -e "${BLUE}Node 1 Status (superlearner@localhost):${NC}"
+echo -e "${BLUE}Node 1 Status (superlearner@U2401):${NC}"
 if curl -s http://localhost:4000 > /dev/null; then
     print_success "✅ Web interface accessible at http://localhost:4000"
 else
     print_error "❌ Web interface not accessible at http://localhost:4000"
 fi
 
-if pgrep -f "superlearner@localhost" > /dev/null; then
+if pgrep -f "superlearner@U2401" > /dev/null; then
     print_success "✅ Elixir process running"
 else
     print_error "❌ Elixir process not running"
@@ -45,14 +45,14 @@ fi
 echo ""
 
 # Check Node 2 status
-echo -e "${BLUE}Node 2 Status (superlearner2@localhost):${NC}"
+echo -e "${BLUE}Node 2 Status (superlearner2@U2402):${NC}"
 if curl -s http://localhost:4010 > /dev/null; then
     print_success "✅ Web interface accessible at http://localhost:4010"
 else
     print_error "❌ Web interface not accessible at http://localhost:4010"
 fi
 
-if pgrep -f "superlearner2@localhost" > /dev/null; then
+if pgrep -f "superlearner2@U2402" > /dev/null; then
     print_success "✅ Elixir process running"
 else
     print_error "❌ Elixir process not running"
@@ -110,27 +110,27 @@ print_status "Testing inter-node communication..."
 # Create a temporary Elixir script to test cluster connectivity
 cat > /tmp/cluster_test.exs << 'EOF'
 # Connect to Node 1 and test cluster
-case Node.connect(:"superlearner@localhost") do
+case Node.connect(:"superlearner@U2401") do
   true -> 
-    IO.puts("✅ Successfully connected to superlearner@localhost")
+    IO.puts("✅ Successfully connected to superlearner@U2401")
     connected_nodes = Node.list()
     IO.puts("📡 Connected nodes: #{inspect(connected_nodes)}")
     
     # Test if we can see Node 2 from Node 1
-    if :"superlearner2@localhost" in connected_nodes do
+    if :"superlearner2@U2402" in connected_nodes do
       IO.puts("✅ Node 2 is visible from Node 1")
     else
       IO.puts("❌ Node 2 is not visible from Node 1")
     end
     
   false -> 
-    IO.puts("❌ Failed to connect to superlearner@localhost")
+    IO.puts("❌ Failed to connect to superlearner@U2401")
 end
 EOF
 
 # Run the test if we can connect
-if pgrep -f "superlearner@localhost" > /dev/null; then
-    timeout 5 elixir --name cluster_test@localhost --cookie secret_cluster_cookie /tmp/cluster_test.exs 2>/dev/null || {
+if pgrep -f "superlearner@U2401" > /dev/null; then
+    timeout 5 elixir --name cluster_test@U2401 --cookie secret_cluster_cookie /tmp/cluster_test.exs 2>/dev/null || {
         print_warning "⚠️ Cluster connectivity test failed or timed out"
     }
 else

@@ -33,13 +33,13 @@ get_node_config() {
     
     case $node_num in
         1)
-            NODE_NAME="superlearner@localhost"
+            NODE_NAME="superlearner@U2401"
             NODE_PORT=4000
             NODE_ROLE="primary"
             CONFIG_FILE="dev"
             ;;
         2)
-            NODE_NAME="superlearner2@localhost"
+            NODE_NAME="superlearner2@U2402"
             NODE_PORT=4010
             NODE_ROLE="secondary"
             CONFIG_FILE="dev2"
@@ -184,7 +184,7 @@ config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime
 
 # Node 1 specific configuration
-config :otp_supervisor, :node_name, :"superlearner@localhost"
+config :otp_supervisor, :node_name, :"superlearner@U2401"
 config :otp_supervisor, :node_port, 4000
 config :otp_supervisor, :node_role, :primary
 EOF
@@ -205,7 +205,7 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   secret_key_base: "a-very-long-secret-key-base-for-development-only-change-in-production"
 
 # Node 2 specific configuration  
-config :otp_supervisor, :node_name, :"superlearner2@localhost"
+config :otp_supervisor, :node_name, :"superlearner2@U2402"
 config :otp_supervisor, :node_port, 4010
 config :otp_supervisor, :node_role, :secondary
 
