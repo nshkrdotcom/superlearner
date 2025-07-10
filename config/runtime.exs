@@ -24,7 +24,7 @@ end
 if config_env() == :dev do
   # Get node role (primary or secondary)
   node_role = System.get_env("NODE_ROLE", "primary")
-  
+
   # Configure based on node role
   case node_role do
     "secondary" ->
@@ -32,23 +32,23 @@ if config_env() == :dev do
       config :otp_supervisor, OtpSupervisorWeb.Endpoint,
         http: [ip: {127, 0, 0, 1}, port: 4010],
         watchers: []
-      
-      config :otp_supervisor, :node_name, :"superlearner2@localhost"
+
+      config :otp_supervisor, :node_name, :superlearner2@localhost
       config :otp_supervisor, :node_port, 4010
       config :otp_supervisor, :node_role, :secondary
-      
+
     "primary" ->
       # Node 1 configuration (default)
-      port = if System.get_env("PHX_PORT") do
-        String.to_integer(System.get_env("PHX_PORT"))
-      else
-        4000
-      end
-      
-      config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-        http: [ip: {127, 0, 0, 1}, port: port]
-      
-      config :otp_supervisor, :node_name, :"superlearner@localhost"
+      port =
+        if System.get_env("PHX_PORT") do
+          String.to_integer(System.get_env("PHX_PORT"))
+        else
+          4000
+        end
+
+      config :otp_supervisor, OtpSupervisorWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: port]
+
+      config :otp_supervisor, :node_name, :superlearner@localhost
       config :otp_supervisor, :node_port, port
       config :otp_supervisor, :node_role, :primary
   end
