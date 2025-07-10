@@ -33,7 +33,7 @@ if config_env() == :dev do
         http: [ip: {127, 0, 0, 1}, port: 4010],
         watchers: []
 
-      config :otp_supervisor, :node_name, :superlearner2@localhost
+      config :otp_supervisor, :node_name, :superlearner2@U2402
       config :otp_supervisor, :node_port, 4010
       config :otp_supervisor, :node_role, :secondary
 
@@ -48,7 +48,7 @@ if config_env() == :dev do
 
       config :otp_supervisor, OtpSupervisorWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: port]
 
-      config :otp_supervisor, :node_name, :superlearner@localhost
+      config :otp_supervisor, :node_name, :superlearner@U2401
       config :otp_supervisor, :node_port, port
       config :otp_supervisor, :node_role, :primary
   end

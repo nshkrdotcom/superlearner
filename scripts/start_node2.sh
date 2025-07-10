@@ -14,4 +14,4 @@ export NODE_ROLE=secondary
 export RELEASE_COOKIE=secret_cluster_cookie
 
 # Start Node 2 with proper runtime configuration
-elixir --name superlearner2@localhost --cookie secret_cluster_cookie -S mix phx.server
+elixir --name superlearner2@U2402 --cookie secret_cluster_cookie -S mix phx.server
