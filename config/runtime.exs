@@ -22,17 +22,35 @@ end
 
 # Development environment overrides
 if config_env() == :dev do
-  # Override port if PHX_PORT is set
-  if System.get_env("PHX_PORT") do
-    port = String.to_integer(System.get_env("PHX_PORT"))
-    config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-      http: [ip: {127, 0, 0, 1}, port: port]
-  end
+  # Get node role (primary or secondary)
+  node_role = System.get_env("NODE_ROLE", "primary")
   
-  # Disable watchers for secondary nodes
-  if System.get_env("NODE_ROLE") == "secondary" do
-    config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-      watchers: []
+  # Configure based on node role
+  case node_role do
+    "secondary" ->
+      # Node 2 configuration
+      config :otp_supervisor, OtpSupervisorWeb.Endpoint,
+        http: [ip: {127, 0, 0, 1}, port: 4010],
+        watchers: []
+      
+      config :otp_supervisor, :node_name, :"superlearner2@localhost"
+      config :otp_supervisor, :node_port, 4010
+      config :otp_supervisor, :node_role, :secondary
+      
+    "primary" ->
+      # Node 1 configuration (default)
+      port = if System.get_env("PHX_PORT") do
+        String.to_integer(System.get_env("PHX_PORT"))
+      else
+        4000
+      end
+      
+      config :otp_supervisor, OtpSupervisorWeb.Endpoint,
+        http: [ip: {127, 0, 0, 1}, port: port]
+      
+      config :otp_supervisor, :node_name, :"superlearner@localhost"
+      config :otp_supervisor, :node_port, port
+      config :otp_supervisor, :node_role, :primary
   end
 end
 

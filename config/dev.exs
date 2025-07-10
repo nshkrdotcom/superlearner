@@ -19,8 +19,8 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "a-very-long-secret-key-base-for-development-only-change-in-production",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]}
+    esbuild: {Esbuild, :install_and_run, [:otp_supervisor, ~w(--watch)]},
+    tailwind: {Tailwind, :install_and_run, [:otp_supervisor, ~w(--watch)]}
   ]
 
 # Watch static and templates for browser reloading.

@@ -18,7 +18,10 @@ config :otp_supervisor, OtpSupervisorWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "a-very-long-secret-key-base-for-development-only-change-in-production",
-  watchers: []
+  watchers: [
+    esbuild: {Esbuild, :install_and_run, [:otp_supervisor, ~w(--watch)]},
+    tailwind: {Tailwind, :install_and_run, [:otp_supervisor, ~w(--watch)]}
+  ]
 
 # Watch static and templates for browser reloading.
 config :otp_supervisor, OtpSupervisorWeb.Endpoint,
@@ -43,7 +46,7 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
-# Node 2 specific configuration  
-config :otp_supervisor, :node_name, :superlearner2@localhost
+# Node 1 specific configuration
+config :otp_supervisor, :node_name, :"superlearner2@localhost"
 config :otp_supervisor, :node_port, 4010
-config :otp_supervisor, :node_role, :secondary
+config :otp_supervisor, :node_role, :primary

@@ -48,6 +48,7 @@ config :tailwind,
       --config=tailwind.config.js
       --input=css/app.css
       --output=../priv/static/assets/app.css
+      --minify
     ),
     cd: Path.expand("../assets", __DIR__)
   ]
