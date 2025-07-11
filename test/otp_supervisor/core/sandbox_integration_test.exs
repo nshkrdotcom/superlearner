@@ -94,8 +94,13 @@ defmodule OTPSupervisor.Core.SandboxIntegrationTest do
         wait_for_sandbox_cleanup(sandbox_id)
       end)
 
-      # Verify sandbox was cleaned up
-      {:error, :not_found} = Control.get_sandbox_info(sandbox_id)
+      # Verify sandbox was cleaned up - check if SandboxManager is alive first  
+      if Process.whereis(OTPSupervisor.Core.SandboxManager) do
+        {:error, :not_found} = Control.get_sandbox_info(sandbox_id)
+      else
+        # SandboxManager died, which shouldn't happen but let's log it
+        flunk("SandboxManager died during test execution")
+      end
 
       # Force application cleanup before creating new sandbox
       cleanup_sandbox_applications()

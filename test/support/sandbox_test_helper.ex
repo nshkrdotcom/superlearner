@@ -130,17 +130,23 @@ defmodule SandboxTestHelper do
     start_time = System.monotonic_time(:millisecond)
 
     wait_loop = fn loop ->
-      case SandboxManager.get_sandbox_info(sandbox_id) do
-        {:error, :not_found} ->
-          :ok
+      # Check if SandboxManager is alive before calling
+      if Process.whereis(SandboxManager) do
+        case SandboxManager.get_sandbox_info(sandbox_id) do
+          {:error, :not_found} ->
+            :ok
 
-        {:ok, _sandbox_info} ->
-          if System.monotonic_time(:millisecond) - start_time > timeout do
-            {:error, :timeout}
-          else
-            Process.sleep(@sync_delay)
-            loop.(loop)
-          end
+          {:ok, _sandbox_info} ->
+            if System.monotonic_time(:millisecond) - start_time > timeout do
+              {:error, :timeout}
+            else
+              Process.sleep(@sync_delay)
+              loop.(loop)
+            end
+        end
+      else
+        # SandboxManager is not alive, consider sandbox cleaned up
+        :ok
       end
     end
 
@@ -187,18 +193,35 @@ defmodule SandboxTestHelper do
 
       pid when is_pid(pid) ->
         # Check if it's responsive
-        case GenServer.call(SandboxManager, :sync, 1000) do
-          :ok ->
-            :ok
+        try do
+          case GenServer.call(SandboxManager, :sync, 1000) do
+            :ok ->
+              :ok
 
-          _ ->
-            # Restart if unresponsive
-            Process.exit(pid, :kill)
-            Process.sleep(100)
-            {:ok, _pid} = SandboxManager.start_link([])
-            wait_for_sandbox_manager_ready()
+            _ ->
+              # Restart if unresponsive
+              restart_sandbox_manager(pid)
+          end
+        catch
+          :exit, _ ->
+            # Process died or is unresponsive, restart it
+            restart_sandbox_manager(pid)
         end
     end
+  end
+
+  defp restart_sandbox_manager(old_pid) do
+    # Kill the old process if it's still alive
+    if Process.alive?(old_pid) do
+      Process.exit(old_pid, :kill)
+    end
+
+    # Wait a bit for cleanup
+    Process.sleep(100)
+
+    # Start a new one
+    {:ok, _pid} = SandboxManager.start_link([])
+    wait_for_sandbox_manager_ready()
   end
 
   @doc """
@@ -206,22 +229,29 @@ defmodule SandboxTestHelper do
   """
   def cleanup_all_sandboxes do
     try do
-      case SandboxManager.list_sandboxes() do
-        sandboxes when is_list(sandboxes) ->
-          # Clean up all sandboxes
-          for sandbox <- sandboxes do
-            cleanup_sandbox(sandbox.id)
-          end
+      # Check if SandboxManager is alive before calling it
+      if Process.whereis(SandboxManager) do
+        case SandboxManager.list_sandboxes() do
+          sandboxes when is_list(sandboxes) ->
+            # Clean up all sandboxes
+            for sandbox <- sandboxes do
+              cleanup_sandbox(sandbox.id)
+            end
 
-          # Force application cleanup
-          cleanup_sandbox_applications()
+            # Force application cleanup
+            cleanup_sandbox_applications()
 
-        _ ->
-          :ok
+          _ ->
+            :ok
+        end
+      else
+        # SandboxManager not running, just clean up applications
+        cleanup_sandbox_applications()
       end
     rescue
-      # SandboxManager may not be running
-      _ -> :ok
+      # SandboxManager may not be running or may have crashed
+      _ ->
+        cleanup_sandbox_applications()
     end
   end
 

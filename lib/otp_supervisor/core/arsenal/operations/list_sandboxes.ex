@@ -75,7 +75,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSandboxes do
     status_val = validate_status(Map.get(params, "status"))
     page_val = parse_positive_integer(Map.get(params, "page", "1"), 1)
     per_page_val = parse_per_page(Map.get(params, "per_page", "20"))
-    
+
     validated = %{
       "status" => status_val,
       "page" => page_val,
@@ -152,18 +152,18 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSandboxes do
 
   defp paginate(items, page, per_page) do
     # Ensure page and per_page are integers and at least 1
-    safe_per_page = 
+    safe_per_page =
       case per_page do
         n when is_number(n) -> max(Kernel.trunc(n), 1)
         _ -> 20
       end
-    
-    safe_page = 
+
+    safe_page =
       case page do
         n when is_number(n) -> max(Kernel.trunc(n), 1)
         _ -> 1
       end
-    
+
     total = length(items)
     total_pages = ceil(total / safe_per_page)
     offset = (safe_page - 1) * safe_per_page
@@ -207,11 +207,11 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSandboxes do
       # Convert compile_info to a JSON-serializable format
       {:compile_info, compile_info} ->
         {"compile_info", format_compile_info(compile_info)}
-      
+
       # Convert atom keys to strings
       {key, value} when is_atom(key) ->
         {Atom.to_string(key), format_config_value(value)}
-      
+
       # Keep string keys as-is
       {key, value} ->
         {key, format_config_value(value)}

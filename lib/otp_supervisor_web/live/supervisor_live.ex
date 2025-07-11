@@ -605,20 +605,20 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
         "page" => 1,
         "per_page" => 100
       }
-      
+
       case OTPSupervisor.Core.Arsenal.Operations.ListSandboxes.validate_params(params) do
         {:ok, validated_params} ->
           case OTPSupervisor.Core.Arsenal.Operations.ListSandboxes.execute(validated_params) do
-            {:ok, {sandboxes, _meta}} -> 
+            {:ok, {sandboxes, _meta}} ->
               # Format for display
               Enum.map(sandboxes, &format_sandbox_for_display/1)
-            
+
             {:error, _reason} ->
               # Fallback to direct SandboxManager call
               OTPSupervisor.Core.SandboxManager.list_sandboxes()
               |> Enum.map(&format_sandbox_for_display/1)
           end
-        
+
         {:error, _reason} ->
           # Fallback to direct SandboxManager call
           OTPSupervisor.Core.SandboxManager.list_sandboxes()
@@ -638,7 +638,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   defp format_sandbox_for_display(sandbox) do
     status = if Process.alive?(sandbox.app_pid), do: "running", else: "stopped"
-    
+
     %{
       id: sandbox.id,
       app_name: sandbox.app_name,

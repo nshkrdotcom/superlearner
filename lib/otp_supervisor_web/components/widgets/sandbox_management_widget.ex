@@ -10,7 +10,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
   - Destroying sandboxes safely
   - Restarting sandboxes
   - Viewing detailed sandbox information
-  
+
   All operations are performed using Arsenal API for consistency.
   """
 
@@ -36,7 +36,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             phx-click="toggle_create_form"
             class="px-2 py-1 text-xs bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 font-mono hover:bg-blue-500/30 transition-colors"
           >
-            <%= if @show_create_form, do: "Cancel", else: "New Sandbox" %>
+            {if @show_create_form, do: "Cancel", else: "New Sandbox"}
           </button>
           <button
             phx-target={@myself}
@@ -47,15 +47,15 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
           </button>
         </div>
       </div>
-
-      <!-- Create Form -->
+      
+    <!-- Create Form -->
       <%= if @show_create_form do %>
         <div class="p-3 border-b border-green-500/20 bg-gray-800/50">
           <.create_sandbox_form myself={@myself} />
         </div>
       <% end %>
-
-      <!-- Sandbox List -->
+      
+    <!-- Sandbox List -->
       <div class="flex-1 overflow-auto">
         <%= if @sandboxes == [] do %>
           <div class="text-center py-8">
@@ -71,8 +71,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
         <% else %>
           <div class="space-y-2 p-3">
             <%= for sandbox <- @sandboxes do %>
-              <.sandbox_card 
-                sandbox={sandbox} 
+              <.sandbox_card
+                sandbox={sandbox}
                 selected={@selected_sandbox && @selected_sandbox.id == sandbox.id}
                 myself={@myself}
               />
@@ -80,8 +80,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
           </div>
         <% end %>
       </div>
-
-      <!-- Selected Sandbox Details -->
+      
+    <!-- Selected Sandbox Details -->
       <%= if @selected_sandbox do %>
         <div class="border-t border-green-500/20 p-3 bg-gray-800/30">
           <.sandbox_details sandbox={@selected_sandbox} myself={@myself} />
@@ -104,8 +104,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
     # Preserve form state during updates from parent
     current_show_form = socket.assigns[:show_create_form] || false
     current_selected = socket.assigns[:selected_sandbox]
-    
-    {:ok, 
+
+    {:ok,
      socket
      |> assign(assigns)
      |> assign(:show_create_form, current_show_form)
@@ -134,7 +134,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
         # Refresh both sandbox data and supervisor data
         send(self(), :refresh_sandbox_data)
         send(self(), :update_supervisors)
-        {:noreply, 
+
+        {:noreply,
          socket
          |> assign(:show_create_form, false)
          |> put_flash(:info, "Sandbox created successfully")}
@@ -151,12 +152,14 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
         # Refresh both sandbox data and supervisor data
         send(self(), :refresh_sandbox_data)
         send(self(), :update_supervisors)
-        selected_sandbox = if socket.assigns.selected_sandbox && socket.assigns.selected_sandbox.id == sandbox_id do
-          nil
-        else
-          socket.assigns.selected_sandbox
-        end
-        
+
+        selected_sandbox =
+          if socket.assigns.selected_sandbox && socket.assigns.selected_sandbox.id == sandbox_id do
+            nil
+          else
+            socket.assigns.selected_sandbox
+          end
+
         {:noreply,
          socket
          |> assign(:selected_sandbox, selected_sandbox)
@@ -167,6 +170,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
     end
   end
 
+  @dialyzer {:nowarn_function, handle_event: 3}
   def handle_event("restart_sandbox", %{"sandbox_id" => sandbox_id}, socket) do
     case restart_sandbox_via_arsenal(sandbox_id) do
       {:ok, _result} ->
@@ -186,7 +190,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
     ~H"""
     <form phx-target={@myself} phx-submit="create_sandbox" class="space-y-3">
       <div class="text-sm font-mono font-bold text-green-300 mb-2">Create New Sandbox</div>
-      
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs text-green-400/70 mb-1">Sandbox ID</label>
@@ -199,7 +203,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             class="w-full px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono placeholder-green-400/50 focus:outline-none focus:ring-1 focus:ring-green-500/50"
           />
         </div>
-        
+
         <div>
           <label class="block text-xs text-green-400/70 mb-1">Supervisor Module</label>
           <select
@@ -225,7 +229,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             <option value="rest_for_one">rest_for_one</option>
           </select>
         </div>
-        
+
         <div>
           <label class="block text-xs text-green-400/70 mb-1">Max Restarts</label>
           <input
@@ -237,7 +241,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             class="w-full px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono focus:outline-none focus:ring-1 focus:ring-green-500/50"
           />
         </div>
-        
+
         <div>
           <label class="block text-xs text-green-400/70 mb-1">Max Seconds</label>
           <input
@@ -275,9 +279,10 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
     ~H"""
     <div class={[
       "p-3 rounded border transition-colors cursor-pointer",
-      if(@selected, 
-        do: "border-green-500/50 bg-green-500/10", 
-        else: "border-green-500/20 hover:border-green-500/40 hover:bg-green-500/5")
+      if(@selected,
+        do: "border-green-500/50 bg-green-500/10",
+        else: "border-green-500/20 hover:border-green-500/40 hover:bg-green-500/5"
+      )
     ]}>
       <div class="flex items-center justify-between">
         <button
@@ -290,7 +295,8 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             <span class={[
               "w-2 h-2 rounded-full",
               sandbox_status_color(@sandbox.status)
-            ]}></span>
+            ]}>
+            </span>
             <span class="font-mono text-sm text-green-400 font-bold">{@sandbox.id}</span>
             <span class="font-mono text-xs text-green-400/70">({@sandbox.app_name})</span>
           </div>
@@ -298,7 +304,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             {format_module_name(@sandbox.supervisor_module)} • Restarts: {@sandbox.restart_count}
           </div>
         </button>
-        
+
         <div class="flex items-center space-x-1">
           <button
             phx-target={@myself}
@@ -331,7 +337,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
       <div class="text-sm font-mono font-bold text-green-300">
         {@sandbox.id} Details
       </div>
-      
+
       <div class="grid grid-cols-2 gap-4 text-xs">
         <div>
           <span class="text-green-400/70">App PID:</span>
@@ -375,27 +381,38 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
         # Execute the creation operation
         case OTPSupervisor.Core.Arsenal.Operations.CreateSandbox.execute(validated_params) do
           {:ok, sandbox_info} ->
-            formatted = OTPSupervisor.Core.Arsenal.Operations.CreateSandbox.format_response(sandbox_info)
+            formatted =
+              OTPSupervisor.Core.Arsenal.Operations.CreateSandbox.format_response(sandbox_info)
+
             {:ok, formatted["data"]}
-          {:error, reason} -> {:error, reason}
+
+          {:error, reason} ->
+            {:error, reason}
         end
-      {:error, reason} -> {:error, reason}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
+  @dialyzer {:nowarn_function, destroy_sandbox_via_arsenal: 1}
   defp destroy_sandbox_via_arsenal(sandbox_id) do
     path = "/api/v1/sandboxes/#{sandbox_id}?force=true"
+
     case make_arsenal_request(:delete, path, %{}) do
       {:ok, %{data: result}} -> {:ok, result}
       {:ok, %{"data" => result}} -> {:ok, result}
       {:error, reason} -> {:error, reason}
+      other -> {:error, other}
     end
   end
 
+  @dialyzer {:nowarn_function, restart_sandbox_via_arsenal: 1}
   defp restart_sandbox_via_arsenal(sandbox_id) do
     case make_arsenal_request(:post, "/api/v1/sandboxes/#{sandbox_id}/restart", %{}) do
       {:ok, %{"data" => result}} -> {:ok, result}
       {:error, reason} -> {:error, reason}
+      other -> {:error, other}
     end
   end
 
@@ -406,48 +423,72 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
       :post when path == "/api/v1/sandboxes" ->
         # Create sandbox
         result = OTPSupervisor.Core.Arsenal.Operations.CreateSandbox.execute(params)
+
         case result do
           {:ok, sandbox_info} ->
-            formatted = OTPSupervisor.Core.Arsenal.Operations.CreateSandbox.format_response(sandbox_info)
+            formatted =
+              OTPSupervisor.Core.Arsenal.Operations.CreateSandbox.format_response(sandbox_info)
+
             {:ok, formatted}
-          error -> error
+
+          error ->
+            error
         end
 
       :delete ->
         # Extract sandbox_id and force parameter from path
-        [path_part, query_part] = case String.split(path, "?", parts: 2) do
-          [path_only] -> [path_only, ""]
-          [path_part, query_part] -> [path_part, query_part]
-        end
-        
+        [path_part, query_part] =
+          case String.split(path, "?", parts: 2) do
+            [path_only] -> [path_only, ""]
+            [path_part, query_part] -> [path_part, query_part]
+          end
+
         # Parse sandbox_id from path like "/api/v1/sandboxes/tester"
         path_segments = String.split(path_part, "/", trim: true)
         sandbox_id = List.last(path_segments)
-        
+
         # Parse force parameter from query string
         force = String.contains?(query_part, "force=true")
-        
+
         require Logger
         Logger.info("Destroying sandbox: #{sandbox_id} with force: #{force}")
-        
-        result = OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.execute(%{"sandbox_id" => sandbox_id, "force" => force})
+
+        result =
+          OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.execute(%{
+            "sandbox_id" => sandbox_id,
+            "force" => force
+          })
+
         case result do
           {:ok, result_data} ->
-            formatted = OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.format_response(result_data)
+            formatted =
+              OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.format_response(result_data)
+
             {:ok, formatted}
-          error -> error
+
+          error ->
+            error
         end
 
       :post ->
         # Extract sandbox_id from restart path
         [_ | rest] = String.split(path, "/") |> Enum.reverse()
         [sandbox_id | _] = rest
-        result = OTPSupervisor.Core.Arsenal.Operations.RestartSandbox.execute(%{"sandbox_id" => sandbox_id})
+
+        result =
+          OTPSupervisor.Core.Arsenal.Operations.RestartSandbox.execute(%{
+            "sandbox_id" => sandbox_id
+          })
+
         case result do
           {:ok, result_data} ->
-            formatted = OTPSupervisor.Core.Arsenal.Operations.RestartSandbox.format_response(result_data)
+            formatted =
+              OTPSupervisor.Core.Arsenal.Operations.RestartSandbox.format_response(result_data)
+
             {:ok, formatted}
-          error -> error
+
+          error ->
+            error
         end
     end
   rescue
@@ -475,7 +516,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
   defp format_uptime(created_at) do
     current_time = System.system_time(:millisecond)
     uptime_seconds = div(current_time - created_at, 1000)
-    
+
     cond do
       uptime_seconds < 60 -> "#{uptime_seconds}s"
       uptime_seconds < 3600 -> "#{div(uptime_seconds, 60)}m #{rem(uptime_seconds, 60)}s"

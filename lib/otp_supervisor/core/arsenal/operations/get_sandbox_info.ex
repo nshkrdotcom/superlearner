@@ -149,7 +149,8 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo do
     div(current_time - created_at, 1000)
   end
 
-  defp maybe_add_children(info, sandbox_info, include_children) when include_children in [true, "true"] do
+  defp maybe_add_children(info, sandbox_info, include_children)
+       when include_children in [true, "true"] do
     children = get_supervisor_children(sandbox_info.supervisor_pid)
     Map.put(info, :children, children)
   end
@@ -285,11 +286,11 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo do
       # Convert compile_info to a JSON-serializable format
       {:compile_info, compile_info} ->
         {"compile_info", format_compile_info(compile_info)}
-      
+
       # Convert atom keys to strings
       {key, value} when is_atom(key) ->
         {Atom.to_string(key), format_config_value(value)}
-      
+
       # Keep string keys as-is
       {key, value} ->
         {key, format_config_value(value)}

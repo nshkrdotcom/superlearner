@@ -197,11 +197,11 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.CreateSandbox do
       # Convert compile_info to a JSON-serializable format
       {:compile_info, compile_info} ->
         {"compile_info", format_compile_info(compile_info)}
-      
+
       # Convert atom keys to strings
       {key, value} when is_atom(key) ->
         {Atom.to_string(key), format_config_value(value)}
-      
+
       # Keep string keys as-is
       {key, value} ->
         {key, format_config_value(value)}

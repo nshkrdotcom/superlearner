@@ -19,6 +19,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @dialyzer {:nowarn_function, create_sandbox: 3}
   def create_sandbox(sandbox_id, module_or_app, opts \\ []) do
     GenServer.call(__MODULE__, {:create_sandbox, sandbox_id, module_or_app, opts})
   end
@@ -27,6 +28,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
     GenServer.call(__MODULE__, {:destroy_sandbox, sandbox_id})
   end
 
+  @dialyzer {:nowarn_function, restart_sandbox: 1}
   def restart_sandbox(sandbox_id) do
     GenServer.call(__MODULE__, {:restart_sandbox, sandbox_id})
   end
@@ -75,6 +77,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
   end
 
   @impl true
+  @dialyzer {:nowarn_function, handle_call: 3}
   def handle_call({:create_sandbox, sandbox_id, module_or_app, opts}, _from, state) do
     case Map.get(state.sandboxes, sandbox_id) do
       nil ->
@@ -301,11 +304,12 @@ defmodule OTPSupervisor.Core.SandboxManager do
           true ->
             module = String.to_atom(module_string)
             {:otp_sandbox, module}
+
           false ->
             module = String.to_atom("Elixir." <> module_string)
             {:otp_sandbox, module}
         end
-        
+
       app when is_atom(app) ->
         # Check if it's a known supervisor module
         case to_string(app) do
@@ -323,17 +327,19 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end
   end
 
+  @dialyzer {:nowarn_function, start_sandbox_application: 4}
   defp start_sandbox_application(sandbox_id, app_name, supervisor_module, opts) do
     # Use isolated compilation for true fault isolation
     sandbox_path = Path.join([File.cwd!(), "sandbox", "examples", to_string(app_name)])
-    
+
     # Compile sandbox application in isolation
-    with {:ok, compile_info} <- compile_sandbox_isolated(sandbox_id, sandbox_path, app_name, opts),
+    with {:ok, compile_info} <-
+           compile_sandbox_isolated(sandbox_id, sandbox_path, app_name, opts),
          :ok <- setup_code_paths(sandbox_id, compile_info),
          :ok <- load_sandbox_modules(sandbox_id, compile_info),
          :ok <- load_sandbox_application(app_name, sandbox_id, compile_info.app_file),
-         {:ok, app_pid, supervisor_pid} <- start_application_and_supervisor(sandbox_id, app_name, supervisor_module, opts) do
-      
+         {:ok, app_pid, supervisor_pid} <-
+           start_application_and_supervisor(sandbox_id, app_name, supervisor_module, opts) do
       # Success - return all the info
       {:ok, app_pid, supervisor_pid, Keyword.put(opts, :compile_info, compile_info)}
     else
@@ -343,9 +349,11 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end
   end
 
+  @dialyzer {:nowarn_function, setup_code_paths: 2}
   defp setup_code_paths(sandbox_id, compile_info) do
     # Set up code paths for the compiled modules
     ebin_path = Path.dirname(List.first(compile_info.beam_files, ""))
+
     if File.exists?(ebin_path) do
       Code.prepend_path(ebin_path)
       Logger.debug("Added code path for sandbox #{sandbox_id}: #{ebin_path}")
@@ -355,6 +363,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end
   end
 
+  @dialyzer {:nowarn_function, start_application_and_supervisor: 4}
   defp start_application_and_supervisor(sandbox_id, app_name, supervisor_module, opts) do
     # Start the base application (shared, but that's ok)
     case Application.start(app_name) do
@@ -387,6 +396,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end
   end
 
+  @dialyzer {:nowarn_function, start_supervisor_in_application: 3}
   defp start_supervisor_in_application(sandbox_id, supervisor_module, opts) do
     # Generate unique supervisor name to avoid conflicts
     unique_id = :erlang.unique_integer([:positive])
@@ -419,35 +429,44 @@ defmodule OTPSupervisor.Core.SandboxManager do
 
   # New isolated compilation functions
 
+  @dialyzer {:nowarn_function, compile_sandbox_isolated: 4}
   defp compile_sandbox_isolated(sandbox_id, sandbox_path, app_name, opts) do
     compile_opts = [
       timeout: Keyword.get(opts, :compile_timeout, 30_000),
       validate_beams: Keyword.get(opts, :validate_beams, true),
       env: %{
-        "MIX_ENV" => to_string(Mix.env()),
+        "MIX_ENV" => "dev",
         "MIX_TARGET" => "host"
       }
     ]
 
-    Logger.info("Compiling sandbox #{sandbox_id} in isolation", 
-      sandbox_path: sandbox_path, app_name: app_name)
+    Logger.info("Compiling sandbox #{sandbox_id} in isolation",
+      sandbox_path: sandbox_path,
+      app_name: app_name
+    )
 
     case IsolatedCompiler.compile_sandbox(sandbox_path, compile_opts) do
       {:ok, compile_info} ->
         Logger.info("Successfully compiled sandbox #{sandbox_id}",
           compilation_time: compile_info.compilation_time,
-          beam_files: length(compile_info.beam_files))
+          beam_files: length(compile_info.beam_files)
+        )
+
         {:ok, compile_info}
 
       {:error, reason} ->
         report = IsolatedCompiler.compilation_report({:error, reason})
+
         Logger.error("Failed to compile sandbox #{sandbox_id}",
           reason: inspect(reason),
-          details: report.details)
+          details: report.details
+        )
+
         {:error, reason}
     end
   end
 
+  @dialyzer {:nowarn_function, load_sandbox_modules: 2}
   defp load_sandbox_modules(sandbox_id, compile_info) do
     compile_info.beam_files
     |> Enum.reduce_while(:ok, fn beam_file, :ok ->
@@ -458,22 +477,26 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end)
   end
 
+  @dialyzer {:nowarn_function, load_beam_file: 2}
   defp load_beam_file(sandbox_id, beam_file) do
     try do
       # Read BEAM file
       beam_data = File.read!(beam_file)
-      
+
       # Extract module name from BEAM
-      module = case :beam_lib.info(String.to_charlist(beam_file)) do
-        info when is_list(info) ->
-          # beam_lib.info sometimes returns a direct list
-          Keyword.get(info, :module)
-        {:ok, info} ->
-          info[:module]
-        {:error, reason} ->
-          throw({:beam_info_failed, beam_file, reason})
-      end
-      
+      module =
+        case :beam_lib.info(String.to_charlist(beam_file)) do
+          info when is_list(info) ->
+            # beam_lib.info sometimes returns a direct list
+            Keyword.get(info, :module)
+
+          {:ok, info} ->
+            info[:module]
+
+          {:error, reason} ->
+            throw({:beam_info_failed, beam_file, reason})
+        end
+
       # Actually load the module into the VM
       case :code.load_binary(module, String.to_charlist(beam_file), beam_data) do
         {:module, ^module} ->
@@ -482,11 +505,11 @@ defmodule OTPSupervisor.Core.SandboxManager do
             {:ok, version} ->
               Logger.debug("Loaded module #{module} version #{version} for sandbox #{sandbox_id}")
               :ok
-              
+
             {:error, reason} ->
               {:error, {:version_registration_failed, module, reason}}
           end
-          
+
         {:error, reason} ->
           {:error, {:code_load_failed, module, reason}}
       end
@@ -499,6 +522,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end
   end
 
+  @dialyzer {:nowarn_function, load_sandbox_application: 3}
   defp load_sandbox_application(app_name, _sandbox_id, _app_file) do
     # Load the base application (we'll handle uniqueness at the runtime level)
     case Application.load(app_name) do

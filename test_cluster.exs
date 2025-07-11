@@ -16,9 +16,10 @@ IO.puts("Testing connections to nodes with hostname: #{hostname_str}")
 for node <- nodes_to_test do
   if node != Node.self() do
     case Node.connect(node) do
-      true -> 
+      true ->
         IO.puts("✅ Successfully connected to #{node}")
-      false -> 
+
+      false ->
         IO.puts("❌ Failed to connect to #{node}")
     end
   end
