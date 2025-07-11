@@ -119,11 +119,11 @@ setup_node() {
     echo "4. In IEx console, verify node: Node.self()"
     if [[ $node_num == 1 ]]; then
         echo ""
-        echo -e "${YELLOW}Note:${NC} Make sure to run setup_node2.sh on your second WSL instance!"
+        echo -e "${YELLOW}Note:${NC} Start Node 2 in a different terminal with: ./scripts/start_node2.sh"
     else
         echo "5. Check cluster: Node.list() (should show Node 1)"
         echo ""
-        echo -e "${YELLOW}Note:${NC} Make sure Node 1 is running on the other WSL instance!"
+        echo -e "${YELLOW}Note:${NC} Make sure Node 1 is running in another terminal!"
     fi
 }
 

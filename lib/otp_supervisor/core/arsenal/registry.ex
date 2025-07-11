@@ -16,7 +16,13 @@ defmodule OTPSupervisor.Core.Arsenal.Registry do
     OTPSupervisor.Core.Arsenal.Operations.KillProcess,
     OTPSupervisor.Core.Arsenal.Operations.ListSupervisors,
     OTPSupervisor.Core.Arsenal.Operations.SendMessage,
-    OTPSupervisor.Core.Arsenal.Operations.TraceProcess
+    OTPSupervisor.Core.Arsenal.Operations.TraceProcess,
+    # Sandbox operations
+    OTPSupervisor.Core.Arsenal.Operations.ListSandboxes,
+    OTPSupervisor.Core.Arsenal.Operations.CreateSandbox,
+    OTPSupervisor.Core.Arsenal.Operations.DestroySandbox,
+    OTPSupervisor.Core.Arsenal.Operations.RestartSandbox,
+    OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo
   ]
 
   def start_link(opts \\ []) do

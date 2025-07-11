@@ -7,6 +7,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
   alias OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget
   alias OtpSupervisorWeb.Components.Widgets.ProcessListWidget
+  alias OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget
 
   @moduledoc """
   OTP supervisor monitoring and control interface.
@@ -27,11 +28,18 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
      |> assign(:selected_supervisor, nil)
      |> assign(:show_children_panel, false)
      |> assign(:supervisor_count, 0)
-     |> load_supervisor_data()}
+     |> assign(:sandboxes, [])
+     |> assign(:selected_sandbox, nil)
+     |> load_supervisor_data()
+     |> load_sandbox_data()}
   end
 
   def handle_info(:update_supervisors, socket) do
     {:noreply, update_supervisor_data(socket)}
+  end
+
+  def handle_info(:refresh_sandbox_data, socket) do
+    {:noreply, update_sandbox_data(socket)}
   end
 
   def handle_info({:supervisor_update, data}, socket) do
@@ -81,7 +89,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
       <.live_component
         module={TerminalPanelLayout}
         id="supervisor-panel-layout"
-        layout_type={if(@show_children_panel, do: :two_panel, else: :two_panel)}
+        layout_type={if(@show_children_panel, do: :three_panel, else: :three_panel)}
         panels={supervisor_panels(assigns)}
         gap="gap-4"
         padding="p-4"
@@ -152,6 +160,13 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
     |> assign(:children_by_supervisor, %{})
   end
 
+  defp load_sandbox_data(socket) do
+    sandboxes = get_sandboxes()
+
+    socket
+    |> assign(:sandboxes, sandboxes)
+  end
+
   defp update_supervisor_data(socket) do
     supervisors = get_supervisors()
 
@@ -161,6 +176,13 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
     |> assign(:supervisor_health, get_supervisor_health())
     |> assign(:children_by_supervisor, socket.assigns[:children_by_supervisor] || %{})
     |> maybe_update_children()
+  end
+
+  defp update_sandbox_data(socket) do
+    sandboxes = get_sandboxes()
+
+    socket
+    |> assign(:sandboxes, sandboxes)
   end
 
   defp maybe_update_children(socket) do
@@ -211,7 +233,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
             compact_mode: false,
             children_by_supervisor: assigns[:children_by_supervisor] || %{}
           },
-          span: %{cols: 1, rows: 2}
+          span: %{cols: 1, rows: 1}
         },
 
         # Right panel: Children ProcessListWidget
@@ -233,7 +255,20 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
           actions: [
             %{type: :button, label: "Close", event: "close_children_panel"}
           ],
-          span: %{cols: 1, rows: 2}
+          span: %{cols: 1, rows: 1}
+        },
+
+        # Bottom panel: Sandbox Management Widget
+        %{
+          title: "Sandbox Manager",
+          component: SandboxManagementWidget,
+          assigns: %{
+            id: "sandbox-management",
+            sandboxes: assigns.sandboxes,
+            selected_sandbox: assigns.selected_sandbox,
+            show_create_form: false
+          },
+          span: %{cols: 2, rows: 1}
         }
       ]
     else
@@ -250,7 +285,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
             compact_mode: false,
             children_by_supervisor: assigns[:children_by_supervisor] || %{}
           },
-          span: %{cols: 1, rows: 2}
+          span: %{cols: 1, rows: 1}
         },
 
         # Right panel: Supervisor Health Overview
@@ -264,6 +299,19 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
             size: :medium
           },
           span: %{cols: 1, rows: 1}
+        },
+
+        # Bottom panel: Sandbox Management Widget
+        %{
+          title: "Sandbox Manager",
+          component: SandboxManagementWidget,
+          assigns: %{
+            id: "sandbox-management",
+            sandboxes: assigns.sandboxes,
+            selected_sandbox: assigns.selected_sandbox,
+            show_create_form: false
+          },
+          span: %{cols: 2, rows: 1}
         }
       ]
     end
@@ -546,4 +594,70 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   end
 
   def format_value(value), do: inspect(value)
+
+  # Sandbox data functions
+
+  defp get_sandboxes do
+    try do
+      # Use Arsenal operation to get sandboxes - validate params first
+      params = %{
+        "status" => nil,
+        "page" => 1,
+        "per_page" => 100
+      }
+      
+      case OTPSupervisor.Core.Arsenal.Operations.ListSandboxes.validate_params(params) do
+        {:ok, validated_params} ->
+          case OTPSupervisor.Core.Arsenal.Operations.ListSandboxes.execute(validated_params) do
+            {:ok, {sandboxes, _meta}} -> 
+              # Format for display
+              Enum.map(sandboxes, &format_sandbox_for_display/1)
+            
+            {:error, _reason} ->
+              # Fallback to direct SandboxManager call
+              OTPSupervisor.Core.SandboxManager.list_sandboxes()
+              |> Enum.map(&format_sandbox_for_display/1)
+          end
+        
+        {:error, _reason} ->
+          # Fallback to direct SandboxManager call
+          OTPSupervisor.Core.SandboxManager.list_sandboxes()
+          |> Enum.map(&format_sandbox_for_display/1)
+      end
+    rescue
+      _ ->
+        # Fallback to direct SandboxManager call
+        try do
+          OTPSupervisor.Core.SandboxManager.list_sandboxes()
+          |> Enum.map(&format_sandbox_for_display/1)
+        rescue
+          _ -> []
+        end
+    end
+  end
+
+  defp format_sandbox_for_display(sandbox) do
+    status = if Process.alive?(sandbox.app_pid), do: "running", else: "stopped"
+    
+    %{
+      id: sandbox.id,
+      app_name: sandbox.app_name,
+      supervisor_module: format_sandbox_module_name(sandbox.supervisor_module),
+      app_pid: inspect(sandbox.app_pid),
+      supervisor_pid: inspect(sandbox.supervisor_pid),
+      status: status,
+      created_at: sandbox.created_at,
+      restart_count: sandbox.restart_count,
+      opts: sandbox.opts
+    }
+  end
+
+  defp format_sandbox_module_name(module) when is_atom(module) do
+    module
+    |> Atom.to_string()
+    |> String.split(".")
+    |> List.last()
+  end
+
+  defp format_sandbox_module_name(module), do: inspect(module)
 end

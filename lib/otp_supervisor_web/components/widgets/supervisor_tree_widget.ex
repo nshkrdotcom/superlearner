@@ -55,15 +55,58 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
         </div>
       </div>
       
+    <!-- Filter Input -->
+      <div class="p-3 border-b border-green-500/20">
+        <div class="relative">
+          <input
+            type="text"
+            value={@filter_text}
+            phx-target={@myself}
+            phx-keyup="filter_change"
+            phx-debounce="300"
+            placeholder="Filter supervisors..."
+            class="w-full px-3 py-2 text-sm bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono placeholder-green-400/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50"
+          />
+          <%= if @filter_text != "" do %>
+            <button
+              phx-target={@myself}
+              phx-click="clear_filter"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-400/70 hover:text-green-400 transition-colors"
+              title="Clear filter"
+            >
+              ✕
+            </button>
+          <% end %>
+        </div>
+        <%= if @filter_text != "" do %>
+          <div class="mt-2 text-xs text-green-400/70 font-mono">
+            Found {length(@filtered_supervisors)} of {length(@supervisors)} supervisors
+          </div>
+        <% end %>
+      </div>
+      
     <!-- Tree view -->
       <div class="flex-1 overflow-auto p-4">
-        <%= if @supervisors == [] do %>
+        <%= if @filtered_supervisors == [] do %>
           <div class="text-center py-8">
-            <div class="text-green-400/50 text-sm font-mono">No supervisors found</div>
+            <%= if @filter_text != "" do %>
+              <div class="text-yellow-400/70 text-sm font-mono mb-2">
+                No supervisors match filter: "{@filter_text}"
+              </div>
+              <button
+                phx-target={@myself}
+                phx-click="clear_filter"
+                class="px-3 py-1 text-xs bg-green-500/20 border border-green-500/30 rounded text-green-400 font-mono hover:bg-green-500/30 transition-colors"
+              >
+                Clear Filter
+              </button>
+            <% else %>
+              <div class="text-green-400/50 text-sm font-mono">No supervisors found</div>
+            <% end %>
           </div>
         <% else %>
           <div class="space-y-2">
-            <%= for supervisor <- @supervisors do %>
+            <%= for supervisor <- @filtered_supervisors do %>
               {render_supervisor_node(assigns, supervisor, 0)}
             <% end %>
           </div>
@@ -112,11 +155,26 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
      socket
      |> assign(:expanded_nodes, MapSet.new())
      |> assign(:hovered_node, nil)
-     |> assign(:children_by_supervisor, %{})}
+     |> assign(:children_by_supervisor, %{})
+     |> assign(:filter_text, "")
+     |> assign(:filtered_supervisors, [])}
   end
 
   def update(assigns, socket) do
-    {:ok, assign(socket, assigns)}
+    supervisors = Map.get(assigns, :supervisors, [])
+    filter_text = socket.assigns[:filter_text] || ""
+
+    filtered_supervisors =
+      if filter_text == "" do
+        supervisors
+      else
+        filter_supervisors(supervisors, filter_text)
+      end
+
+    {:ok,
+     socket
+     |> assign(assigns)
+     |> assign(:filtered_supervisors, filtered_supervisors)}
   end
 
   # Event handlers
@@ -169,6 +227,31 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
       ) do
     send(self(), {:supervisor_action, action, supervisor_id})
     {:noreply, socket}
+  end
+
+  def handle_event("filter_change", %{"value" => filter_text}, socket) do
+    supervisors = socket.assigns[:supervisors] || []
+
+    filtered_supervisors =
+      if filter_text == "" do
+        supervisors
+      else
+        filter_supervisors(supervisors, filter_text)
+      end
+
+    {:noreply,
+     socket
+     |> assign(:filter_text, filter_text)
+     |> assign(:filtered_supervisors, filtered_supervisors)}
+  end
+
+  def handle_event("clear_filter", _params, socket) do
+    supervisors = socket.assigns[:supervisors] || []
+
+    {:noreply,
+     socket
+     |> assign(:filter_text, "")
+     |> assign(:filtered_supervisors, supervisors)}
   end
 
   # Private rendering functions
@@ -385,4 +468,24 @@ defmodule OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget do
   defp child_status_text(:stopped), do: "Stop"
   defp child_status_text(:error), do: "Err"
   defp child_status_text(_), do: "?"
+
+  # Filter helper functions
+
+  defp filter_supervisors(supervisors, filter_text) do
+    filter_text_lower = String.downcase(filter_text)
+
+    Enum.filter(supervisors, fn supervisor ->
+      supervisor_name_lower = String.downcase(to_string(supervisor.name))
+      supervisor_id_lower = String.downcase(to_string(supervisor.id))
+      supervisor_pid_lower = String.downcase(to_string(supervisor.pid))
+      supervisor_strategy_lower = String.downcase(to_string(supervisor.strategy))
+      supervisor_status_lower = String.downcase(to_string(supervisor.status))
+
+      String.contains?(supervisor_name_lower, filter_text_lower) ||
+        String.contains?(supervisor_id_lower, filter_text_lower) ||
+        String.contains?(supervisor_pid_lower, filter_text_lower) ||
+        String.contains?(supervisor_strategy_lower, filter_text_lower) ||
+        String.contains?(supervisor_status_lower, filter_text_lower)
+    end)
+  end
 end
