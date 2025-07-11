@@ -72,10 +72,14 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSandboxes do
   end
 
   def validate_params(params) do
+    status_val = validate_status(Map.get(params, "status"))
+    page_val = parse_positive_integer(Map.get(params, "page", "1"), 1)
+    per_page_val = parse_per_page(Map.get(params, "per_page", "20"))
+    
     validated = %{
-      "status" => validate_status(Map.get(params, "status")),
-      "page" => parse_positive_integer(Map.get(params, "page", "1"), 1),
-      "per_page" => parse_per_page(Map.get(params, "per_page", "20"))
+      "status" => status_val,
+      "page" => page_val,
+      "per_page" => per_page_val
     }
 
     {:ok, validated}
@@ -147,19 +151,32 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSandboxes do
   end
 
   defp paginate(items, page, per_page) do
+    # Ensure page and per_page are integers and at least 1
+    safe_per_page = 
+      case per_page do
+        n when is_number(n) -> max(Kernel.trunc(n), 1)
+        _ -> 20
+      end
+    
+    safe_page = 
+      case page do
+        n when is_number(n) -> max(Kernel.trunc(n), 1)
+        _ -> 1
+      end
+    
     total = length(items)
-    total_pages = ceil(total / per_page)
-    offset = (page - 1) * per_page
+    total_pages = ceil(total / safe_per_page)
+    offset = (safe_page - 1) * safe_per_page
 
     paginated_items =
       items
       |> Enum.drop(offset)
-      |> Enum.take(per_page)
+      |> Enum.take(safe_per_page)
 
     meta = %{
       total: total,
-      page: page,
-      per_page: per_page,
+      page: safe_page,
+      per_page: safe_per_page,
       total_pages: total_pages
     }
 
@@ -176,10 +193,41 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSandboxes do
       status: get_sandbox_status(sandbox),
       created_at: sandbox.created_at,
       restart_count: sandbox.restart_count,
-      opts: sandbox.opts
+      configuration: format_sandbox_config(sandbox.opts)
     }
   end
 
   defp format_module_name(module) when is_atom(module), do: Atom.to_string(module)
   defp format_module_name(module), do: inspect(module)
+
+  defp format_sandbox_config(opts) when is_list(opts) do
+    opts
+    |> Enum.into(%{})
+    |> Enum.map(fn
+      # Convert compile_info to a JSON-serializable format
+      {:compile_info, compile_info} ->
+        {"compile_info", format_compile_info(compile_info)}
+      
+      # Convert atom keys to strings
+      {key, value} when is_atom(key) ->
+        {Atom.to_string(key), format_config_value(value)}
+      
+      # Keep string keys as-is
+      {key, value} ->
+        {key, format_config_value(value)}
+    end)
+    |> Enum.into(%{})
+  end
+
+  defp format_compile_info(compile_info) when is_map(compile_info) do
+    %{
+      "compilation_time_ms" => compile_info.compilation_time,
+      "beam_files_count" => length(compile_info.beam_files),
+      "output_summary" => String.slice(compile_info.output, 0, 100),
+      "temp_dir" => compile_info.temp_dir
+    }
+  end
+
+  defp format_config_value(value) when is_atom(value), do: Atom.to_string(value)
+  defp format_config_value(value), do: value
 end

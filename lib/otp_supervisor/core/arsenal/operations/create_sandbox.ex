@@ -131,7 +131,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.CreateSandbox do
         status: "running",
         created_at: sandbox_info.created_at,
         restart_count: sandbox_info.restart_count,
-        opts: sandbox_info.opts
+        configuration: format_sandbox_config(sandbox_info.opts)
       }
     }
   end
@@ -189,4 +189,35 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.CreateSandbox do
 
   defp format_module_name(module) when is_atom(module), do: Atom.to_string(module)
   defp format_module_name(module), do: inspect(module)
+
+  defp format_sandbox_config(opts) when is_list(opts) do
+    opts
+    |> Enum.into(%{})
+    |> Enum.map(fn
+      # Convert compile_info to a JSON-serializable format
+      {:compile_info, compile_info} ->
+        {"compile_info", format_compile_info(compile_info)}
+      
+      # Convert atom keys to strings
+      {key, value} when is_atom(key) ->
+        {Atom.to_string(key), format_config_value(value)}
+      
+      # Keep string keys as-is
+      {key, value} ->
+        {key, format_config_value(value)}
+    end)
+    |> Enum.into(%{})
+  end
+
+  defp format_compile_info(compile_info) when is_map(compile_info) do
+    %{
+      "compilation_time_ms" => compile_info.compilation_time,
+      "beam_files_count" => length(compile_info.beam_files),
+      "output_summary" => String.slice(compile_info.output, 0, 100),
+      "temp_dir" => compile_info.temp_dir
+    }
+  end
+
+  defp format_config_value(value) when is_atom(value), do: Atom.to_string(value)
+  defp format_config_value(value), do: value
 end

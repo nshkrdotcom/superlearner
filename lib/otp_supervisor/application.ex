@@ -18,7 +18,8 @@ defmodule OtpSupervisor.Application do
 
       # Analytics and sandbox management
       OTPSupervisor.Core.AnalyticsServer,
-      OTPSupervisor.Core.SandboxManager,
+      {OTPSupervisor.Core.ModuleVersionManager, []},
+      {OTPSupervisor.Core.SandboxManager, []},
 
       # Arsenal operation registry
       OTPSupervisor.Core.Arsenal.Registry,

@@ -101,7 +101,15 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
   end
 
   def update(assigns, socket) do
-    {:ok, assign(socket, assigns)}
+    # Preserve form state during updates from parent
+    current_show_form = socket.assigns[:show_create_form] || false
+    current_selected = socket.assigns[:selected_sandbox]
+    
+    {:ok, 
+     socket
+     |> assign(assigns)
+     |> assign(:show_create_form, current_show_form)
+     |> assign(:selected_sandbox, current_selected)}
   end
 
   # Event handlers
@@ -132,6 +140,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
          |> put_flash(:info, "Sandbox created successfully")}
 
       {:error, reason} ->
+        # Keep the form open on error so user can retry
         {:noreply, put_flash(socket, :error, "Failed to create sandbox: #{inspect(reason)}")}
     end
   end
@@ -186,7 +195,7 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
             name="sandbox_id"
             required
             placeholder="my-sandbox-1"
-            pattern="[a-zA-Z0-9_-]+"
+            pattern="[a-zA-Z0-9_\-]+"
             class="w-full px-2 py-1 text-xs bg-gray-800 border border-green-500/30 rounded text-green-400 font-mono placeholder-green-400/50 focus:outline-none focus:ring-1 focus:ring-green-500/50"
           />
         </div>
@@ -375,8 +384,9 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
   end
 
   defp destroy_sandbox_via_arsenal(sandbox_id) do
-    path = "/api/v1/sandboxes/#{sandbox_id}?force=false"
+    path = "/api/v1/sandboxes/#{sandbox_id}?force=true"
     case make_arsenal_request(:delete, path, %{}) do
+      {:ok, %{data: result}} -> {:ok, result}
       {:ok, %{"data" => result}} -> {:ok, result}
       {:error, reason} -> {:error, reason}
     end
@@ -404,9 +414,23 @@ defmodule OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget do
         end
 
       :delete ->
-        # Extract sandbox_id from path
-        [sandbox_id | _] = String.split(path, "?") |> List.first() |> String.split("/") |> Enum.reverse()
-        result = OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.execute(%{"sandbox_id" => sandbox_id, "force" => false})
+        # Extract sandbox_id and force parameter from path
+        [path_part, query_part] = case String.split(path, "?", parts: 2) do
+          [path_only] -> [path_only, ""]
+          [path_part, query_part] -> [path_part, query_part]
+        end
+        
+        # Parse sandbox_id from path like "/api/v1/sandboxes/tester"
+        path_segments = String.split(path_part, "/", trim: true)
+        sandbox_id = List.last(path_segments)
+        
+        # Parse force parameter from query string
+        force = String.contains?(query_part, "force=true")
+        
+        require Logger
+        Logger.info("Destroying sandbox: #{sandbox_id} with force: #{force}")
+        
+        result = OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.execute(%{"sandbox_id" => sandbox_id, "force" => force})
         case result do
           {:ok, result_data} ->
             formatted = OTPSupervisor.Core.Arsenal.Operations.DestroySandbox.format_response(result_data)

@@ -128,7 +128,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo do
       created_at: sandbox_info.created_at,
       restart_count: sandbox_info.restart_count,
       uptime_seconds: calculate_uptime(sandbox_info.created_at),
-      opts: sandbox_info.opts
+      configuration: format_sandbox_config(sandbox_info.opts)
     }
 
     base_info
@@ -149,14 +149,14 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo do
     div(current_time - created_at, 1000)
   end
 
-  defp maybe_add_children(info, sandbox_info, true) do
+  defp maybe_add_children(info, sandbox_info, include_children) when include_children in [true, "true"] do
     children = get_supervisor_children(sandbox_info.supervisor_pid)
     Map.put(info, :children, children)
   end
 
-  defp maybe_add_children(info, _sandbox_info, false), do: info
+  defp maybe_add_children(info, _sandbox_info, _), do: info
 
-  defp maybe_add_stats(info, sandbox_info, true) do
+  defp maybe_add_stats(info, sandbox_info, include_stats) when include_stats in [true, "true"] do
     memory_usage = get_memory_usage(sandbox_info)
     health_stats = get_health_stats(sandbox_info)
 
@@ -165,7 +165,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo do
     |> Map.put(:health_stats, health_stats)
   end
 
-  defp maybe_add_stats(info, _sandbox_info, false), do: info
+  defp maybe_add_stats(info, _sandbox_info, _), do: info
 
   defp get_supervisor_children(supervisor_pid) do
     try do
@@ -277,4 +277,35 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.GetSandboxInfo do
 
   defp format_module_name(module) when is_atom(module), do: Atom.to_string(module)
   defp format_module_name(module), do: inspect(module)
+
+  defp format_sandbox_config(opts) when is_list(opts) do
+    opts
+    |> Enum.into(%{})
+    |> Enum.map(fn
+      # Convert compile_info to a JSON-serializable format
+      {:compile_info, compile_info} ->
+        {"compile_info", format_compile_info(compile_info)}
+      
+      # Convert atom keys to strings
+      {key, value} when is_atom(key) ->
+        {Atom.to_string(key), format_config_value(value)}
+      
+      # Keep string keys as-is
+      {key, value} ->
+        {key, format_config_value(value)}
+    end)
+    |> Enum.into(%{})
+  end
+
+  defp format_compile_info(compile_info) when is_map(compile_info) do
+    %{
+      "compilation_time_ms" => compile_info.compilation_time,
+      "beam_files_count" => length(compile_info.beam_files),
+      "output_summary" => String.slice(compile_info.output, 0, 100),
+      "temp_dir" => compile_info.temp_dir
+    }
+  end
+
+  defp format_config_value(value) when is_atom(value), do: Atom.to_string(value)
+  defp format_config_value(value), do: value
 end

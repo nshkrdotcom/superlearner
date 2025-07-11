@@ -156,6 +156,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.ListSupervisors do
       name: supervisor.name,
       pid: supervisor.pid,
       alive: supervisor.alive,
+      child_count: supervisor.child_count,
       application: get_process_application_from_name(supervisor.name)
     }
   end

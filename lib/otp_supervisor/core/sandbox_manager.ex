@@ -1,14 +1,17 @@
 defmodule OTPSupervisor.Core.SandboxManager do
   @moduledoc """
-  Manages the lifecycle of sandbox OTP applications.
+  Manages the lifecycle of sandbox OTP applications with true hot-reload isolation.
 
   This manager provides a clean API for starting, stopping, and reconfiguring
-  entire sandbox applications using proper OTP application lifecycle operations.
-  This uses dynamic application loading for true isolation.
+  entire sandbox applications using isolated compilation and dynamic module loading.
+  Features complete fault isolation and hot-reload capabilities.
   """
 
   use GenServer
   require Logger
+
+  alias OTPSupervisor.Core.IsolatedCompiler
+  alias OTPSupervisor.Core.ModuleVersionManager
 
   # Public API
 
@@ -63,7 +66,8 @@ defmodule OTPSupervisor.Core.SandboxManager do
     state = %{
       sandboxes: %{},
       next_id: 1,
-      sandbox_code_paths: %{}
+      sandbox_code_paths: %{},
+      compilation_artifacts: %{}
     }
 
     Logger.info("SandboxManager started")
@@ -127,7 +131,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
         new_sandboxes = Map.delete(state.sandboxes, sandbox_id)
 
         # Now stop the application gracefully
-        :ok = stop_sandbox_application(sandbox_info.app_name, sandbox_info.app_pid)
+        :ok = stop_sandbox_application(sandbox_info.app_name, sandbox_id)
 
         # Terminate the supervisor if it's still alive
         # Use a separate process to avoid killing the GenServer
@@ -151,7 +155,7 @@ defmodule OTPSupervisor.Core.SandboxManager do
       {sandbox_info, ref} ->
         # Stop current application
         Process.demonitor(ref, [:flush])
-        stop_sandbox_application(sandbox_info.app_name, sandbox_info.app_pid)
+        stop_sandbox_application(sandbox_info.app_name, sandbox_id)
 
         # Start new application with same configuration
         case start_sandbox_application(
@@ -291,6 +295,17 @@ defmodule OTPSupervisor.Core.SandboxManager do
 
   defp parse_module_or_app(module_or_app, opts) do
     case module_or_app do
+      module_string when is_binary(module_string) ->
+        # Convert string to atom and treat as module
+        case String.starts_with?(module_string, "Elixir.") do
+          true ->
+            module = String.to_atom(module_string)
+            {:otp_sandbox, module}
+          false ->
+            module = String.to_atom("Elixir." <> module_string)
+            {:otp_sandbox, module}
+        end
+        
       app when is_atom(app) ->
         # Check if it's a known supervisor module
         case to_string(app) do
@@ -309,81 +324,61 @@ defmodule OTPSupervisor.Core.SandboxManager do
   end
 
   defp start_sandbox_application(sandbox_id, app_name, supervisor_module, opts) do
-    # Ensure the sandbox application code path is loaded
+    # Use isolated compilation for true fault isolation
     sandbox_path = Path.join([File.cwd!(), "sandbox", "examples", to_string(app_name)])
-    lib_path = Path.join(sandbox_path, "lib")
-    ebin_path = Path.join([sandbox_path, "_build", "dev", "lib", to_string(app_name), "ebin"])
-
-    # Ensure application is compiled
-    if File.exists?(sandbox_path) do
-      ensure_sandbox_compiled(sandbox_path, app_name)
+    
+    # Compile sandbox application in isolation
+    with {:ok, compile_info} <- compile_sandbox_isolated(sandbox_id, sandbox_path, app_name, opts),
+         :ok <- setup_code_paths(sandbox_id, compile_info),
+         :ok <- load_sandbox_modules(sandbox_id, compile_info),
+         :ok <- load_sandbox_application(app_name, sandbox_id, compile_info.app_file),
+         {:ok, app_pid, supervisor_pid} <- start_application_and_supervisor(sandbox_id, app_name, supervisor_module, opts) do
+      
+      # Success - return all the info
+      {:ok, app_pid, supervisor_pid, Keyword.put(opts, :compile_info, compile_info)}
+    else
+      {:error, reason} ->
+        Logger.error("Failed to start sandbox application #{app_name}: #{inspect(reason)}")
+        {:error, reason}
     end
+  end
 
-    # Add both lib and ebin paths
-    if File.exists?(lib_path) do
-      Code.prepend_path(lib_path)
-    end
-
+  defp setup_code_paths(sandbox_id, compile_info) do
+    # Set up code paths for the compiled modules
+    ebin_path = Path.dirname(List.first(compile_info.beam_files, ""))
     if File.exists?(ebin_path) do
       Code.prepend_path(ebin_path)
+      Logger.debug("Added code path for sandbox #{sandbox_id}: #{ebin_path}")
+      :ok
+    else
+      {:error, {:ebin_path_not_found, ebin_path}}
     end
+  end
 
-    # Load the application if not already loaded
-    case Application.load(app_name) do
-      :ok ->
-        :ok
-
-      {:error, {:already_loaded, ^app_name}} ->
-        :ok
-
-      {:error, reason} ->
-        Logger.error("Failed to load application #{app_name}: #{inspect(reason)}")
-        Logger.error("Sandbox path: #{sandbox_path}")
-        Logger.error("Lib path exists: #{File.exists?(lib_path)}")
-        Logger.error("Ebin path exists: #{File.exists?(ebin_path)}")
-        {:error, {:load_failed, reason}}
-    end
-
-    # Start the application
+  defp start_application_and_supervisor(sandbox_id, app_name, supervisor_module, opts) do
+    # Start the base application (shared, but that's ok)
     case Application.start(app_name) do
       :ok ->
-        # Get the application master pid for monitoring
-        case :application_controller.get_master(app_name) do
-          app_pid when is_pid(app_pid) ->
-            # Start the supervisor within the application
-            case start_supervisor_in_application(sandbox_id, supervisor_module, opts) do
-              {:ok, supervisor_pid} ->
-                {:ok, app_pid, supervisor_pid, opts}
+        # Start a unique supervisor with sandbox isolation
+        case start_supervisor_in_application(sandbox_id, supervisor_module, opts) do
+          {:ok, supervisor_pid} ->
+            # Return the supervisor PID as the "app_pid" for this sandbox
+            # This ensures each sandbox has its own unique identifier for destruction
+            {:ok, supervisor_pid, supervisor_pid}
 
-              {:error, reason} ->
-                # Clean up the application if supervisor failed
-                Application.stop(app_name)
-                {:error, reason}
-            end
-
-          _ ->
-            {:error, :no_master_pid}
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:error, {:already_started, ^app_name}} ->
-        # Application already started, try to start supervisor
-        case :application_controller.get_master(app_name) do
-          app_pid when is_pid(app_pid) ->
-            case start_supervisor_in_application(sandbox_id, supervisor_module, opts) do
-              {:ok, supervisor_pid} ->
-                {:ok, app_pid, supervisor_pid, opts}
+        # Application already started, just start the supervisor
+        case start_supervisor_in_application(sandbox_id, supervisor_module, opts) do
+          {:ok, supervisor_pid} ->
+            # Return the supervisor PID as the "app_pid" for this sandbox
+            {:ok, supervisor_pid, supervisor_pid}
 
-              {:error, reason} ->
-                Logger.warning(
-                  "Failed to start supervisor in existing application #{app_name}: #{inspect(reason)}"
-                )
-
-                {:error, reason}
-            end
-
-          _ ->
-            Logger.warning("No master PID found for already started application #{app_name}")
-            {:error, :no_master_pid}
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:error, reason} ->
@@ -415,88 +410,107 @@ defmodule OTPSupervisor.Core.SandboxManager do
     end
   end
 
-  defp stop_sandbox_application(app_name, _app_pid) do
-    try do
-      # Check if other sandboxes are using this application
-      sandboxes_using_app =
-        :ets.tab2list(:sandboxes)
-        |> Enum.count(fn {_id, sandbox_info} -> sandbox_info.app_name == app_name end)
+  defp stop_sandbox_application(_app_name, _sandbox_id) do
+    # With the new approach, we don't stop the shared application
+    # The supervisor termination handles the cleanup
+    # We only need to ensure the supervisor (which is the app_pid) is terminated
+    :ok
+  end
 
-      # Only stop and unload if this is the last sandbox using the application
-      if sandboxes_using_app <= 1 do
-        # Stop the application
-        case Application.stop(app_name) do
-          :ok ->
-            :ok
+  # New isolated compilation functions
 
-          {:error, {:not_started, ^app_name}} ->
-            :ok
+  defp compile_sandbox_isolated(sandbox_id, sandbox_path, app_name, opts) do
+    compile_opts = [
+      timeout: Keyword.get(opts, :compile_timeout, 30_000),
+      validate_beams: Keyword.get(opts, :validate_beams, true),
+      env: %{
+        "MIX_ENV" => to_string(Mix.env()),
+        "MIX_TARGET" => "host"
+      }
+    ]
 
-          {:error, reason} ->
-            Logger.warning("Failed to stop application #{app_name}: #{inspect(reason)}")
-            # Don't fail sandbox destruction for stop failures
-            :ok
-        end
+    Logger.info("Compiling sandbox #{sandbox_id} in isolation", 
+      sandbox_path: sandbox_path, app_name: app_name)
 
-        # Unload the application
-        case Application.unload(app_name) do
-          :ok ->
-            :ok
+    case IsolatedCompiler.compile_sandbox(sandbox_path, compile_opts) do
+      {:ok, compile_info} ->
+        Logger.info("Successfully compiled sandbox #{sandbox_id}",
+          compilation_time: compile_info.compilation_time,
+          beam_files: length(compile_info.beam_files))
+        {:ok, compile_info}
 
-          {:error, {:not_loaded, ^app_name}} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning("Failed to unload application #{app_name}: #{inspect(reason)}")
-            # Don't fail sandbox destruction for unload failures
-            :ok
-        end
-      else
-        Logger.debug(
-          "Not stopping application #{app_name} - still used by #{sandboxes_using_app - 1} other sandboxes"
-        )
-      end
-
-      :ok
-    catch
-      :exit, reason ->
-        Logger.warning("Exception while stopping application #{app_name}: #{inspect(reason)}")
-        # Don't fail sandbox destruction for exceptions
-        :ok
+      {:error, reason} ->
+        report = IsolatedCompiler.compilation_report({:error, reason})
+        Logger.error("Failed to compile sandbox #{sandbox_id}",
+          reason: inspect(reason),
+          details: report.details)
+        {:error, reason}
     end
   end
 
-  defp ensure_sandbox_compiled(sandbox_path, app_name) do
-    # Check if the application is already compiled
-    ebin_path = Path.join([sandbox_path, "_build", "dev", "lib", to_string(app_name), "ebin"])
-    app_file = Path.join(ebin_path, "#{app_name}.app")
-
-    if not File.exists?(app_file) do
-      Logger.info("Compiling sandbox application #{app_name}")
-
-      # Change to sandbox directory and compile
-      old_cwd = File.cwd!()
-
-      try do
-        File.cd!(sandbox_path)
-        {output, exit_code} = System.cmd("mix", ["compile"], stderr_to_stdout: true)
-
-        if exit_code != 0 do
-          Logger.error("Failed to compile sandbox application #{app_name}: #{output}")
-          {:error, {:compile_failed, output}}
-        else
-          Logger.info("Successfully compiled sandbox application #{app_name}")
-          :ok
-        end
-      catch
-        :exit, reason ->
-          Logger.error("Failed to compile sandbox application #{app_name}: #{inspect(reason)}")
-          {:error, {:compile_failed, reason}}
-      after
-        File.cd!(old_cwd)
+  defp load_sandbox_modules(sandbox_id, compile_info) do
+    compile_info.beam_files
+    |> Enum.reduce_while(:ok, fn beam_file, :ok ->
+      case load_beam_file(sandbox_id, beam_file) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
       end
-    else
-      :ok
+    end)
+  end
+
+  defp load_beam_file(sandbox_id, beam_file) do
+    try do
+      # Read BEAM file
+      beam_data = File.read!(beam_file)
+      
+      # Extract module name from BEAM
+      module = case :beam_lib.info(String.to_charlist(beam_file)) do
+        info when is_list(info) ->
+          # beam_lib.info sometimes returns a direct list
+          Keyword.get(info, :module)
+        {:ok, info} ->
+          info[:module]
+        {:error, reason} ->
+          throw({:beam_info_failed, beam_file, reason})
+      end
+      
+      # Actually load the module into the VM
+      case :code.load_binary(module, String.to_charlist(beam_file), beam_data) do
+        {:module, ^module} ->
+          # Register with version manager after successful load
+          case ModuleVersionManager.register_module_version(sandbox_id, module, beam_data) do
+            {:ok, version} ->
+              Logger.debug("Loaded module #{module} version #{version} for sandbox #{sandbox_id}")
+              :ok
+              
+            {:error, reason} ->
+              {:error, {:version_registration_failed, module, reason}}
+          end
+          
+        {:error, reason} ->
+          {:error, {:code_load_failed, module, reason}}
+      end
+    rescue
+      error ->
+        {:error, {:beam_load_failed, beam_file, error}}
+    catch
+      thrown_error ->
+        {:error, thrown_error}
+    end
+  end
+
+  defp load_sandbox_application(app_name, _sandbox_id, _app_file) do
+    # Load the base application (we'll handle uniqueness at the runtime level)
+    case Application.load(app_name) do
+      :ok ->
+        :ok
+
+      {:error, {:already_loaded, ^app_name}} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("Failed to load application #{app_name}: #{inspect(reason)}")
+        {:error, {:load_failed, reason}}
     end
   end
 

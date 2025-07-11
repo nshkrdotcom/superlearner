@@ -27,10 +27,10 @@ defmodule OtpSandbox.TestDemoSupervisor do
            [[name: :"counter_1_#{unique_id}", initial_value: 0]]}
       },
       %{
-        id: :counter_2,
+        id: :counter_2b,
         start:
           {OtpSandbox.Workers.Counter, :start_link,
-           [[name: :"counter_2_#{unique_id}", initial_value: 100]]}
+           [[name: :"counter_2b_#{unique_id}", initial_value: 200]]}
       },
       %{
         id: :printer_1,
