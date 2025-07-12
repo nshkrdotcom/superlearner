@@ -132,17 +132,23 @@ defmodule SandboxTestHelper do
     wait_loop = fn loop ->
       # Check if SandboxManager is alive before calling
       if Process.whereis(SandboxManager) do
-        case SandboxManager.get_sandbox_info(sandbox_id) do
-          {:error, :not_found} ->
-            :ok
+        try do
+          case SandboxManager.get_sandbox_info(sandbox_id) do
+            {:error, :not_found} ->
+              :ok
 
-          {:ok, _sandbox_info} ->
-            if System.monotonic_time(:millisecond) - start_time > timeout do
-              {:error, :timeout}
-            else
-              Process.sleep(@sync_delay)
-              loop.(loop)
-            end
+            {:ok, _sandbox_info} ->
+              if System.monotonic_time(:millisecond) - start_time > timeout do
+                {:error, :timeout}
+              else
+                Process.sleep(@sync_delay)
+                loop.(loop)
+              end
+          end
+        catch
+          :exit, _ ->
+            # SandboxManager died during the call, consider sandbox cleaned up
+            :ok
         end
       else
         # SandboxManager is not alive, consider sandbox cleaned up
