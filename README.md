@@ -98,6 +98,41 @@ OTPSupervisor.Distributed.SingleNodeSimulator.enable_simulation(3)
 OTPSupervisor.Distributed.SingleNodeSimulator.get_simulated_topology()
 ```
 
+**Example Output from Real Multi-Node Test:**
+```elixir
+iex(superlearner1@U2401)> Node.connect(:"superlearner2@U2401")
+[info] Node joined cluster: superlearner2@U2401
+true
+
+iex(superlearner1@U2401)> Node.list()
+[:superlearner2@U2401]
+
+iex(superlearner1@U2401)> OTPSupervisor.Distributed.ToolManager.get_cluster_status()
+%{
+  nodes: [:superlearner1@U2401, :superlearner2@U2401],
+  mode: :multi_node,
+  connected_nodes: [:superlearner2@U2401],
+  current_node: :superlearner1@U2401,
+  tools: []
+}
+
+iex(superlearner1@U2401)> OTPSupervisor.Distributed.ClusterStateManager.get_cluster_topology()
+%{
+  nodes: [:superlearner1@U2401, :superlearner2@U2401],
+  connected_nodes: [:superlearner2@U2401],
+  current_node: :superlearner1@U2401,
+  total_nodes: 2,
+  cluster_name: :superlearner_cluster,
+  formation_time: ~U[2025-07-15 01:27:17.152676Z]
+}
+
+iex(superlearner1@U2401)> OTPSupervisor.Distributed.ClusterStateManager.get_process_distribution()
+%{
+  superlearner1@U2401: [#PID<0.0.0>, #PID<0.1.0>, ...], # 598 processes
+  superlearner2@U2401: [#PID<27148.0.0>, #PID<27148.1.0>, ...] # Similar count
+}
+```
+
 #### From Command Line (test distributed Arsenal operations):
 ```bash
 # Test cluster health endpoint
@@ -107,10 +142,50 @@ curl http://localhost:4000/api/v1/cluster/health
 curl http://localhost:4000/api/v1/cluster/topology
 
 # Test node information (replace with actual node name)
-curl http://localhost:4000/api/v1/cluster/nodes/superlearner1@hostname/info
+curl http://localhost:4000/api/v1/cluster/nodes/superlearner1@U2401/info
 
 # Test distributed process list
 curl http://localhost:4000/api/v1/cluster/processes
+```
+
+**Example JSON Response from Cluster Health:**
+```json
+{
+  "data": {
+    "overall_status": "healthy",
+    "partition_status": "healthy",
+    "nodes_total": 2,
+    "nodes_healthy": 2,
+    "nodes_unhealthy": 0,
+    "cluster_uptime": "37s",
+    "node_statuses": {
+      "superlearner1@U2401": {
+        "status": "up",
+        "health_score": 100,
+        "cpu_status": "normal",
+        "memory_status": "normal",
+        "issues": []
+      },
+      "superlearner2@U2401": {
+        "status": "up", 
+        "health_score": 100,
+        "cpu_status": "normal",
+        "memory_status": "normal",
+        "issues": []
+      }
+    },
+    "performance_metrics": {
+      "total_processes": 1194,
+      "memory_usage": {
+        "superlearner1@U2401": {"total": 86914960, "processes": 24422864},
+        "superlearner2@U2401": {"total": 86401672, "processes": 24214256}
+      }
+    },
+    "recommendations": []
+  },
+  "success": true,
+  "timestamp": "2025-07-15T01:27:54.227947Z"
+}
 ```
 
 ### Development Commands for Distributed Features

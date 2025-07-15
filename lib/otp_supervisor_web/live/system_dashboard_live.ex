@@ -27,6 +27,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
      |> assign(:current_page, "dashboard")
      |> assign(:alerts_count, 0)
      |> assign(:selected_process, nil)
+     |> assign(:distributed_status, get_distributed_status())
      |> load_initial_data()}
   end
 
@@ -131,10 +132,20 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
   end
 
   defp status_bar_metrics(assigns) do
+    distributed_indicator = case assigns.distributed_status do
+      %{mode: :multi_node, total_nodes: nodes} when nodes > 1 ->
+        %{label: "Cluster", value: "#{nodes} nodes", color: "text-green-400"}
+      %{simulation_enabled: true} ->
+        %{label: "Mode", value: "Simulation", color: "text-yellow-400"}
+      _ ->
+        %{label: "Mode", value: "Single Node", color: "text-blue-400"}
+    end
+
     [
       %{label: "CPU", value: "#{assigns.system_metrics.cpu_usage}%"},
       %{label: "Memory", value: format_bytes(assigns.system_metrics.memory_used)},
       %{label: "Processes", value: "#{length(assigns.processes)}"},
+      distributed_indicator,
       %{label: "Alerts", value: "#{assigns.alerts_count}"}
     ]
   end
@@ -431,6 +442,32 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         x: DateTime.to_unix(timestamp),
         y: assigns.network_stats.bytes_in + :rand.uniform(1000)
       }
+    end
+  end
+
+  defp get_distributed_status do
+    try do
+      cluster_status = OTPSupervisor.Distributed.ToolManager.get_cluster_status()
+      simulation_enabled = OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
+      
+      %{
+        mode: cluster_status.mode,
+        nodes: cluster_status.nodes,
+        connected_nodes: cluster_status.connected_nodes,
+        current_node: cluster_status.current_node,
+        simulation_enabled: simulation_enabled,
+        total_nodes: length(cluster_status.nodes)
+      }
+    rescue
+      _ -> 
+        %{
+          mode: :single_node,
+          nodes: [Node.self()],
+          connected_nodes: [],
+          current_node: Node.self(),
+          simulation_enabled: false,
+          total_nodes: 1
+        }
     end
   end
 

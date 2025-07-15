@@ -59,13 +59,17 @@ config :libcluster,
       strategy: Cluster.Strategy.Epmd,
       config: [
         hosts: [
-          :superlearner@U2401,
-          :superlearner2@U2402
+          :"superlearner1@U2401",
+          :"superlearner2@U2401"
         ],
         polling_interval: 5_000
       ]
     ]
   ]
+
+# Fix Swoosh name conflict in distributed mode
+config :swoosh, :api_client, false
+config :swoosh, local: false
 
 # Distributed tooling development settings
 config :otp_supervisor, :distributed_tooling,
