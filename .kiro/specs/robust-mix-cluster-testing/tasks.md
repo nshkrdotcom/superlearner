@@ -86,6 +86,7 @@ Convert the failing mix cluster.test functionality into a reliable WSL-compatibl
 
 
 
+
   - Test hostname resolution across different WSL configurations
   - Verify port conflict resolution and cleanup
   - Validate error messages provide actionable guidance

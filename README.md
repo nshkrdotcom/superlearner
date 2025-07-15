@@ -249,7 +249,9 @@ Distributed Development Tooling
 
 ## 🧪 Distributed Test Infrastructure
 
-For comprehensive distributed testing capabilities, see **[README_DISTRIBUTED_TESTING.md](README_DISTRIBUTED_TESTING.md)**.
+For comprehensive distributed testing capabilities, see:
+- **[README_DISTRIBUTED_TESTING.md](README_DISTRIBUTED_TESTING.md)** - Professional distributed testing framework
+- **[README_ROBUST_CLUSTER_TESTING.md](README_ROBUST_CLUSTER_TESTING.md)** - WSL-compatible automated cluster management
 
 ### Quick Test Commands
 ```bash
