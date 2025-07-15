@@ -247,6 +247,31 @@ Distributed Development Tooling
 - **Simulation Mode**: Automatically enabled in single-node development
 - **Multi-Node Mode**: Automatically detected when nodes connect
 
+## 🧪 Distributed Test Infrastructure
+
+For comprehensive distributed testing capabilities, see **[README_DISTRIBUTED_TESTING.md](README_DISTRIBUTED_TESTING.md)**.
+
+### Quick Test Commands
+```bash
+# Professional distributed test cluster management
+mix cluster.test status          # Check cluster status
+mix cluster.test start           # Start test cluster
+mix cluster.test health          # Comprehensive health check
+mix cluster.test run             # Full automated test cycle
+mix cluster.test stop            # Stop cluster
+
+# Run distributed tests
+mix test --only real_nodes       # Real multi-node tests
+mix test --only simulation       # Simulation-based tests
+```
+
+**Key Features:**
+- ✅ **Automated Cluster Management** - No more manual server scripts
+- ✅ **Robust Error Handling** - Addresses all distributed Erlang startup issues
+- ✅ **Code Synchronization** - Prevents testing against stale code
+- ✅ **Health Monitoring** - Comprehensive cluster validation
+- ✅ **Professional Tooling** - Production-grade CLI interface
+
 ## 📋 Essential Commands
 
 ### Development & Testing

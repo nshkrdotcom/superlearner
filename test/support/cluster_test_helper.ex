@@ -100,7 +100,7 @@ defmodule ClusterTestHelper do
     case :peer.start_link(%{
       name: node_name,
       host: ~c"127.0.0.1",
-      args: [~c"-setcookie", Atom.to_string(cookie)]
+      args: [~c"-setcookie", Atom.to_charlist(cookie)]
     }) do
       {:ok, _peer, node} -> {:ok, node}
       error -> error

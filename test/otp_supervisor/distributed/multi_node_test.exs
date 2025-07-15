@@ -10,7 +10,18 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
   setup_all do
     # Start distributed Erlang if not already started
     unless Node.alive?() do
-      Node.start(:"test_primary@127.0.0.1", :shortnames)
+      case Node.start(:"test_primary@127.0.0.1", :shortnames) do
+        {:ok, _} -> 
+          Node.set_cookie(:test_cluster_cookie)
+        {:error, {:already_started, _}} ->
+          # Node already started, just set cookie
+          Node.set_cookie(:test_cluster_cookie)
+        {:error, reason} ->
+          IO.puts("Warning: Could not start distributed node: #{inspect(reason)}")
+          IO.puts("Skipping distributed tests - running in single node mode")
+      end
+    else
+      # Node is already alive, just set the cookie
       Node.set_cookie(:test_cluster_cookie)
     end
     
@@ -71,6 +82,9 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       # This test doesn't require real nodes
       simulator = OTPSupervisor.Distributed.SingleNodeSimulator
       
+      # Ensure clean state by disabling any existing simulation
+      simulator.disable_simulation()
+      
       # Start with simulation disabled
       refute simulator.simulation_enabled?()
       
@@ -79,27 +93,37 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       assert length(simulated_nodes) == 3
       assert simulator.simulation_enabled?()
       
-      # Test that cluster components see simulated nodes
+      # Test that cluster components see simulated nodes (3 simulated + 1 real = 4 total)
       topology = ClusterStateManager.get_cluster_topology()
-      assert length(topology.nodes) == 3
+      assert length(topology.nodes) == 4
       
       # Test simulated process distribution
       process_dist = ClusterStateManager.get_process_distribution()
-      assert map_size(process_dist) == 3
+      assert map_size(process_dist) == 4  # 3 simulated + 1 real node
       
-      # Test Arsenal operations with simulation
-      {:ok, health_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(%{})
-      assert health_data.nodes_total == 3
-      assert health_data.overall_status == :healthy
+      # Test Arsenal operations with simulation (use proper parameter validation)
+      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{}) do
+        {:ok, validated_params} ->
+          {:ok, health_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(validated_params)
+          assert health_data.nodes_total == 4  # 3 simulated + 1 real node
+          assert health_data.overall_status == :healthy
+        {:error, _} ->
+          flunk("Parameter validation failed")
+      end
       
       # Test node failure simulation
       [first_node | _] = simulated_nodes
       :ok = simulator.simulate_node_failure(first_node)
       
-      # Verify failure is detected
-      {:ok, updated_health} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(%{})
-      failed_status = updated_health.node_statuses[first_node]
-      assert failed_status.status == :down
+      # Verify failure is detected (use proper parameter validation)
+      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{}) do
+        {:ok, validated_params} ->
+          {:ok, updated_health} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(validated_params)
+          failed_status = updated_health.node_statuses[first_node]
+          assert failed_status.status == :down
+        {:error, _} ->
+          flunk("Parameter validation failed")
+      end
       
       # Cleanup
       simulator.disable_simulation()
@@ -111,16 +135,20 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       
       {:ok, _nodes} = simulator.enable_simulation(2)
       
-      # Test cluster health
-      {:ok, health_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(%{
+      # Test cluster health (use proper parameter validation)
+      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
         "include_metrics" => true,
         "include_history" => false
-      })
-      
-      assert health_data.nodes_total == 2
-      assert health_data.nodes_healthy == 2
-      assert health_data.overall_status == :healthy
-      assert Map.has_key?(health_data, :performance_metrics)
+      }) do
+        {:ok, validated_params} ->
+          {:ok, health_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(validated_params)
+          assert health_data.nodes_total == 3  # 2 simulated + 1 real node
+          assert health_data.nodes_healthy == 3
+          assert health_data.overall_status == :healthy
+          assert Map.has_key?(health_data, :performance_metrics)
+        {:error, _} ->
+          flunk("Parameter validation failed")
+      end
       
       simulator.disable_simulation()
     end
@@ -130,17 +158,21 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       
       {:ok, [first_node | _]} = simulator.enable_simulation(2)
       
-      # Test node info
-      {:ok, node_info} = OTPSupervisor.Core.Arsenal.Operations.Distributed.NodeInfo.execute(%{
+      # Test node info (use proper parameter validation)
+      case OTPSupervisor.Core.Arsenal.Operations.Distributed.NodeInfo.validate_params(%{
         "node" => Atom.to_string(first_node),
         "include_processes" => true,
         "process_limit" => 10
-      })
-      
-      assert node_info.name == first_node
-      assert node_info.status == :up
-      assert node_info.simulated == true
-      assert is_list(node_info.processes)
+      }) do
+        {:ok, validated_params} ->
+          {:ok, node_info} = OTPSupervisor.Core.Arsenal.Operations.Distributed.NodeInfo.execute(validated_params)
+          assert node_info.name == first_node
+          assert node_info.status == :up
+          assert node_info.simulated == true
+          assert is_list(node_info.processes)
+        {:error, _} ->
+          flunk("Parameter validation failed")
+      end
       
       simulator.disable_simulation()
     end
@@ -150,25 +182,35 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       
       {:ok, nodes} = simulator.enable_simulation(2)
       
-      # Test process list
-      {:ok, process_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(%{
+      # Test process list (use proper parameter validation)
+      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.validate_params(%{
         "limit" => 20,
         "include_details" => true
-      })
-      
-      assert length(process_data.processes) > 0
-      assert process_data.total_count > 0
-      assert length(process_data.nodes_queried) == 2
+      }) do
+        {:ok, validated_params} ->
+          {:ok, process_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(validated_params)
+          
+          assert length(process_data.processes) > 0
+          assert process_data.total_count > 0
+          assert length(process_data.nodes_queried) == 3  # 2 simulated + 1 real node
+        {:error, _} ->
+          flunk("Parameter validation failed")
+      end
       
       # Test filtering by node
       [first_node | _] = nodes
-      {:ok, filtered_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(%{
+      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.validate_params(%{
         "node" => Atom.to_string(first_node),
         "limit" => 10
-      })
-      
-      assert length(filtered_data.nodes_queried) == 1
-      assert first_node in filtered_data.nodes_queried
+      }) do
+        {:ok, validated_params} ->
+          {:ok, filtered_data} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(validated_params)
+          
+          assert length(filtered_data.nodes_queried) == 1
+          assert first_node in filtered_data.nodes_queried
+        {:error, _} ->
+          flunk("Parameter validation failed")
+      end
       
       simulator.disable_simulation()
     end
@@ -191,7 +233,7 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       
       # The mode detection should see we have multiple nodes now
       # (This tests the dynamic mode detection we added)
-      assert length(updated_status.nodes) == 3
+      assert length(updated_status.nodes) == 4  # 3 simulated + 1 real node
       
       simulator.disable_simulation()
     end

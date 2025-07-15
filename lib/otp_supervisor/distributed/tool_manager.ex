@@ -116,9 +116,16 @@ defmodule OTPSupervisor.Distributed.ToolManager do
       state
     end
     
+    # Get topology from ClusterStateManager to include simulated nodes
+    topology = try do
+      OTPSupervisor.Distributed.ClusterStateManager.get_cluster_topology()
+    rescue
+      _ -> %{nodes: get_cluster_nodes()}
+    end
+    
     cluster_status = %{
       mode: updated_state.mode,
-      nodes: get_cluster_nodes(),
+      nodes: topology.nodes,
       connected_nodes: Node.list(),
       current_node: Node.self(),
       tools: Map.keys(updated_state.registered_tools),
@@ -221,9 +228,24 @@ defmodule OTPSupervisor.Distributed.ToolManager do
   end
 
   defp determine_current_mode do
-    case Node.list() do
-      [] -> :single_node
-      _nodes -> :multi_node
+    # Check actual connected nodes
+    connected_nodes = Node.list()
+    
+    # Check if we're in a configured cluster
+    cluster_configured = cluster_configured?()
+    
+    # Check simulation state
+    simulation_enabled = try do
+      OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
+    rescue
+      _ -> false
+    end
+    
+    cond do
+      length(connected_nodes) > 0 -> :multi_node
+      simulation_enabled -> :single_node  # Simulation mode
+      cluster_configured -> :single_node  # Configured but not connected
+      true -> :single_node
     end
   end
 

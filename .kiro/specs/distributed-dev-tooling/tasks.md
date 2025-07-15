@@ -43,6 +43,31 @@
   - Register all new operations in Arsenal registry
   - _Requirements: 2.1, 2.2, 3.1, 3.2, 8.1, 8.2_
 
+- [x] 4a. Create distributed test infrastructure tooling
+
+
+
+
+
+
+
+
+
+
+  - Build CLI tool (mix cluster.test) with start/stop/status/health/run commands
+  - Implement TestCluster.Manager GenServer for cluster lifecycle management
+  - Create NodeProvisioner with robust distributed Erlang startup handling
+  - Add pre-flight environment validation (EPMD, network, ports, cookies)
+  - Implement retry logic and comprehensive error diagnostics for node startup failures
+  - Create HealthChecker for validating cluster formation and Arsenal operations
+  - Add CodeSync module to ensure fresh code deployment across test nodes
+  - Build environment isolation with dedicated ports (4100-4102) and cleanup
+  - Create integration with existing test suite for automated real-node testing
+  - Add specific handling for :nodistribution and :not_alive errors
+  - Implement network configuration validation (127.0.0.1 vs localhost issues)
+  - Create comprehensive logging and diagnostic capabilities
+  - _Requirements: Enables reliable automated testing of all distributed functionality_
+
 - [ ] 5. Implement Horde-specific Arsenal operations
 
 

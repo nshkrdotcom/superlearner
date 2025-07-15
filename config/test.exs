@@ -22,3 +22,25 @@ config :phoenix, :plug_init_mode, :runtime
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
+
+# LibCluster configuration for distributed testing
+config :libcluster,
+  topologies: [
+    test_cluster: [
+      strategy: Cluster.Strategy.Epmd,
+      config: [
+        hosts: [
+          :"test_primary@127.0.0.1",
+          :"test_secondary@127.0.0.1",
+          :"test_1@127.0.0.1",
+          :"test_2@127.0.0.1"
+        ]
+      ]
+    ]
+  ]
+
+# Swoosh configuration for distributed testing (avoid name conflicts)
+config :otp_supervisor, OtpSupervisor.Mailer,
+  adapter: Swoosh.Adapters.Test,
+  # Use unique names per node to avoid conflicts
+  local_storage: {:otp_supervisor, :test_mailer_storage}

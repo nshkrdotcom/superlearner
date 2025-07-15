@@ -134,12 +134,37 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
 
   @impl true
   def handle_call(:get_process_distribution, _from, state) do
-    {:reply, state.process_distribution, state}
+    # Check if we're in simulation mode and need to return simulated process distribution
+    simulation_enabled =
+      try do
+        OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
+      rescue
+        _ -> false
+      end
+
+    process_distribution = if simulation_enabled do
+      get_simulated_process_distribution()
+    else
+      state.process_distribution
+    end
+
+    {:reply, process_distribution, state}
   end
 
   @impl true
   def handle_call(:get_partition_status, _from, state) do
     {:reply, state.partition_status, state}
+  end
+
+  # Private function to get simulated process distribution
+  defp get_simulated_process_distribution do
+    try do
+      topology = OTPSupervisor.Distributed.SingleNodeSimulator.get_simulated_topology()
+      # Include both simulated nodes and the real node
+      Map.put(topology.process_distribution, Node.self(), Process.list())
+    rescue
+      _ -> %{Node.self() => Process.list()}
+    end
   end
 
   @impl true

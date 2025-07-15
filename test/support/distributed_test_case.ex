@@ -38,9 +38,24 @@ defmodule OTPSupervisor.DistributedTestCase do
   end
   
   setup_all do
-    # For distributed tests, we don't need to start a distributed node
-    # The application is already running and we'll use simulation
-    # Just ensure our distributed components are available
+    # Ensure distributed Erlang is running (should already be started by test_helper.exs)
+    unless Node.alive?() do
+      # Try to start distributed Erlang with a unique name if not already started
+      node_name = :"test_case_#{System.system_time(:millisecond)}@127.0.0.1"
+      case Node.start(node_name, :shortnames) do
+        {:ok, _} -> 
+          Node.set_cookie(:test_cluster_cookie)
+          IO.puts("Started distributed Erlang in test case: #{Node.self()}")
+        {:error, {:already_started, _}} ->
+          Node.set_cookie(:test_cluster_cookie)
+        {:error, reason} ->
+          IO.puts("Warning: Could not start distributed node: #{inspect(reason)}")
+          IO.puts("Real node tests will be skipped")
+      end
+    else
+      # Node is already alive, just ensure cookie is set
+      Node.set_cookie(:test_cluster_cookie)
+    end
     
     # Wait a bit for the application to fully start
     Process.sleep(100)

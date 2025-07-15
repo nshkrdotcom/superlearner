@@ -28,6 +28,12 @@ defmodule OtpSupervisor.Application do
       OTPSupervisor.Distributed.ToolManager,
       OTPSupervisor.Distributed.SingleNodeSimulator,
       OTPSupervisor.Distributed.ClusterStateManager,
+      
+      # Dynamic supervisor for test cluster servers
+      {DynamicSupervisor, name: OtpSupervisor.DynamicSupervisor, strategy: :one_for_one},
+      
+      # Test cluster management (only in test environment)
+      maybe_test_cluster_manager(),
 
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
@@ -47,5 +53,20 @@ defmodule OtpSupervisor.Application do
   def config_change(changed, _new, removed) do
     OtpSupervisorWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+  
+  # Private helper functions
+  
+  defp maybe_test_cluster_manager do
+    if Mix.env() == :test do
+      OTPSupervisor.TestCluster.Manager
+    else
+      # Return a no-op child spec for non-test environments
+      %{
+        id: :test_cluster_manager_noop,
+        start: {Task, :start_link, [fn -> :ok end]},
+        restart: :temporary
+      }
+    end
   end
 end
