@@ -34,6 +34,7 @@ defmodule OtpSupervisor.Application do
 
       # Test cluster management (only in test environment)
       maybe_test_cluster_manager(),
+      maybe_auto_cluster_manager(),
 
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
@@ -64,6 +65,19 @@ defmodule OtpSupervisor.Application do
       # Return a no-op child spec for non-test environments
       %{
         id: :test_cluster_manager_noop,
+        start: {Task, :start_link, [fn -> :ok end]},
+        restart: :temporary
+      }
+    end
+  end
+
+  defp maybe_auto_cluster_manager do
+    if Mix.env() == :test do
+      OTPSupervisor.Testing.AutoClusterManager
+    else
+      # Return a no-op child spec for non-test environments
+      %{
+        id: :auto_cluster_manager_noop,
         start: {Task, :start_link, [fn -> :ok end]},
         restart: :temporary
       }
