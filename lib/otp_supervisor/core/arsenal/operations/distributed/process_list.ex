@@ -378,8 +378,11 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
     case info[:registered_name] do
       nil ->
         "unknown"
+      
+      [] ->
+        "unknown"
 
-      name ->
+      name when is_atom(name) ->
         name_str = Atom.to_string(name)
 
         cond do
@@ -388,6 +391,9 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
           String.starts_with?(name_str, "Elixir.") -> "application"
           true -> "erlang"
         end
+        
+      _ ->
+        "unknown"
     end
   end
 

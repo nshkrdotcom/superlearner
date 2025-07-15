@@ -44,6 +44,8 @@
   - _Requirements: 2.1, 2.2, 3.1, 3.2, 8.1, 8.2_
 
 - [ ] 5. Implement Horde-specific Arsenal operations
+
+
   - Create HordeRegistryInspect operation to query registry across all nodes
   - Implement HordeSupervisorInspect operation for distributed supervisor trees
   - Add HordeProcessStart operation with node placement preferences
