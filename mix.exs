@@ -60,7 +60,9 @@ defmodule OtpSupervisor.MixProject do
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:playwriter, github: "nshkrdotcom/playwriter", only: [:dev, :test]},
       {:file_system, "~> 1.0"},
-      {:otp_sandbox, path: "./sandbox/examples/otp_sandbox"}
+      {:otp_sandbox, path: "./sandbox/examples/otp_sandbox"},
+      {:libcluster, "~> 3.3"},
+      {:horde, "~> 0.8.0"}
     ]
   end
 

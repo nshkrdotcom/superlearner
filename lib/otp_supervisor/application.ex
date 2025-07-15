@@ -24,6 +24,11 @@ defmodule OtpSupervisor.Application do
       # Arsenal operation registry
       OTPSupervisor.Core.Arsenal.Registry,
 
+      # Distributed tooling
+      OTPSupervisor.Distributed.ToolManager,
+      OTPSupervisor.Distributed.SingleNodeSimulator,
+      OTPSupervisor.Distributed.ClusterStateManager,
+
       # Start a worker by calling: OtpSupervisor.Worker.start_link(arg)
       # {OtpSupervisor.Worker, arg},
       # Start to serve requests, typically the last entry

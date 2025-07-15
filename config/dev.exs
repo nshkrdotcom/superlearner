@@ -50,3 +50,28 @@ config :phoenix, :plug_init_mode, :runtime
 config :otp_supervisor, :node_name, :superlearner@U2401
 config :otp_supervisor, :node_port, 4000
 config :otp_supervisor, :node_role, :primary
+
+# LibCluster configuration for development
+config :libcluster,
+  debug: true,
+  topologies: [
+    superlearner_cluster: [
+      strategy: Cluster.Strategy.Epmd,
+      config: [
+        hosts: [
+          :superlearner@U2401,
+          :superlearner2@U2402
+        ],
+        polling_interval: 5_000
+      ]
+    ]
+  ]
+
+# Distributed tooling development settings
+config :otp_supervisor, :distributed_tooling,
+  # Start in single-node mode for development
+  default_mode: :single_node,
+  enabled: true,
+  # More frequent checks in dev
+  health_check_interval: 2_000,
+  performance_monitoring: true

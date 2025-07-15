@@ -61,6 +61,22 @@ config :logger, :console,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Distributed tooling configuration
+config :otp_supervisor, :distributed_tooling,
+  # Default mode - will be auto-detected at startup
+  default_mode: :auto,
+  # Enable/disable distributed features
+  enabled: true,
+  # Health monitoring settings
+  health_check_interval: 5_000,
+  # Performance monitoring settings
+  performance_monitoring: true
+
+# LibCluster configuration (will be overridden in env-specific configs)
+config :libcluster,
+  debug: false,
+  topologies: []
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
