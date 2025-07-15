@@ -39,6 +39,139 @@ iex -S mix phx.server       # Start with interactive console
 - **`/system`** - System-wide analytics and monitoring
 - **`/api/v1/*`** - RESTful API for programmatic access
 
+## 🔧 Developer Status & Distributed Development
+
+### Current Implementation Status
+✅ **Completed Features:**
+- Distributed tooling foundation with mode switching
+- Single-node simulator for development without real cluster
+- Cluster state manager with real-time topology tracking
+- Distributed Arsenal operations (ClusterHealth, NodeInfo, ClusterTopology, ProcessList)
+- Comprehensive test suite with proper OTP synchronization
+
+🚧 **In Progress:**
+- Horde-specific Arsenal operations
+- Enhanced existing Arsenal operations for distributed support
+- Distributed sandbox management system
+
+### Distributed Development Setup
+
+#### Option 1: Single Node with Simulation (Recommended for Development)
+```bash
+# Start the server normally - simulation mode is enabled by default
+mix phx.server
+# OR with interactive console
+iex -S mix phx.server
+```
+
+#### Option 2: Multi-Node Cluster Setup
+```bash
+# Terminal 1: Start primary node
+./scripts/start_node1.sh
+# This runs: iex --sname superlearner1 --cookie secret_cluster_cookie -S mix phx.server
+# Web interface: http://localhost:4000
+
+# Terminal 2: Start secondary node (if needed)
+./scripts/start_node2.sh
+# This runs: iex --sname superlearner2 --cookie secret_cluster_cookie -S mix
+```
+
+### Testing Distributed Features
+
+#### From IEx Console (when running ./scripts/start_node1.sh):
+```elixir
+# Check cluster status
+Node.list()                                    # List connected nodes
+Node.self()                                    # Current node name
+
+# Test distributed tooling
+OTPSupervisor.Distributed.ToolManager.get_mode()           # Current mode
+OTPSupervisor.Distributed.ToolManager.get_cluster_status() # Cluster info
+
+# Test cluster state management
+OTPSupervisor.Distributed.ClusterStateManager.get_cluster_topology()
+OTPSupervisor.Distributed.ClusterStateManager.get_process_distribution()
+
+# Test single-node simulation
+OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
+OTPSupervisor.Distributed.SingleNodeSimulator.enable_simulation(3)
+OTPSupervisor.Distributed.SingleNodeSimulator.get_simulated_topology()
+```
+
+#### From Command Line (test distributed Arsenal operations):
+```bash
+# Test cluster health endpoint
+curl http://localhost:4000/api/v1/cluster/health
+
+# Test cluster topology
+curl http://localhost:4000/api/v1/cluster/topology
+
+# Test node information (replace with actual node name)
+curl http://localhost:4000/api/v1/cluster/nodes/superlearner1@hostname/info
+
+# Test distributed process list
+curl http://localhost:4000/api/v1/cluster/processes
+```
+
+### Development Commands for Distributed Features
+
+#### Testing & Quality Assurance
+```bash
+# Run distributed-specific tests
+mix test test/otp_supervisor/distributed/
+
+# Run all tests
+mix test
+
+# Check for compiler warnings and dialyzer issues
+mix compile --warnings-as-errors
+mix dialyzer
+
+# Format code
+mix format
+```
+
+#### Debugging Distributed Issues
+```bash
+# Check Erlang statistics (useful for understanding system behavior)
+mix run -e "IO.inspect(:erlang.statistics(:reductions)); IO.inspect(:erlang.statistics(:io)); IO.inspect(:erlang.statistics(:garbage_collection)); IO.inspect(:erlang.statistics(:run_queue))"
+
+# Start with debugging enabled
+MIX_ENV=dev LOG_LEVEL=debug ./scripts/start_node1.sh
+```
+
+#### Cluster Management Scripts
+```bash
+# Check cluster status
+./scripts/cluster_status.sh
+
+# Stop nodes gracefully
+./scripts/stop_node1.sh
+./scripts/stop_node2.sh
+
+# Kill processes on specific ports (if needed)
+./scripts/kill_beam_on_port.sh 4000
+```
+
+### Distributed Architecture Overview
+```
+Distributed Development Tooling
+├── ToolManager                    # Central coordinator for distributed tools
+├── SingleNodeSimulator           # Development mode simulation
+├── ClusterStateManager           # Real-time cluster topology tracking
+└── Arsenal Operations
+    ├── ClusterHealth             # GET /api/v1/cluster/health
+    ├── ClusterTopology           # GET /api/v1/cluster/topology  
+    ├── NodeInfo                  # GET /api/v1/cluster/nodes/:node/info
+    └── ProcessList               # GET /api/v1/cluster/processes
+```
+
+### Configuration Notes
+- **LibCluster**: Configured for automatic node discovery
+- **Horde**: Available for distributed process registry and supervision
+- **Simulation Mode**: Automatically enabled in single-node development
+- **Multi-Node Mode**: Automatically detected when nodes connect
+
 ## 📋 Essential Commands
 
 ### Development & Testing
