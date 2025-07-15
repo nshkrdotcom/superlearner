@@ -272,4 +272,37 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
       }
     }
   end
+
+  @doc """
+  Checks if the project has any distributed tests.
+  """
+  def has_distributed_tests? do
+    # Check common test directories
+    test_patterns = ["test/**/*_test.exs", "test/**/*_test.ex"]
+    
+    case analyze_test_files(test_patterns) do
+      %{needs_cluster: needs_cluster} -> needs_cluster
+      _ -> false
+    end
+  end
+
+  @doc """
+  Checks if a specific file has distributed tests.
+  """
+  def file_has_distributed_tests?(file_path) do
+    case analyze_single_file(file_path) do
+      %{requirements: %{needs_cluster: needs_cluster}} -> needs_cluster
+      _ -> false
+    end
+  end
+
+  @doc """
+  Gets the required cluster size for a specific file.
+  """
+  def get_required_cluster_size(file_path) do
+    case analyze_single_file(file_path) do
+      %{requirements: %{min_cluster_size: size}} -> size
+      _ -> 0
+    end
+  end
 end
