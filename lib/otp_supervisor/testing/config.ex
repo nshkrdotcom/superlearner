@@ -45,10 +45,10 @@ defmodule OTPSupervisor.Testing.Config do
     save_cluster_logs: false,
     debug_cluster_startup: false,
     
-    # Test organization
-    skip_distributed_on_failure: true,
-    retry_cluster_startup: true,
-    max_startup_retries: 3,
+    # Test organization - NO BYPASSES ALLOWED
+    skip_distributed_on_failure: false,  # NEVER skip distributed tests
+    retry_cluster_startup: false,        # No retries - fail fast
+    max_startup_retries: 0,              # No retries allowed
     
     # Resource management
     cleanup_on_exit: true,
@@ -332,11 +332,9 @@ defmodule OTPSupervisor.Testing.Config do
     Map.get(config, timeout_key)
   end
   
-  defp get_environment_retries(config) do
-    case config.detected_environment do
-      :ci -> max(config.max_startup_retries, 2)  # More retries in CI
-      _ -> config.max_startup_retries
-    end
+  defp get_environment_retries(_config) do
+    # NO RETRIES ALLOWED - fail fast for distributed tests
+    0
   end
   
   defp check_port_range_available({start_port, end_port}) do

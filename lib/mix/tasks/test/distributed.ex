@@ -254,7 +254,7 @@ defmodule Mix.Tasks.Test.Distributed do
     end
   end
   
-  defp handle_cluster_startup_failure(diagnosis, opts, test_args) do
+  defp handle_cluster_startup_failure(diagnosis, _opts, _test_args) do
     Mix.shell().error("❌ Cluster startup failed: #{diagnosis.problem}")
     
     # Show solutions
@@ -273,43 +273,11 @@ defmodule Mix.Tasks.Test.Distributed do
       end)
     end
     
-    # Handle fallback strategy
-    case diagnosis.fallback_strategy do
-      :skip_distributed_tests ->
-        if diagnosis.can_skip_tests do
-          Mix.shell().info("\n⏭️  Skipping distributed tests and running others...")
-          run_standard_tests(add_exclude_distributed(test_args))
-        else
-          Mix.shell().error("\n🛑 Cannot skip distributed tests - they are required")
-          System.halt(1)
-        end
-        
-      :reduce_cluster_size ->
-        Mix.shell().info("\n🔄 Retrying with smaller cluster...")
-        reduced_opts = Keyword.put(opts, :cluster_size, 1)
-        run_with_cluster_management(reduced_opts, test_args)
-        
-      :retry_with_delay ->
-        Mix.shell().info("\n⏳ Retrying after delay...")
-        :timer.sleep(5000)
-        run_with_cluster_management(opts, test_args)
-        
-      _ ->
-        Mix.shell().error("\n🛑 Distributed testing failed")
-        System.halt(1)
-    end
+    # NO FALLBACK STRATEGIES - FAIL HARD FOR DISTRIBUTED TESTS
+    Mix.shell().error("\n🛑 Distributed tests require a working cluster - cannot proceed without one")
+    Mix.shell().error("🛑 Fix the cluster issues above and try again")
+    System.halt(1)
   end
   
-  defp add_exclude_distributed(args) do
-    # Add --exclude distributed to skip distributed tests
-    case Enum.find_index(args, &String.starts_with?(&1, "--exclude")) do
-      nil -> 
-        args ++ ["--exclude", "distributed:cluster:multi_node"]
-      index ->
-        # Append to existing exclude
-        exclude_value = Enum.at(args, index + 1)
-        updated_exclude = exclude_value <> ":distributed:cluster:multi_node"
-        List.replace_at(args, index + 1, updated_exclude)
-    end
-  end
+
 end

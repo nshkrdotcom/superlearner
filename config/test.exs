@@ -84,10 +84,10 @@ config :otp_supervisor, :distributed_testing,
   save_cluster_logs: false,
   debug_cluster_startup: false,
   
-  # Error handling and recovery
-  skip_distributed_on_failure: true,  # Skip distributed tests if cluster fails
-  retry_cluster_startup: true,        # Retry cluster startup on failure
-  max_startup_retries: 3,             # Maximum retry attempts
+  # Error handling and recovery - NO BYPASSES ALLOWED
+  skip_distributed_on_failure: false, # NEVER skip distributed tests
+  retry_cluster_startup: false,       # No retries - fail fast
+  max_startup_retries: 0,             # No retries allowed
   
   # Resource management
   cleanup_on_exit: true,              # Always cleanup clusters on exit

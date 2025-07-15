@@ -1,4 +1,4 @@
-# Implementation Plan
+ # Implementation Plan
 
 ## Task Overview
 
@@ -50,12 +50,34 @@ Integrate the robust cluster testing system into Mix's test workflow to make dis
   - Create configuration validation and defaults
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 8.1, 8.2_
 
-- [ ] 5. Create distributed test case template
+- [x] 5. Create distributed test case template
+
+
+
+
+
+
   - Create `lib/otp_supervisor/testing/distributed_test_case.ex` for easy test writing
   - Implement automatic cluster context setup and teardown
   - Add helper functions for cluster operations (cluster_nodes/0, with_cluster_size/2)
   - Implement cluster health checking and waiting utilities
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+
+- [x] 5a. Fix tasks 1-5 to enforce real cluster requirements
+
+
+
+
+
+
+
+  - Remove all fallback/bypass mechanisms that allow tests to pass without clusters
+  - Update configuration to remove `skip_distributed_on_failure` and similar bypass options
+  - Fix AutoClusterManager to fail hard when cluster startup fails for distributed tests
+  - Fix Mix task to fail distributed tests when no cluster available (no graceful skipping)
+  - Fix DistributedTestCase to fail when cluster_nodes() called without active cluster
+  - Ensure all `@tag :distributed` tests require real running clusters, period
+  - _Requirements: 1.2, 1.5, 2.1, 2.2, 4.1, 5.1_
 
 - [ ] 6. Enhance ClusterTestHelper integration
   - Update `test/support/cluster_test_helper.ex` to work with automatic management

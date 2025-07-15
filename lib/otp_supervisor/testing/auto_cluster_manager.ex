@@ -172,11 +172,10 @@ defmodule OTPSupervisor.Testing.AutoClusterManager do
   end
   
   defp determine_cluster_strategy(requirements, state) do
+    # ENFORCE REAL CLUSTER REQUIREMENTS - NO BYPASSES
     cond do
-      not state.config.auto_cluster ->
-        {:skip_cluster, "automatic cluster management disabled"}
-        
       not requirements.needs_cluster ->
+        # Only skip if tests truly don't need a cluster
         {:skip_cluster, "no cluster needed for these tests"}
         
       state.config.reuse_clusters and can_reuse_existing_cluster?(requirements) ->
@@ -186,6 +185,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManager do
         end
         
       true ->
+        # Always start new cluster for distributed tests - no bypasses
         {:start_new, build_cluster_opts(requirements, state)}
     end
   end
@@ -276,69 +276,23 @@ defmodule OTPSupervisor.Testing.AutoClusterManager do
     end
   end
   
-  defp handle_cluster_startup_failure(reason, requirements, state) do
+  defp handle_cluster_startup_failure(reason, _requirements, state) do
     Logger.error("Cluster startup failed: #{inspect(reason)}")
     
     diagnosis = Diagnostics.diagnose_startup_failure(reason)
     
-    fallback_strategy = determine_fallback_strategy(reason, requirements, state)
-    
+    # NO FALLBACK STRATEGIES - FAIL HARD FOR DISTRIBUTED TESTS
     %{
-      problem: diagnosis.problem || "Cluster startup failed",
+      problem: diagnosis.problem || "Cluster startup failed - distributed tests cannot run without a cluster",
       reason: reason,
       solutions: diagnosis.solutions || [],
-      fallback_strategy: fallback_strategy,
-      can_skip_tests: can_skip_distributed_tests?(requirements),
+      fallback_strategy: :fail_hard,  # Always fail hard
+      can_skip_tests: false,          # Never skip distributed tests
       retry_suggestions: build_retry_suggestions(reason, state)
     }
   end
   
-  defp determine_fallback_strategy(reason, requirements, state) do
-    cond do
-      state.config.ci_mode and is_resource_constraint_error?(reason) ->
-        :reduce_cluster_size
-        
-      is_network_error?(reason) ->
-        :retry_with_delay
-        
-      is_port_conflict_error?(reason) ->
-        :retry_with_different_ports
-        
-      can_skip_distributed_tests?(requirements) ->
-        :skip_distributed_tests
-        
-      true ->
-        :fail_fast
-    end
-  end
-  
-  defp is_resource_constraint_error?(reason) do
-    case reason do
-      {:node_startup_failed, _} -> true
-      {:environment_validation_failed, _} -> true
-      _ -> false
-    end
-  end
-  
-  defp is_network_error?(reason) do
-    case reason do
-      {:node_connection_failed, _} -> true
-      :server_ready_timeout -> true
-      _ -> false
-    end
-  end
-  
-  defp is_port_conflict_error?(reason) do
-    case reason do
-      {:port_allocation_failed, _} -> true
-      _ -> false
-    end
-  end
-  
-  defp can_skip_distributed_tests?(requirements) do
-    # Can skip if tests are tagged as optional or if we're in a development environment
-    requirements[:optional] == true or Mix.env() == :dev
-  end
+
   
   defp build_retry_suggestions(reason, _state) do
     base_suggestions = [
