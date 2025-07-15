@@ -53,7 +53,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.NodeInfo do
         if String.contains?(node_str, "@") do
           try do
             node_atom = String.to_atom(node_str)
-            
+
             validated_params =
               params
               |> Map.put("node", node_atom)

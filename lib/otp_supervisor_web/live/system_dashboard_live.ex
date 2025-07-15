@@ -132,14 +132,17 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
   end
 
   defp status_bar_metrics(assigns) do
-    distributed_indicator = case assigns.distributed_status do
-      %{mode: :multi_node, total_nodes: nodes} when nodes > 1 ->
-        %{label: "Cluster", value: "#{nodes} nodes", color: "text-green-400"}
-      %{simulation_enabled: true} ->
-        %{label: "Mode", value: "Simulation", color: "text-yellow-400"}
-      _ ->
-        %{label: "Mode", value: "Single Node", color: "text-blue-400"}
-    end
+    distributed_indicator =
+      case assigns.distributed_status do
+        %{mode: :multi_node, total_nodes: nodes} when nodes > 1 ->
+          %{label: "Cluster", value: "#{nodes} nodes", color: "text-green-400"}
+
+        %{simulation_enabled: true} ->
+          %{label: "Mode", value: "Simulation", color: "text-yellow-400"}
+
+        _ ->
+          %{label: "Mode", value: "Single Node", color: "text-blue-400"}
+      end
 
     [
       %{label: "CPU", value: "#{assigns.system_metrics.cpu_usage}%"},
@@ -449,7 +452,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
     try do
       cluster_status = OTPSupervisor.Distributed.ToolManager.get_cluster_status()
       simulation_enabled = OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
-      
+
       %{
         mode: cluster_status.mode,
         nodes: cluster_status.nodes,
@@ -459,7 +462,7 @@ defmodule OtpSupervisorWeb.Live.SystemDashboardLive do
         total_nodes: length(cluster_status.nodes)
       }
     rescue
-      _ -> 
+      _ ->
         %{
           mode: :single_node,
           nodes: [Node.self()],

@@ -101,8 +101,18 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth do
       topology.nodes
       |> Enum.map(fn node ->
         case OTPSupervisor.Distributed.ClusterStateManager.get_node_info(node) do
-          {:error, _} -> {node, %{status: :unknown, health_score: 0, issues: ["Node information unavailable"], memory_status: :unknown, cpu_status: :unknown}}
-          node_info -> {node, calculate_node_health(node_info)}
+          {:error, _} ->
+            {node,
+             %{
+               status: :unknown,
+               health_score: 0,
+               issues: ["Node information unavailable"],
+               memory_status: :unknown,
+               cpu_status: :unknown
+             }}
+
+          node_info ->
+            {node, calculate_node_health(node_info)}
         end
       end)
       |> Enum.into(%{})

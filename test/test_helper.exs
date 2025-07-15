@@ -9,14 +9,16 @@ Logger.configure(level: :warning)
 unless Node.alive?() do
   # Try to start distributed Erlang with a unique name
   node_name = :"test_primary_#{System.system_time(:millisecond)}@127.0.0.1"
-  
+
   case Node.start(node_name, :shortnames) do
-    {:ok, _} -> 
+    {:ok, _} ->
       Node.set_cookie(:test_cluster_cookie)
       IO.puts("Started distributed Erlang for testing: #{Node.self()}")
+
     {:error, {:already_started, _}} ->
       Node.set_cookie(:test_cluster_cookie)
       IO.puts("Distributed Erlang already started: #{Node.self()}")
+
     {:error, reason} ->
       IO.puts("Warning: Could not start distributed Erlang: #{inspect(reason)}")
       IO.puts("Distributed tests will be skipped")
@@ -30,8 +32,10 @@ end
 
 # Ensure EPMD is running for distributed tests
 case System.cmd("epmd", ["-daemon"], stderr_to_stdout: true) do
-  {_, 0} -> :ok
-  {output, _} -> 
+  {_, 0} ->
+    :ok
+
+  {output, _} ->
     if String.contains?(output, "already running") do
       :ok
     else

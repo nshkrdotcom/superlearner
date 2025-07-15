@@ -59,8 +59,8 @@ config :libcluster,
       strategy: Cluster.Strategy.Epmd,
       config: [
         hosts: [
-          :"superlearner1@U2401",
-          :"superlearner2@U2401"
+          :superlearner1@U2401,
+          :superlearner2@U2401
         ],
         polling_interval: 5_000
       ]

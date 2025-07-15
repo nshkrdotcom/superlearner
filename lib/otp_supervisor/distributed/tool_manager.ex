@@ -1,12 +1,12 @@
 defmodule OTPSupervisor.Distributed.ToolManager do
   @moduledoc """
   Central coordinator for all distributed development tools.
-  
+
   Manages the switching between single-node and multi-node modes,
   coordinates distributed tooling components, and provides a unified
   interface for distributed debugging capabilities.
   """
-  
+
   use GenServer
   require Logger
 
@@ -72,9 +72,9 @@ defmodule OTPSupervisor.Distributed.ToolManager do
   def init(_opts) do
     # Determine initial mode based on cluster state
     initial_mode = determine_initial_mode()
-    
+
     Logger.info("Starting Distributed Tool Manager in #{initial_mode} mode")
-    
+
     # Subscribe to cluster events if LibCluster is available
     if Code.ensure_loaded?(Cluster.Events) do
       apply(Cluster.Events, :subscribe, [])
@@ -92,10 +92,10 @@ defmodule OTPSupervisor.Distributed.ToolManager do
   @impl true
   def handle_call({:set_mode, new_mode}, _from, state) do
     Logger.info("Switching distributed tooling mode from #{state.mode} to #{new_mode}")
-    
+
     # Notify all registered tools about mode change
     notify_tools_mode_change(state.registered_tools, state.mode, new_mode)
-    
+
     new_state = %{state | mode: new_mode}
     {:reply, :ok, new_state}
   end
@@ -109,20 +109,23 @@ defmodule OTPSupervisor.Distributed.ToolManager do
   def handle_call(:get_cluster_status, _from, state) do
     # Update mode based on current cluster state
     current_mode = determine_current_mode()
-    updated_state = if current_mode != state.mode do
-      Logger.info("Mode changed from #{state.mode} to #{current_mode}")
-      %{state | mode: current_mode}
-    else
-      state
-    end
-    
+
+    updated_state =
+      if current_mode != state.mode do
+        Logger.info("Mode changed from #{state.mode} to #{current_mode}")
+        %{state | mode: current_mode}
+      else
+        state
+      end
+
     # Get topology from ClusterStateManager to include simulated nodes
-    topology = try do
-      OTPSupervisor.Distributed.ClusterStateManager.get_cluster_topology()
-    rescue
-      _ -> %{nodes: get_cluster_nodes()}
-    end
-    
+    topology =
+      try do
+        OTPSupervisor.Distributed.ClusterStateManager.get_cluster_topology()
+      rescue
+        _ -> %{nodes: get_cluster_nodes()}
+      end
+
     cluster_status = %{
       mode: updated_state.mode,
       nodes: topology.nodes,
@@ -131,76 +134,74 @@ defmodule OTPSupervisor.Distributed.ToolManager do
       tools: Map.keys(updated_state.registered_tools),
       cluster_info: updated_state.cluster_info
     }
-    
+
     {:reply, cluster_status, updated_state}
   end
 
   @impl true
   def handle_call({:register_tool, tool_module, opts}, _from, state) do
     Logger.debug("Registering distributed tool: #{tool_module}")
-    
+
     tool_info = %{
       module: tool_module,
       opts: opts,
       registered_at: DateTime.utc_now(),
       status: :active
     }
-    
+
     new_tools = Map.put(state.registered_tools, tool_module, tool_info)
     new_state = %{state | registered_tools: new_tools}
-    
+
     {:reply, :ok, new_state}
   end
 
   @impl true
   def handle_call({:unregister_tool, tool_module}, _from, state) do
     Logger.debug("Unregistering distributed tool: #{tool_module}")
-    
+
     new_tools = Map.delete(state.registered_tools, tool_module)
     new_state = %{state | registered_tools: new_tools}
-    
+
     {:reply, :ok, new_state}
   end
 
   @impl true
   def handle_call(:list_active_tools, _from, state) do
-    tools = state.registered_tools
-    |> Enum.map(fn {module, info} -> 
-      Map.put(info, :module, module)
-    end)
-    
+    tools =
+      state.registered_tools
+      |> Enum.map(fn {module, info} ->
+        Map.put(info, :module, module)
+      end)
+
     {:reply, tools, state}
   end
 
   @impl true
   def handle_cast({:simulation_event, event, data}, state) do
     Logger.debug("Received simulation event: #{event} with data: #{inspect(data)}")
-    
+
     # Update cluster info based on simulation events
     new_cluster_info = update_cluster_info_from_simulation(state.cluster_info, event, data)
     new_state = %{state | cluster_info: new_cluster_info}
-    
+
     {:noreply, new_state}
   end
 
   @impl true
   def handle_info({:cluster_event, event}, state) do
     Logger.debug("Received cluster event: #{inspect(event)}")
-    
+
     # Update cluster info and potentially adjust mode
     new_cluster_info = update_cluster_info(state.cluster_info, event)
     new_mode = maybe_adjust_mode(state.mode, event)
-    
-    new_state = %{state | 
-      cluster_info: new_cluster_info,
-      mode: new_mode
-    }
-    
+
+    new_state = %{state | cluster_info: new_cluster_info, mode: new_mode}
+
     # Notify tools if mode changed
     if new_mode != state.mode do
       notify_tools_mode_change(state.registered_tools, state.mode, new_mode)
     end
-    
+
     {:noreply, new_state}
   end
 
@@ -214,37 +215,42 @@ defmodule OTPSupervisor.Distributed.ToolManager do
 
   defp determine_initial_mode do
     case Node.list() do
-      [] -> 
+      [] ->
         # No connected nodes, check if we're configured for clustering
         if cluster_configured?() do
-          :single_node  # Start in single-node mode for development
+          # Start in single-node mode for development
+          :single_node
         else
           :single_node
         end
-      
-      _nodes -> 
-        :multi_node  # We have connected nodes
+
+      _nodes ->
+        # We have connected nodes
+        :multi_node
     end
   end
 
   defp determine_current_mode do
     # Check actual connected nodes
     connected_nodes = Node.list()
-    
+
     # Check if we're in a configured cluster
     cluster_configured = cluster_configured?()
-    
+
     # Check simulation state
-    simulation_enabled = try do
-      OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
-    rescue
-      _ -> false
-    end
-    
+    simulation_enabled =
+      try do
+        OTPSupervisor.Distributed.SingleNodeSimulator.simulation_enabled?()
+      rescue
+        _ -> false
+      end
+
     cond do
       length(connected_nodes) > 0 -> :multi_node
-      simulation_enabled -> :single_node  # Simulation mode
-      cluster_configured -> :single_node  # Configured but not connected
+      # Simulation mode
+      simulation_enabled -> :single_node
+      # Configured but not connected
+      cluster_configured -> :single_node
       true -> :single_node
     end
   end
@@ -268,7 +274,8 @@ defmodule OTPSupervisor.Distributed.ToolManager do
 
   defp get_cluster_nodes do
     case Node.list() do
-      [] -> [Node.self()]  # Single node
+      # Single node
+      [] -> [Node.self()]
       nodes -> [Node.self() | nodes]
     end
   end
@@ -288,41 +295,29 @@ defmodule OTPSupervisor.Distributed.ToolManager do
 
   defp update_cluster_info(cluster_info, _event) do
     # Update cluster information based on events
-    %{cluster_info | 
-      topology: get_cluster_nodes(),
-      last_updated: DateTime.utc_now()
-    }
+    %{cluster_info | topology: get_cluster_nodes(), last_updated: DateTime.utc_now()}
   end
 
   defp update_cluster_info_from_simulation(cluster_info, event, data) do
     # Update cluster information based on simulation events
     case event do
       :simulation_enabled ->
-        %{cluster_info | 
-          topology: data,
-          health: :simulated,
-          last_updated: DateTime.utc_now()
-        }
-      
+        %{cluster_info | topology: data, health: :simulated, last_updated: DateTime.utc_now()}
+
       :simulation_disabled ->
-        %{cluster_info | 
-          topology: [Node.self()],
-          health: :normal,
-          last_updated: DateTime.utc_now()
+        %{
+          cluster_info
+          | topology: [Node.self()],
+            health: :normal,
+            last_updated: DateTime.utc_now()
         }
-      
+
       :node_failed ->
-        %{cluster_info | 
-          health: :degraded,
-          last_updated: DateTime.utc_now()
-        }
-      
+        %{cluster_info | health: :degraded, last_updated: DateTime.utc_now()}
+
       :network_partition ->
-        %{cluster_info | 
-          health: :partitioned,
-          last_updated: DateTime.utc_now()
-        }
-      
+        %{cluster_info | health: :partitioned, last_updated: DateTime.utc_now()}
+
       _ ->
         %{cluster_info | last_updated: DateTime.utc_now()}
     end
@@ -334,17 +329,19 @@ defmodule OTPSupervisor.Distributed.ToolManager do
       {:single_node, {:node_up, _node}} ->
         Logger.info("Node joined cluster, considering switch to multi-node mode")
         :multi_node
-      
+
       {:multi_node, {:node_down, _node}} ->
         case Node.list() do
-          [] -> 
+          [] ->
             Logger.info("All nodes disconnected, switching to single-node mode")
             :single_node
-          _ -> 
-            current_mode  # Stay in multi-node mode
+
+          _ ->
+            # Stay in multi-node mode
+            current_mode
         end
-      
-      _ -> 
+
+      _ ->
         current_mode
     end
   end

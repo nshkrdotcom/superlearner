@@ -104,11 +104,12 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
         _ -> false
       end
 
-    topology = if simulation_enabled do
-      build_simulated_topology()
-    else
-      state.topology
-    end
+    topology =
+      if simulation_enabled do
+        build_simulated_topology()
+      else
+        state.topology
+      end
 
     {:reply, topology, state}
   end
@@ -123,11 +124,12 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
         _ -> false
       end
 
-    node_info = if simulation_enabled do
-      get_simulated_node_info(node, state)
-    else
-      Map.get(state.node_info, node, {:error, :node_not_found})
-    end
+    node_info =
+      if simulation_enabled do
+        get_simulated_node_info(node, state)
+      else
+        Map.get(state.node_info, node, {:error, :node_not_found})
+      end
 
     {:reply, node_info, state}
   end
@@ -142,11 +144,12 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
         _ -> false
       end
 
-    process_distribution = if simulation_enabled do
-      get_simulated_process_distribution()
-    else
-      state.process_distribution
-    end
+    process_distribution =
+      if simulation_enabled do
+        get_simulated_process_distribution()
+      else
+        state.process_distribution
+      end
 
     {:reply, process_distribution, state}
   end
@@ -572,11 +575,11 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
   defp build_simulated_topology do
     try do
       simulated_topology = OTPSupervisor.Distributed.SingleNodeSimulator.get_simulated_topology()
-      
+
       # Include the current real node along with simulated nodes
       all_nodes = [Node.self() | simulated_topology.nodes]
       connected_nodes = simulated_topology.healthy_nodes
-      
+
       %{
         nodes: all_nodes,
         current_node: Node.self(),
@@ -599,22 +602,26 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
     else
       # Check if it's a simulated node
       try do
-        simulated_topology = OTPSupervisor.Distributed.SingleNodeSimulator.get_simulated_topology()
-        
+        simulated_topology =
+          OTPSupervisor.Distributed.SingleNodeSimulator.get_simulated_topology()
+
         if node in simulated_topology.nodes do
           # Return simulated node info
           processes = Map.get(simulated_topology.process_distribution, node, [])
-          
+
           %{
             name: node,
-            status: cond do
-              node in simulated_topology.failed_nodes -> :down
-              node in simulated_topology.partitioned_nodes -> :partitioned
-              true -> :up
-            end,
+            status:
+              cond do
+                node in simulated_topology.failed_nodes -> :down
+                node in simulated_topology.partitioned_nodes -> :partitioned
+                true -> :up
+              end,
             processes: length(processes),
-            memory_usage: %{total: 50_000_000, processes: 25_000_000}, # Simulated values
-            cpu_usage: 15.5, # Simulated CPU usage
+            # Simulated values
+            memory_usage: %{total: 50_000_000, processes: 25_000_000},
+            # Simulated CPU usage
+            cpu_usage: 15.5,
             last_seen: DateTime.utc_now(),
             simulated: true
           }
