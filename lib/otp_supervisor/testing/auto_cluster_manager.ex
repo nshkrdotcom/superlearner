@@ -16,9 +16,9 @@ defmodule OTPSupervisor.Testing.AutoClusterManager do
   require Logger
   
   alias OTPSupervisor.TestCluster.{Manager, Diagnostics}
+  alias OTPSupervisor.Testing.Config
   
   @default_timeout 60_000
-  @cluster_startup_timeout 30_000
   @cluster_cleanup_timeout 10_000
   
   # Client API
@@ -168,20 +168,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManager do
   # Private implementation
   
   defp load_config(opts) do
-    base_config = Application.get_env(:otp_supervisor, :distributed_testing, [])
-    
-    %{
-      auto_cluster: Keyword.get(base_config, :auto_cluster, true),
-      reuse_clusters: Keyword.get(base_config, :reuse_clusters, true),
-      default_cluster_size: Keyword.get(base_config, :default_cluster_size, 2),
-      max_cluster_size: Keyword.get(base_config, :max_cluster_size, 5),
-      cluster_startup_timeout: Keyword.get(base_config, :cluster_startup_timeout, @cluster_startup_timeout),
-      cluster_cleanup_timeout: Keyword.get(base_config, :cluster_cleanup_timeout, @cluster_cleanup_timeout),
-      ci_mode: Keyword.get(base_config, :ci_mode, System.get_env("CI") != nil),
-      ci_cluster_size: Keyword.get(base_config, :ci_cluster_size, 2),
-      verbose_cluster_logs: Keyword.get(base_config, :verbose_cluster_logs, false)
-    }
-    |> Map.merge(Enum.into(opts, %{}))
+    Config.load_config(opts)
   end
   
   defp determine_cluster_strategy(requirements, state) do

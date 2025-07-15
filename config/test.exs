@@ -44,3 +44,52 @@ config :otp_supervisor, OtpSupervisor.Mailer,
   adapter: Swoosh.Adapters.Test,
   # Use unique names per node to avoid conflicts
   local_storage: {:otp_supervisor, :test_mailer_storage}
+
+# Distributed Testing Configuration
+config :otp_supervisor, :distributed_testing,
+  # Automatic cluster management
+  auto_cluster: true,
+  reuse_clusters: true,
+  
+  # Cluster sizing
+  default_cluster_size: 2,
+  max_cluster_size: 5,
+  min_cluster_size: 1,
+  
+  # Environment-specific cluster sizes
+  ci_cluster_size: 2,        # Smaller clusters in CI to conserve resources
+  dev_cluster_size: 2,       # Development cluster size
+  
+  # Timeouts (in milliseconds)
+  cluster_startup_timeout: 30_000,   # 30 seconds
+  cluster_cleanup_timeout: 10_000,   # 10 seconds
+  cluster_health_timeout: 5_000,     # 5 seconds
+  distributed_test_timeout: 60_000,  # 1 minute per distributed test
+  
+  # Port management (different from dev to avoid conflicts)
+  http_port_base: 4200,      # Dev uses 4000, we use 4200+ for tests
+  dist_port_base: 9200,      # Dev uses 9100, we use 9200+ for tests
+  port_range_size: 100,      # Allow 100 ports in each range
+  
+  # CI/CD optimizations
+  # ci_mode: auto-detected at runtime
+  ci_timeout_multiplier: 2.0,        # Double timeouts in CI
+  ci_max_cluster_size: 3,            # Limit cluster size in CI
+  
+  # Development optimizations
+  dev_timeout_multiplier: 1.0,       # Normal timeouts in dev
+  
+  # Debugging and logging
+  verbose_cluster_logs: false,
+  save_cluster_logs: false,
+  debug_cluster_startup: false,
+  
+  # Error handling and recovery
+  skip_distributed_on_failure: true,  # Skip distributed tests if cluster fails
+  retry_cluster_startup: true,        # Retry cluster startup on failure
+  max_startup_retries: 3,             # Maximum retry attempts
+  
+  # Resource management
+  cleanup_on_exit: true,              # Always cleanup clusters on exit
+  force_cleanup_on_error: true,       # Force cleanup even on errors
+  monitor_cluster_health: true        # Monitor cluster health during tests
