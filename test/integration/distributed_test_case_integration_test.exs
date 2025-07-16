@@ -73,11 +73,12 @@ defmodule DistributedTestCaseIntegrationTest do
     current_size = cluster_size()
 
     # This should work since we have at least 2 nodes
-    result = with_cluster_size(2, fn nodes ->
-      assert length(nodes) == 2
-      assert Enum.all?(nodes, &is_atom/1)
-      :test_passed
-    end)
+    result =
+      with_cluster_size(2, fn nodes ->
+        assert length(nodes) == 2
+        assert Enum.all?(nodes, &is_atom/1)
+        :test_passed
+      end)
 
     assert result == :test_passed
   end
@@ -122,12 +123,16 @@ defmodule DistributedTestCaseIntegrationTest do
   @tag :distributed
   test "cluster condition waiting works" do
     # Test waiting for a condition across all nodes
-    result = wait_for_cluster_condition(fn node ->
-      case :rpc.call(node, :erlang, :is_alive, []) do
-        true -> true
-        _ -> false
-      end
-    end, timeout: 10_000)
+    result =
+      wait_for_cluster_condition(
+        fn node ->
+          case :rpc.call(node, :erlang, :is_alive, []) do
+            true -> true
+            _ -> false
+          end
+        end,
+        timeout: 10_000
+      )
 
     assert result == :ok
   end
@@ -140,13 +145,16 @@ defmodule DistributedTestCaseIntegrationTest do
     [node1, node2 | _] = nodes
 
     # Start a simple process on node1
-    pid1 = :rpc.call(node1, :erlang, :spawn, [fn ->
-      receive do
-        {:ping, from} -> send(from, :pong)
-      after
-        5000 -> :timeout
-      end
-    end])
+    pid1 =
+      :rpc.call(node1, :erlang, :spawn, [
+        fn ->
+          receive do
+            {:ping, from} -> send(from, :pong)
+          after
+            5000 -> :timeout
+          end
+        end
+      ])
 
     assert is_pid(pid1)
 

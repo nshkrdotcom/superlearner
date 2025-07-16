@@ -24,6 +24,7 @@ case Process.whereis(OTPSupervisor.Testing.AutoClusterManager) do
   nil ->
     IO.puts("❌ AutoClusterManager is not running")
     System.halt(1)
+
   pid ->
     IO.puts("✅ AutoClusterManager is running (#{inspect(pid)})")
 end
@@ -56,6 +57,7 @@ case OTPSupervisor.Testing.AutoClusterManager.start_cluster_for_tests(requiremen
 
       # Test 4: Cleanup
       IO.puts("🧹 Cleaning up cluster...")
+
       case OTPSupervisor.Testing.AutoClusterManager.cleanup_if_managed() do
         :ok -> IO.puts("✅ Cleanup successful")
         error -> IO.puts("⚠️  Cleanup had issues: #{inspect(error)}")

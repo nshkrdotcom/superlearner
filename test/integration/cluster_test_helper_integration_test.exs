@@ -171,7 +171,8 @@ defmodule ClusterTestHelperIntegrationTest do
     test "existing helper functions remain functional" do
       # Test that all existing functions still work as expected
       assert is_integer(ClusterTestHelper.cluster_size())
-      assert ClusterTestHelper.cluster_size() >= 1  # At least this node
+      # At least this node
+      assert ClusterTestHelper.cluster_size() >= 1
 
       # Test wait_until function
       assert :ok = ClusterTestHelper.wait_until(fn -> true end, 1000)
@@ -245,9 +246,11 @@ defmodule ClusterTestHelperIntegrationTest do
     test "handles AutoClusterManager not running gracefully" do
       # Stop AutoClusterManager temporarily
       original_pid = Process.whereis(AutoClusterManager)
+
       if original_pid do
         Process.exit(original_pid, :kill)
-        :timer.sleep(100)  # Give it time to die
+        # Give it time to die
+        :timer.sleep(100)
       end
 
       # Functions should handle this gracefully
@@ -263,18 +266,20 @@ defmodule ClusterTestHelperIntegrationTest do
 
     test "handles concurrent access safely" do
       # Spawn multiple processes trying to use cluster functions
-      tasks = for i <- 1..5 do
-        Task.async(fn ->
-          nodes = ClusterTestHelper.get_cluster_nodes()
-          status = ClusterTestHelper.check_auto_cluster_status(1)
-          {i, nodes, status}
-        end)
-      end
+      tasks =
+        for i <- 1..5 do
+          Task.async(fn ->
+            nodes = ClusterTestHelper.get_cluster_nodes()
+            status = ClusterTestHelper.check_auto_cluster_status(1)
+            {i, nodes, status}
+          end)
+        end
 
       results = Task.await_many(tasks, 5000)
 
       # All should complete without crashing
       assert length(results) == 5
+
       Enum.each(results, fn {i, nodes, status} ->
         assert is_integer(i)
         assert is_list(nodes)

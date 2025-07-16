@@ -33,9 +33,12 @@ defmodule OTPSupervisor.TestCluster.HostnameResolver do
     # Try strategies in order until one works
     # For distributed Erlang with longnames, prefer IP addresses and localhost
     strategies = [
-      &try_ip_address/0,      # 127.0.0.1 - best for distributed Erlang longnames
-      &try_localhost/0,       # localhost - good fallback
-      &try_system_hostname/0  # system hostname - last resort (may not work with longnames)
+      # 127.0.0.1 - best for distributed Erlang longnames
+      &try_ip_address/0,
+      # localhost - good fallback
+      &try_localhost/0,
+      # system hostname - last resort (may not work with longnames)
+      &try_system_hostname/0
     ]
 
     Enum.reduce_while(strategies, {:error, :no_hostname}, fn strategy, _acc ->

@@ -57,27 +57,39 @@ config :otp_supervisor, :distributed_testing,
   min_cluster_size: 1,
 
   # Environment-specific cluster sizes
-  ci_cluster_size: 2,        # Smaller clusters in CI to conserve resources
-  dev_cluster_size: 2,       # Development cluster size
+  # Smaller clusters in CI to conserve resources
+  ci_cluster_size: 2,
+  # Development cluster size
+  dev_cluster_size: 2,
 
   # Timeouts (in milliseconds)
-  cluster_startup_timeout: 30_000,   # 30 seconds
-  cluster_cleanup_timeout: 10_000,   # 10 seconds
-  cluster_health_timeout: 5_000,     # 5 seconds
-  distributed_test_timeout: 60_000,  # 1 minute per distributed test
+  # 30 seconds
+  cluster_startup_timeout: 30_000,
+  # 10 seconds
+  cluster_cleanup_timeout: 10_000,
+  # 5 seconds
+  cluster_health_timeout: 5_000,
+  # 1 minute per distributed test
+  distributed_test_timeout: 60_000,
 
   # Port management (different from dev to avoid conflicts)
-  http_port_base: 4200,      # Dev uses 4000, we use 4200+ for tests
-  dist_port_base: 9200,      # Dev uses 9100, we use 9200+ for tests
-  port_range_size: 100,      # Allow 100 ports in each range
+  # Dev uses 4000, we use 4200+ for tests
+  http_port_base: 4200,
+  # Dev uses 9100, we use 9200+ for tests
+  dist_port_base: 9200,
+  # Allow 100 ports in each range
+  port_range_size: 100,
 
   # CI/CD optimizations
   # ci_mode: auto-detected at runtime
-  ci_timeout_multiplier: 2.0,        # Double timeouts in CI
-  ci_max_cluster_size: 3,            # Limit cluster size in CI
+  # Double timeouts in CI
+  ci_timeout_multiplier: 2.0,
+  # Limit cluster size in CI
+  ci_max_cluster_size: 3,
 
   # Development optimizations
-  dev_timeout_multiplier: 1.0,       # Normal timeouts in dev
+  # Normal timeouts in dev
+  dev_timeout_multiplier: 1.0,
 
   # Debugging and logging
   verbose_cluster_logs: false,
@@ -85,11 +97,17 @@ config :otp_supervisor, :distributed_testing,
   debug_cluster_startup: false,
 
   # Error handling and recovery - NO BYPASSES ALLOWED
-  skip_distributed_on_failure: false, # NEVER skip distributed tests
-  retry_cluster_startup: false,       # No retries - fail fast
-  max_startup_retries: 0,             # No retries allowed
+  # NEVER skip distributed tests
+  skip_distributed_on_failure: false,
+  # No retries - fail fast
+  retry_cluster_startup: false,
+  # No retries allowed
+  max_startup_retries: 0,
 
   # Resource management
-  cleanup_on_exit: true,              # Always cleanup clusters on exit
-  force_cleanup_on_error: true,       # Force cleanup even on errors
-  monitor_cluster_health: true        # Monitor cluster health during tests
+  # Always cleanup clusters on exit
+  cleanup_on_exit: true,
+  # Force cleanup even on errors
+  force_cleanup_on_error: true,
+  # Monitor cluster health during tests
+  monitor_cluster_health: true

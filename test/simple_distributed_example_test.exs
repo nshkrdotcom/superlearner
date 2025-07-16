@@ -57,13 +57,16 @@ defmodule SimpleDistributedExampleTest do
       [node1, node2, node3] = selected_nodes
 
       # Start a process on node1 that waits for messages
-      test_pid = :rpc.call(node1, :erlang, :spawn, [fn ->
-        receive do
-          {:test_message, from} -> send(from, {:response, node1})
-        after
-          5000 -> :timeout
-        end
-      end])
+      test_pid =
+        :rpc.call(node1, :erlang, :spawn, [
+          fn ->
+            receive do
+              {:test_message, from} -> send(from, {:response, node1})
+            after
+              5000 -> :timeout
+            end
+          end
+        ])
 
       # Send message from node2
       :rpc.call(node2, :erlang, :send, [test_pid, {:test_message, self()}])
@@ -100,7 +103,8 @@ defmodule SimpleDistributedExampleTest do
     Enum.each(process_count_results, fn {node, result} ->
       assert {:ok, count} = result
       assert is_integer(count)
-      assert count > 0  # Should have some processes running
+      # Should have some processes running
+      assert count > 0
       assert node in nodes
     end)
   end
@@ -122,15 +126,17 @@ defmodule SimpleDistributedExampleTest do
     end)
 
     # Test a more complex function
-    memory_results = cluster_call(fn ->
-      :erlang.memory(:total)
-    end)
+    memory_results =
+      cluster_call(fn ->
+        :erlang.memory(:total)
+      end)
 
     # All nodes should return memory information
     Enum.each(memory_results, fn {node, result} ->
       assert {:ok, memory} = result
       assert is_integer(memory)
-      assert memory > 0  # Should have some memory usage
+      # Should have some memory usage
+      assert memory > 0
       assert node in nodes
     end)
   end
@@ -143,9 +149,12 @@ defmodule SimpleDistributedExampleTest do
     [node1, node2 | _] = nodes
 
     # Spawn a process on node1 that acts as a simple echo server
-    echo_pid = :rpc.call(node1, :erlang, :spawn, [fn ->
-      echo_loop()
-    end])
+    echo_pid =
+      :rpc.call(node1, :erlang, :spawn, [
+        fn ->
+          echo_loop()
+        end
+      ])
 
     assert is_pid(echo_pid)
 
@@ -177,12 +186,15 @@ defmodule SimpleDistributedExampleTest do
     assert elapsed < 2_000
 
     # Test cluster condition waiting
-    assert wait_for_cluster_condition(fn node ->
-      case :rpc.call(node, :erlang, :is_alive, []) do
-        true -> true
-        _ -> false
-      end
-    end, timeout: 5_000) == :ok
+    assert wait_for_cluster_condition(
+             fn node ->
+               case :rpc.call(node, :erlang, :is_alive, []) do
+                 true -> true
+                 _ -> false
+               end
+             end,
+             timeout: 5_000
+           ) == :ok
   end
 
   # Helper function for the echo server

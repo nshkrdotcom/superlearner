@@ -56,11 +56,12 @@ defmodule ExampleDistributedTest do
       assert length(results) == 3
 
       # Verify all nodes are different and calls succeeded
-      node_names = Enum.map(results, fn {node, {:ok, node_name}} ->
-        assert node == node_name
-        assert node in nodes
-        node
-      end)
+      node_names =
+        Enum.map(results, fn {node, {:ok, node_name}} ->
+          assert node == node_name
+          assert node in nodes
+          node
+        end)
 
       assert length(Enum.uniq(node_names)) == 3
 
@@ -69,13 +70,16 @@ defmodule ExampleDistributedTest do
 
       # Test distributed process registry
       # Start a process on node1
-      test_pid = :rpc.call(node1, :erlang, :spawn, [fn ->
-        receive do
-          {:test, from} -> send(from, {:ok, node1})
-        after
-          5000 -> :timeout
-        end
-      end])
+      test_pid =
+        :rpc.call(node1, :erlang, :spawn, [
+          fn ->
+            receive do
+              {:test, from} -> send(from, {:ok, node1})
+            after
+              5000 -> :timeout
+            end
+          end
+        ])
 
       # Register it globally
       :rpc.call(node1, :global, :register_name, [:test_process, test_pid])
@@ -118,15 +122,18 @@ defmodule ExampleDistributedTest do
 
     # Test distributed message passing for data synchronization
     # Start a data sync process on node2
-    sync_pid = :rpc.call(node2, :erlang, :spawn, [fn ->
-      receive do
-        {:sync_data, data} ->
-          # Create local table and insert data
-          local_table = :ets.new(:local_sync_table, [:named_table, :public])
-          Enum.each(data, fn item -> :ets.insert(local_table, item) end)
-          send(self(), :sync_complete)
-      end
-    end])
+    sync_pid =
+      :rpc.call(node2, :erlang, :spawn, [
+        fn ->
+          receive do
+            {:sync_data, data} ->
+              # Create local table and insert data
+              local_table = :ets.new(:local_sync_table, [:named_table, :public])
+              Enum.each(data, fn item -> :ets.insert(local_table, item) end)
+              send(self(), :sync_complete)
+          end
+        end
+      ])
 
     # Get all data from node1 and send to node2
     all_data = :rpc.call(node1, :ets, :tab2list, [table_name])
@@ -155,16 +162,24 @@ defmodule ExampleDistributedTest do
     # All calls should fail gracefully with proper error information
     Enum.each(results, fn {node, result} ->
       assert {:error, reason} = result
+
       assert reason in [:undef, {:badrpc, :EXIT}] or
-             (is_tuple(reason) and elem(reason, 0) == :undef)
+               (is_tuple(reason) and elem(reason, 0) == :undef)
+
       assert node in nodes
     end)
 
     # Test timeout handling
-    timeout_results = cluster_call(fn ->
-      :timer.sleep(100)  # Short delay
-      :ok
-    end, 50)  # Very short timeout
+    timeout_results =
+      cluster_call(
+        fn ->
+          # Short delay
+          :timer.sleep(100)
+          :ok
+        end,
+        # Very short timeout
+        50
+      )
 
     # Some or all calls might timeout, but should handle gracefully
     Enum.each(timeout_results, fn {node, result} ->
@@ -190,10 +205,14 @@ defmodule ExampleDistributedTest do
     start_time = System.monotonic_time(:millisecond)
 
     # Execute CPU-intensive work on all nodes simultaneously
-    work_results = cluster_call(fn ->
-      # Simulate some work
-      Enum.reduce(1..1000, 0, fn i, acc -> acc + i end)
-    end, 10_000)
+    work_results =
+      cluster_call(
+        fn ->
+          # Simulate some work
+          Enum.reduce(1..1000, 0, fn i, acc -> acc + i end)
+        end,
+        10_000
+      )
 
     end_time = System.monotonic_time(:millisecond)
     elapsed = end_time - start_time
@@ -203,24 +222,27 @@ defmodule ExampleDistributedTest do
 
     # All results should be the same (sum of 1..1000 = 500500)
     Enum.each(work_results, fn {node, result} ->
-      assert {:ok, 500500} = result
+      assert {:ok, 500_500} = result
       assert node in nodes
     end)
 
     # Parallel execution should be reasonably fast
-    assert elapsed < 5_000  # Should complete within 5 seconds
+    # Should complete within 5 seconds
+    assert elapsed < 5_000
 
     # Test load balancing by measuring response times
-    response_times = Enum.map(nodes, fn node ->
-      start = System.monotonic_time(:microsecond)
-      {:ok, _} = :rpc.call(node, :erlang, :node, [])
-      finish = System.monotonic_time(:microsecond)
-      {node, finish - start}
-    end)
+    response_times =
+      Enum.map(nodes, fn node ->
+        start = System.monotonic_time(:microsecond)
+        {:ok, _} = :rpc.call(node, :erlang, :node, [])
+        finish = System.monotonic_time(:microsecond)
+        {node, finish - start}
+      end)
 
     # All nodes should respond reasonably quickly
     Enum.each(response_times, fn {node, time} ->
-      assert time < 100_000  # Less than 100ms
+      # Less than 100ms
+      assert time < 100_000
       assert node in nodes
     end)
   end

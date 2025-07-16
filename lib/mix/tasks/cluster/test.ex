@@ -125,7 +125,8 @@ defmodule Mix.Tasks.Cluster.Test do
       force_stop_cluster()
 
       # Verify cleanup worked
-      :timer.sleep(2000)  # Give processes time to die
+      # Give processes time to die
+      :timer.sleep(2000)
       final_status = check_real_cluster_status()
 
       if final_status.overall_status == :stopped do
@@ -144,9 +145,13 @@ defmodule Mix.Tasks.Cluster.Test do
           case Manager.stop_cluster() do
             :ok ->
               Mix.shell().info("ℹ️  Manager cleanup completed (no active nodes)")
+
             {:error, reason} ->
-              Mix.shell().info("ℹ️  Manager cleanup failed: #{inspect(reason)} (cluster was already stopped)")
+              Mix.shell().info(
+                "ℹ️  Manager cleanup failed: #{inspect(reason)} (cluster was already stopped)"
+              )
           end
+
         {:error, _} ->
           Mix.shell().info("ℹ️  Manager not available (cluster was already stopped)")
       end
@@ -183,9 +188,11 @@ defmodule Mix.Tasks.Cluster.Test do
             Mix.shell().info("")
             Mix.shell().info("📋 Manager Status:")
             display_status(manager_status)
+
           {:error, _} ->
             Mix.shell().info("📋 Manager Status: Not available")
         end
+
       {:error, _} ->
         Mix.shell().info("📋 Manager Status: Not running")
     end
@@ -481,19 +488,22 @@ defmodule Mix.Tasks.Cluster.Test do
 
     killed_any = false
 
-    killed_any = Enum.reduce(patterns, killed_any, fn pattern, acc ->
-      case System.cmd("pkill", ["-f", pattern], stderr_to_stdout: true) do
-        {_, 0} ->
-          Mix.shell().info("  ✅ Killed processes matching: #{pattern}")
-          true
-        {_, 1} ->
-          Mix.shell().info("  ℹ️  No processes found for: #{pattern}")
-          acc
-        {error, _} ->
-          Mix.shell().info("  ⚠️  Failed to kill #{pattern}: #{error}")
-          acc
-      end
-    end)
+    killed_any =
+      Enum.reduce(patterns, killed_any, fn pattern, acc ->
+        case System.cmd("pkill", ["-f", pattern], stderr_to_stdout: true) do
+          {_, 0} ->
+            Mix.shell().info("  ✅ Killed processes matching: #{pattern}")
+            true
+
+          {_, 1} ->
+            Mix.shell().info("  ℹ️  No processes found for: #{pattern}")
+            acc
+
+          {error, _} ->
+            Mix.shell().info("  ⚠️  Failed to kill #{pattern}: #{error}")
+            acc
+        end
+      end)
 
     # Kill processes on test ports
     config = Application.get_env(:otp_supervisor, :distributed_testing, [])
@@ -512,6 +522,7 @@ defmodule Mix.Tasks.Cluster.Test do
             Enum.each(pids, fn pid ->
               System.cmd("kill", ["-9", pid])
             end)
+
             Mix.shell().info("  ✅ Killed #{length(pids)} processes on port #{port}")
             killed_any = true
           end
@@ -566,6 +577,7 @@ defmodule Mix.Tasks.Cluster.Test do
           |> String.trim()
           |> String.split("\n")
           |> Enum.reject(&(&1 == ""))
+
         {_, _} ->
           []
       end
@@ -578,6 +590,7 @@ defmodule Mix.Tasks.Cluster.Test do
           |> String.split("\n")
           |> Enum.filter(&String.contains?(&1, "test_node"))
           |> Enum.map(&String.trim/1)
+
         {_, _} ->
           []
       end
@@ -594,11 +607,13 @@ defmodule Mix.Tasks.Cluster.Test do
     case System.cmd("ps", ["-p", pid, "-o", "pid,ppid,cmd"], stderr_to_stdout: true) do
       {output, 0} ->
         lines = String.split(output, "\n")
+
         if length(lines) > 1 do
           Enum.at(lines, 1) |> String.trim()
         else
           "Unknown process"
         end
+
       {_, _} ->
         "Process info unavailable"
     end
@@ -610,6 +625,7 @@ defmodule Mix.Tasks.Cluster.Test do
     cond do
       running_ports > 0 or not Enum.empty?(test_processes) or not Enum.empty?(epmd_nodes) ->
         :running
+
       true ->
         :stopped
     end
@@ -619,6 +635,7 @@ defmodule Mix.Tasks.Cluster.Test do
     case status.overall_status do
       :running ->
         Mix.shell().info("🟢 REAL STATUS: CLUSTER IS RUNNING")
+
       :stopped ->
         Mix.shell().info("🔴 REAL STATUS: NO CLUSTER DETECTED")
     end
@@ -630,9 +647,11 @@ defmodule Mix.Tasks.Cluster.Test do
       case port_status do
         :running ->
           Mix.shell().info("  🟢 Port #{port}: OCCUPIED by #{length(pids)} process(es)")
+
           if process_info do
             Mix.shell().info("     Process: #{process_info}")
           end
+
         :not_running ->
           Mix.shell().info("  ⚪ Port #{port}: Available")
       end
@@ -641,6 +660,7 @@ defmodule Mix.Tasks.Cluster.Test do
     if not Enum.empty?(status.test_processes) do
       Mix.shell().info("")
       Mix.shell().info("🔍 Test Node Processes:")
+
       Enum.each(status.test_processes, fn pid ->
         process_info = get_process_info(pid)
         Mix.shell().info("  • PID #{pid}: #{process_info}")
@@ -650,6 +670,7 @@ defmodule Mix.Tasks.Cluster.Test do
     if not Enum.empty?(status.epmd_nodes) do
       Mix.shell().info("")
       Mix.shell().info("📡 EPMD Registered Nodes:")
+
       Enum.each(status.epmd_nodes, fn node ->
         Mix.shell().info("  • #{node}")
       end)

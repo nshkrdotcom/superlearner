@@ -45,7 +45,7 @@ dist_base = Keyword.get(config, :dist_port_base, :not_found)
 IO.puts("   HTTP port base: #{inspect(http_base)}")
 IO.puts("   Dist port base: #{inspect(dist_base)}")
 
-if http_base == 4200 and dist_base == 9200 then
+if http_base == 4200 and dist_base == 9200 do
   IO.puts("✅ Configuration is correct")
 else
   IO.puts("❌ Configuration issue detected")

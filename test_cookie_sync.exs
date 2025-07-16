@@ -24,6 +24,7 @@ else
       Node.set_cookie(:test_cluster_cookie)
       IO.puts("✅ Started distributed Erlang: #{Node.self()}")
       IO.puts("   Cookie set to: #{Node.get_cookie()}")
+
     {:error, reason} ->
       IO.puts("❌ Failed to start distributed Erlang: #{inspect(reason)}")
       System.halt(1)
@@ -55,6 +56,7 @@ end
 
 # Test EPMD registration
 IO.puts("\n🔍 Testing EPMD registration...")
+
 case System.cmd("epmd", ["-names"], stderr_to_stdout: true) do
   {output, 0} ->
     IO.puts("✅ EPMD is running:")

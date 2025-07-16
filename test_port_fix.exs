@@ -39,6 +39,7 @@ IO.puts("   All available: #{availability.all_available}")
 
 # Test 4: Test diagnostics with new port checking
 IO.puts("\n4. Testing Diagnostics.check_prerequisites()...")
+
 case OTPSupervisor.Testing.Config.load_config() do
   config when is_map(config) ->
     IO.puts("   ✅ Config system working")
@@ -51,16 +52,20 @@ case OTPSupervisor.Testing.Config.load_config() do
 
       {:error, failed_checks} ->
         IO.puts("   ⚠️  Some checks failed:")
+
         Enum.each(failed_checks, fn {name, result} ->
           IO.puts("     #{name}: #{inspect(result)}")
         end)
 
         # Check if it's still the old port conflict
         port_errors = Enum.filter(failed_checks, fn {name, _} -> name == "Ports" end)
+
         if not Enum.empty?(port_errors) do
           IO.puts("   🔍 Port errors found - let's see if they're the new ports or old ones...")
+
           Enum.each(port_errors, fn {_, {:error, msg}} ->
             IO.puts("     Error: #{msg}")
+
             if String.contains?(msg, "4100") or String.contains?(msg, "4101") do
               IO.puts("     ❌ Still using old hardcoded ports - fix didn't work")
             else

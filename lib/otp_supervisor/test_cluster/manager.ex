@@ -185,7 +185,8 @@ defmodule OTPSupervisor.TestCluster.Manager do
     env = [
       {"PHX_PORT", Integer.to_string(config.http_port)},
       {"PORT", Integer.to_string(config.http_port)},
-      {"MIX_ENV", "test"},  # Use test environment, not dev
+      # Use test environment, not dev
+      {"MIX_ENV", "test"},
       {"NODE_NAME", Atom.to_string(config.name)},
       {"PHX_SERVER", "true"},
       # CRITICAL: Pass cookie via environment to ensure it's set early
@@ -197,9 +198,14 @@ defmodule OTPSupervisor.TestCluster.Manager do
     # Use elixir command with proper distributed Erlang flags, then run mix
     # This is the correct way to start a distributed Mix application
     cmd_args = [
-      "--name", Atom.to_string(config.name),
-      "--cookie", Atom.to_string(config.cookie),
-      "-S", "mix", "run", "--no-halt",
+      "--name",
+      Atom.to_string(config.name),
+      "--cookie",
+      Atom.to_string(config.cookie),
+      "-S",
+      "mix",
+      "run",
+      "--no-halt",
       "--eval",
       """
       IO.puts("Node started: \#{Node.self()}");
@@ -427,6 +433,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
           {:ok, _} ->
             Logger.debug("Server #{name} is ready on #{hostname}:#{server_info.http_port}")
             {name, :ready}
+
           {:error, reason} ->
             Logger.debug("Server #{name} not ready: #{inspect(reason)}")
             {name, :not_ready}
@@ -441,8 +448,6 @@ defmodule OTPSupervisor.TestCluster.Manager do
       true -> {:none_ready, total_count}
     end
   end
-
-
 
   defp sync_code_to_cluster(_nodes) do
     Logger.info("Code synchronization not needed for Phoenix servers")
@@ -523,6 +528,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
 
       # Kill any elixir processes with the node name
       node_name = Map.get(server_info, :name, "unknown")
+
       case System.cmd("pkill", ["-f", "#{node_name}"], stderr_to_stdout: true) do
         {_, 0} -> Logger.debug("Killed processes matching #{node_name}")
         {_, 1} -> Logger.debug("No processes found matching #{node_name}")
@@ -590,6 +596,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
             http_port: node_info.http_port,
             discovered: true
           }
+
         :pang ->
           %{
             healthy: false,
@@ -688,13 +695,14 @@ defmodule OTPSupervisor.TestCluster.Manager do
 
     # Check for running processes on test ports
     discovered_nodes =
-      (http_base..(http_base + 5))
+      http_base..(http_base + 5)
       |> Enum.with_index()
       |> Enum.reduce(%{}, fn {port, index}, acc ->
         case discover_node_on_port(port, index + 1) do
           {:ok, node_info} ->
             node_key = :"node#{index + 1}"
             Map.put(acc, node_key, node_info)
+
           :not_found ->
             acc
         end
@@ -723,6 +731,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
         if not Enum.empty?(pids) do
           # Try to determine if this is a test node
           pid = List.first(pids)
+
           case get_process_command(pid) do
             {:ok, cmd} ->
               if String.contains?(cmd, "test_node#{node_index}@127.0.0.1") do
@@ -733,22 +742,30 @@ defmodule OTPSupervisor.TestCluster.Manager do
                 case Node.ping(node_name) do
                   :pong ->
                     Logger.debug("Discovered active test node: #{node_name} on port #{port}")
-                    {:ok, %{
-                      name: node_name,
-                      http_port: port,
-                      status: :running,
-                      url: "http://127.0.0.1:#{port}",
-                      hostname: "127.0.0.1",
-                      discovered: true  # Mark as discovered, not started by this Manager
-                    }}
+
+                    {:ok,
+                     %{
+                       name: node_name,
+                       http_port: port,
+                       status: :running,
+                       url: "http://127.0.0.1:#{port}",
+                       hostname: "127.0.0.1",
+                       # Mark as discovered, not started by this Manager
+                       discovered: true
+                     }}
+
                   :pang ->
-                    Logger.debug("Found process on port #{port} but node #{node_name} not responding")
+                    Logger.debug(
+                      "Found process on port #{port} but node #{node_name} not responding"
+                    )
+
                     :not_found
                 end
               else
                 Logger.debug("Process on port #{port} is not a test node")
                 :not_found
               end
+
             {:error, _} ->
               Logger.debug("Could not get command for process on port #{port}")
               :not_found
@@ -767,6 +784,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
       {output, 0} ->
         cmd = String.trim(output)
         {:ok, cmd}
+
       {_, _} ->
         {:error, :process_not_found}
     end
@@ -781,9 +799,11 @@ defmodule OTPSupervisor.TestCluster.Manager do
         {:ok, _} ->
           Node.set_cookie(:test_cluster_cookie)
           Logger.debug("Started distributed Erlang for discovery: #{Node.self()}")
+
         {:error, {:already_started, _}} ->
           Node.set_cookie(:test_cluster_cookie)
           Logger.debug("Using existing distributed node: #{Node.self()}")
+
         {:error, reason} ->
           Logger.warning("Failed to start distributed Erlang for discovery: #{inspect(reason)}")
       end

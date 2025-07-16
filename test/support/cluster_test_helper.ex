@@ -381,7 +381,10 @@ defmodule ClusterTestHelper do
         :ok
 
       {manual_result, auto_result} ->
-        Logger.warning("Cleanup completed with issues: manual=#{inspect(manual_result)}, auto=#{inspect(auto_result)}")
+        Logger.warning(
+          "Cleanup completed with issues: manual=#{inspect(manual_result)}, auto=#{inspect(auto_result)}"
+        )
+
         {:warning, {manual_result, auto_result}}
     end
   end
@@ -587,8 +590,14 @@ defmodule ClusterTestHelper do
       dist_base = Keyword.get(config, :dist_port_base, 9200)
 
       test_ports = [
-        http_base, http_base + 1, http_base + 2, http_base + 3,
-        dist_base, dist_base + 1, dist_base + 2, dist_base + 3
+        http_base,
+        http_base + 1,
+        http_base + 2,
+        http_base + 3,
+        dist_base,
+        dist_base + 1,
+        dist_base + 2,
+        dist_base + 3
       ]
 
       Enum.each(test_ports, fn port ->

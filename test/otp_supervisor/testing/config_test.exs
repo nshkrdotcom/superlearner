@@ -75,9 +75,11 @@ defmodule OTPSupervisor.Testing.ConfigTest do
     test "raises on port range overlap" do
       # Load base config and manually set overlapping ports
       base_config = Config.load_config()
-      invalid_config = base_config
-                      |> Map.put(:http_port_base, 9200)
-                      |> Map.put(:dist_port_base, 9200)
+
+      invalid_config =
+        base_config
+        |> Map.put(:http_port_base, 9200)
+        |> Map.put(:dist_port_base, 9200)
 
       assert_raise ArgumentError, ~r/HTTP and distribution port ranges overlap/, fn ->
         Config.validate_config(invalid_config)
@@ -87,11 +89,12 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
   describe "get_port_ranges/1" do
     test "returns correct port ranges" do
-      config = Config.load_config(
-        http_port_base: 5000,
-        dist_port_base: 6000,
-        port_range_size: 50
-      )
+      config =
+        Config.load_config(
+          http_port_base: 5000,
+          dist_port_base: 6000,
+          port_range_size: 50
+        )
 
       ranges = Config.get_port_ranges(config)
 
@@ -144,10 +147,11 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
   describe "get_cluster_config/1" do
     test "returns environment-adjusted cluster configuration" do
-      config = Config.load_config(
-        default_cluster_size: 3,
-        cluster_startup_timeout: 20_000
-      )
+      config =
+        Config.load_config(
+          default_cluster_size: 3,
+          cluster_startup_timeout: 20_000
+        )
 
       cluster_config = Config.get_cluster_config(config)
 
@@ -162,17 +166,20 @@ defmodule OTPSupervisor.Testing.ConfigTest do
       System.put_env("CI", "true")
 
       try do
-        config = Config.load_config(
-          ci_cluster_size: 2,
-          ci_timeout_multiplier: 3.0,
-          cluster_startup_timeout: 10_000
-        )
+        config =
+          Config.load_config(
+            ci_cluster_size: 2,
+            ci_timeout_multiplier: 3.0,
+            cluster_startup_timeout: 10_000
+          )
 
         cluster_config = Config.get_cluster_config(config)
 
-        assert cluster_config.cluster_size == 2  # CI cluster size
+        # CI cluster size
+        assert cluster_config.cluster_size == 2
         # The timeout should be adjusted by the CI multiplier during load_config
-        assert cluster_config.startup_timeout == 30_000  # 10_000 * 3.0
+        # 10_000 * 3.0
+        assert cluster_config.startup_timeout == 30_000
       after
         # Restore environment
         case original_ci do
@@ -185,11 +192,12 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
   describe "configuration with live cluster scenarios" do
     test "configuration is compatible with AutoClusterManager" do
-      config = Config.load_config(
-        default_cluster_size: 2,
-        cluster_startup_timeout: 15_000,
-        auto_cluster: true
-      )
+      config =
+        Config.load_config(
+          default_cluster_size: 2,
+          cluster_startup_timeout: 15_000,
+          auto_cluster: true
+        )
 
       # Verify configuration can be used by AutoClusterManager
       cluster_config = Config.get_cluster_config(config)
@@ -207,7 +215,7 @@ defmodule OTPSupervisor.Testing.ConfigTest do
       {dist_start, dist_end} = dist_range
 
       # Ensure no overlap
-      refute (http_start <= dist_end and dist_start <= http_end)
+      refute http_start <= dist_end and dist_start <= http_end
     end
 
     test "CI configuration produces smaller, faster clusters" do
@@ -216,23 +224,29 @@ defmodule OTPSupervisor.Testing.ConfigTest do
       System.put_env("CI", "true")
 
       try do
-        ci_config = Config.load_config(
-          default_cluster_size: 4,  # Large default
-          ci_cluster_size: 2,       # Smaller for CI
-          cluster_startup_timeout: 30_000,
-          ci_timeout_multiplier: 0.5  # Faster timeouts in CI
-        )
+        ci_config =
+          Config.load_config(
+            # Large default
+            default_cluster_size: 4,
+            # Smaller for CI
+            ci_cluster_size: 2,
+            cluster_startup_timeout: 30_000,
+            # Faster timeouts in CI
+            ci_timeout_multiplier: 0.5
+          )
 
         cluster_config = Config.get_cluster_config(ci_config)
 
         # Should use CI-specific values
         assert cluster_config.cluster_size == 2
-        assert cluster_config.startup_timeout == 15_000  # 30_000 * 0.5
+        # 30_000 * 0.5
+        assert cluster_config.startup_timeout == 15_000
 
         # Configuration should be valid for constrained environments
-        assert cluster_config.cluster_size <= 3  # Reasonable for CI
-        assert cluster_config.startup_timeout <= 30_000  # Not too long for CI
-
+        # Reasonable for CI
+        assert cluster_config.cluster_size <= 3
+        # Not too long for CI
+        assert cluster_config.startup_timeout <= 30_000
       after
         case original_ci do
           nil -> System.delete_env("CI")
@@ -242,10 +256,13 @@ defmodule OTPSupervisor.Testing.ConfigTest do
     end
 
     test "port configuration avoids conflicts with development servers" do
-      config = Config.load_config(
-        http_port_base: 4200,  # Different from Phoenix default (4000)
-        dist_port_base: 9200   # Different from common dev ports
-      )
+      config =
+        Config.load_config(
+          # Different from Phoenix default (4000)
+          http_port_base: 4200,
+          # Different from common dev ports
+          dist_port_base: 9200
+        )
 
       cluster_config = Config.get_cluster_config(config)
       port_ranges = cluster_config.port_ranges
@@ -255,13 +272,13 @@ defmodule OTPSupervisor.Testing.ConfigTest do
       {dist_start, dist_end} = port_ranges.distribution
 
       # Should not use Phoenix default port range (4000-4099)
-      refute (http_start <= 4099 and 4000 <= http_end)
+      refute http_start <= 4099 and 4000 <= http_end
 
       # Should not use common database ports (5432 PostgreSQL, 3306 MySQL)
-      refute (http_start <= 5432 and 5432 <= http_end)
-      refute (dist_start <= 5432 and 5432 <= dist_end)
-      refute (http_start <= 3306 and 3306 <= http_end)
-      refute (dist_start <= 3306 and 3306 <= dist_end)
+      refute http_start <= 5432 and 5432 <= http_end
+      refute dist_start <= 5432 and 5432 <= dist_end
+      refute http_start <= 3306 and 3306 <= http_end
+      refute dist_start <= 3306 and 3306 <= dist_end
     end
 
     test "configuration validation catches real-world issues" do
@@ -279,7 +296,8 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
       # Cluster size too large for most systems
       assert_raise ArgumentError, ~r/max_cluster_size must be >= default_cluster_size/, fn ->
-        Config.load_config(default_cluster_size: 50, max_cluster_size: 10) |> Config.validate_config()
+        Config.load_config(default_cluster_size: 50, max_cluster_size: 10)
+        |> Config.validate_config()
       end
     end
 
@@ -289,9 +307,12 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
       # Should provide reasonable defaults
       assert base_config.default_cluster_size >= 2
-      assert base_config.default_cluster_size <= 5  # Reasonable for most systems
-      assert base_config.cluster_startup_timeout >= 10_000  # At least 10 seconds
-      assert base_config.cluster_startup_timeout <= 60_000  # Not more than 1 minute
+      # Reasonable for most systems
+      assert base_config.default_cluster_size <= 5
+      # At least 10 seconds
+      assert base_config.cluster_startup_timeout >= 10_000
+      # Not more than 1 minute
+      assert base_config.cluster_startup_timeout <= 60_000
 
       # Port ranges should be reasonable
       port_ranges = Config.get_port_ranges(base_config)
@@ -299,8 +320,8 @@ defmodule OTPSupervisor.Testing.ConfigTest do
       {dist_start, dist_end} = port_ranges.distribution
 
       # Should have enough ports for multiple clusters
-      assert (http_end - http_start + 1) >= 10
-      assert (dist_end - dist_start + 1) >= 10
+      assert http_end - http_start + 1 >= 10
+      assert dist_end - dist_start + 1 >= 10
 
       # Should use high-numbered ports to avoid conflicts
       assert http_start >= 4000

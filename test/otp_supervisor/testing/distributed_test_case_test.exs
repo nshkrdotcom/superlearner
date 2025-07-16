@@ -20,9 +20,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError when no cluster is available
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        cluster_nodes()
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     cluster_nodes()
+                   end
     end
 
     test "cluster_size/0 raises when no cluster is active" do
@@ -31,9 +33,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        cluster_size()
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     cluster_size()
+                   end
     end
 
     test "cluster_healthy?/0 raises when no cluster is active" do
@@ -42,9 +46,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        cluster_healthy?()
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     cluster_healthy?()
+                   end
     end
 
     test "with_cluster_size/2 raises when no cluster is active" do
@@ -53,11 +59,13 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        with_cluster_size(2, fn _nodes ->
-          flunk("This should not execute")
-        end)
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     with_cluster_size(2, fn _nodes ->
+                       flunk("This should not execute")
+                     end)
+                   end
     end
 
     test "cluster_info/0 returns inactive cluster info when no cluster manager" do
@@ -77,9 +85,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        cluster_rpc(Node, :self, [])
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     cluster_rpc(Node, :self, [])
+                   end
     end
 
     test "cluster_call/2 raises when no cluster is active" do
@@ -88,9 +98,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        cluster_call(fn -> :ok end)
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     cluster_call(fn -> :ok end)
+                   end
     end
   end
 
@@ -109,11 +121,16 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
           case wait_for_cluster_health(timeout: 30_000) do
             :ok ->
               {:ok, cluster_info: cluster_info}
+
             {:error, :timeout} ->
               exit({:skip, "Could not establish healthy cluster for testing"})
           end
+
         {:error, _diagnosis} ->
-          exit({:skip, "Could not start cluster for testing - may be running in constrained environment"})
+          exit(
+            {:skip,
+             "Could not start cluster for testing - may be running in constrained environment"}
+          )
       end
     end
 
@@ -143,11 +160,12 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
 
     test "with_cluster_size/2 works with sufficient nodes" do
       # Should work with cluster size 2
-      result = with_cluster_size(2, fn nodes ->
-        assert length(nodes) == 2
-        assert Enum.all?(nodes, &is_atom/1)
-        :test_passed
-      end)
+      result =
+        with_cluster_size(2, fn nodes ->
+          assert length(nodes) == 2
+          assert Enum.all?(nodes, &is_atom/1)
+          :test_passed
+        end)
 
       assert result == :test_passed
     end
@@ -212,9 +230,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_healthy?() which calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        wait_for_cluster_health(timeout: 1000, interval: 100)
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     wait_for_cluster_health(timeout: 1000, interval: 100)
+                   end
     end
 
     test "wait_for_cluster_size/2 raises when no cluster" do
@@ -223,9 +243,11 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_size/0 which calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        wait_for_cluster_size(2, timeout: 1000, interval: 100)
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     wait_for_cluster_size(2, timeout: 1000, interval: 100)
+                   end
     end
 
     test "wait_for_cluster_condition/2 raises when no cluster" do
@@ -234,13 +256,15 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       :timer.sleep(100)
 
       # Should raise RuntimeError because it calls cluster_nodes/0
-      assert_raise RuntimeError, ~r/cluster_nodes\/0 called but no active cluster is available/, fn ->
-        wait_for_cluster_condition(
-          fn _node -> false end,
-          timeout: 1000,
-          interval: 100
-        )
-      end
+      assert_raise RuntimeError,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
+                   fn ->
+                     wait_for_cluster_condition(
+                       fn _node -> false end,
+                       timeout: 1000,
+                       interval: 100
+                     )
+                   end
     end
   end
 
@@ -259,11 +283,16 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
           case wait_for_cluster_health(timeout: 30_000) do
             :ok ->
               {:ok, cluster_info: cluster_info}
+
             {:error, :timeout} ->
               exit({:skip, "Could not establish healthy cluster for testing"})
           end
+
         {:error, _diagnosis} ->
-          exit({:skip, "Could not start cluster for testing - may be running in constrained environment"})
+          exit(
+            {:skip,
+             "Could not start cluster for testing - may be running in constrained environment"}
+          )
       end
     end
 
@@ -280,7 +309,9 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
       assert elapsed < 5_000
     end
 
-    test "wait_for_cluster_size/2 succeeds when cluster has sufficient size", %{cluster_info: cluster_info} do
+    test "wait_for_cluster_size/2 succeeds when cluster has sufficient size", %{
+      cluster_info: cluster_info
+    } do
       current_size = length(cluster_info.nodes)
 
       start_time = System.monotonic_time(:millisecond)
@@ -296,16 +327,17 @@ defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
     end
 
     test "wait_for_cluster_condition/2 works with live cluster" do
-      result = wait_for_cluster_condition(
-        fn node ->
-          case :rpc.call(node, :erlang, :is_alive, []) do
-            true -> true
-            _ -> false
-          end
-        end,
-        timeout: 10_000,
-        interval: 100
-      )
+      result =
+        wait_for_cluster_condition(
+          fn node ->
+            case :rpc.call(node, :erlang, :is_alive, []) do
+              true -> true
+              _ -> false
+            end
+          end,
+          timeout: 10_000,
+          interval: 100
+        )
 
       assert result == :ok
     end

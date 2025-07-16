@@ -67,10 +67,16 @@ defmodule DistributedTestCaseExample do
     assert length(nodes) >= 2
 
     # Simulate a long-running distributed operation
-    results = cluster_call(fn ->
-      :timer.sleep(100)  # Simulate work
-      Node.self()
-    end, 10_000)  # 10 second timeout
+    results =
+      cluster_call(
+        fn ->
+          # Simulate work
+          :timer.sleep(100)
+          Node.self()
+        end,
+        # 10 second timeout
+        10_000
+      )
 
     assert length(results) == length(nodes)
 
@@ -92,12 +98,15 @@ defmodule DistributedTestCaseExample do
     assert length(info.nodes) >= 2
 
     # Test cluster condition waiting
-    assert wait_for_cluster_condition(fn node ->
-      case :rpc.call(node, :erlang, :is_alive, []) do
-        true -> true
-        _ -> false
-      end
-    end, timeout: 5_000) == :ok
+    assert wait_for_cluster_condition(
+             fn node ->
+               case :rpc.call(node, :erlang, :is_alive, []) do
+                 true -> true
+                 _ -> false
+               end
+             end,
+             timeout: 5_000
+           ) == :ok
   end
 
   # Test distributed process communication
@@ -109,11 +118,14 @@ defmodule DistributedTestCaseExample do
     [node1, node2 | _] = nodes
 
     # Start a simple process on node1
-    pid1 = :rpc.call(node1, :erlang, :spawn, [fn ->
-      receive do
-        {:ping, from} -> send(from, :pong)
-      end
-    end])
+    pid1 =
+      :rpc.call(node1, :erlang, :spawn, [
+        fn ->
+          receive do
+            {:ping, from} -> send(from, :pong)
+          end
+        end
+      ])
 
     # Send message from node2
     :rpc.call(node2, :erlang, :send, [pid1, {:ping, self()}])
@@ -146,15 +158,17 @@ defmodule DistributedTestCaseExample do
     # Measure inter-node latency
     start_time = System.monotonic_time(:microsecond)
 
-    results = cluster_call(fn ->
-      System.monotonic_time(:microsecond)
-    end)
+    results =
+      cluster_call(fn ->
+        System.monotonic_time(:microsecond)
+      end)
 
     end_time = System.monotonic_time(:microsecond)
     total_time = end_time - start_time
 
     # Basic performance assertions
-    assert total_time < 1_000_000  # Should complete within 1 second
+    # Should complete within 1 second
+    assert total_time < 1_000_000
     assert length(results) == length(nodes)
 
     # All calls should succeed

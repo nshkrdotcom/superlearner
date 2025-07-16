@@ -72,7 +72,8 @@ defmodule Mix.Tasks.Test.Distributed do
 
   def run(args) do
     # Parse distributed testing specific arguments
-    {distributed_opts, remaining_args} = OptionParser.parse!(args, switches: @switches, aliases: @aliases)
+    {distributed_opts, remaining_args} =
+      OptionParser.parse!(args, switches: @switches, aliases: @aliases)
 
     # Determine if we need distributed testing
     needs_distributed = determine_distributed_needs(distributed_opts, remaining_args)
@@ -93,13 +94,10 @@ defmodule Mix.Tasks.Test.Distributed do
       opts[:force_cluster] -> true
       Keyword.has_key?(opts, :cluster_size) -> true
       opts[:no_cluster] -> false
-
       # Check if running only distributed tests
       has_distributed_filter?(args) -> true
-
       # Check if test files contain distributed tests
       has_distributed_tests?(args) -> true
-
       # Default to no distributed testing
       true -> false
     end
@@ -108,7 +106,9 @@ defmodule Mix.Tasks.Test.Distributed do
   defp has_distributed_filter?(args) do
     # Look for --only distributed, --only cluster, etc.
     case Enum.find_index(args, &(&1 == "--only")) do
-      nil -> false
+      nil ->
+        false
+
       index ->
         filter_value = Enum.at(args, index + 1)
         filter_value in ["distributed", "cluster", "multi_node"]
@@ -149,6 +149,7 @@ defmodule Mix.Tasks.Test.Distributed do
       {:ok, cluster_info} ->
         if cluster_info.cluster_active do
           Mix.shell().info("✅ Cluster ready with #{length(cluster_info.nodes)} nodes")
+
           if distributed_opts[:verbose_cluster] do
             Mix.shell().info("   Nodes: #{inspect(cluster_info.nodes)}")
           end
@@ -213,7 +214,6 @@ defmodule Mix.Tasks.Test.Distributed do
       if exit_code != 0 do
         System.at_exit(fn _ -> exit({:shutdown, exit_code}) end)
       end
-
     after
       # Always cleanup managed clusters
       cleanup_cluster_if_managed()
@@ -238,6 +238,7 @@ defmodule Mix.Tasks.Test.Distributed do
       case AutoClusterManager.cleanup_if_managed() do
         :ok ->
           Mix.shell().info("🧹 Cluster cleanup completed")
+
         {:warning, reason} ->
           Mix.shell().info("⚠️  Cluster cleanup had issues: #{inspect(reason)}")
       end
@@ -251,7 +252,8 @@ defmodule Mix.Tasks.Test.Distributed do
     # Run the standard Mix test task
     try do
       Mix.Tasks.Test.run(args)
-      0  # Success
+      # Success
+      0
     catch
       :exit, {:shutdown, code} when is_integer(code) -> code
       :exit, _ -> 1
@@ -265,12 +267,15 @@ defmodule Mix.Tasks.Test.Distributed do
           {:ok, _pid} ->
             Mix.shell().info("Started AutoClusterManager")
             :ok
+
           {:error, {:already_started, _pid}} ->
             :ok
+
           {:error, reason} ->
             Mix.shell().error("Failed to start AutoClusterManager: #{inspect(reason)}")
             {:error, reason}
         end
+
       _pid ->
         :ok
     end
@@ -282,6 +287,7 @@ defmodule Mix.Tasks.Test.Distributed do
     # Show solutions
     if not Enum.empty?(diagnosis.solutions) do
       Mix.shell().info("\n💡 Possible solutions:")
+
       Enum.each(diagnosis.solutions, fn solution ->
         Mix.shell().info("   • #{solution}")
       end)
@@ -290,15 +296,18 @@ defmodule Mix.Tasks.Test.Distributed do
     # Show retry suggestions
     if not Enum.empty?(diagnosis.retry_suggestions) do
       Mix.shell().info("\n🔄 Retry suggestions:")
+
       Enum.each(diagnosis.retry_suggestions, fn suggestion ->
         Mix.shell().info("   • #{suggestion}")
       end)
     end
 
     # NO FALLBACK STRATEGIES - FAIL HARD FOR DISTRIBUTED TESTS
-    Mix.shell().error("\n🛑 Distributed tests require a working cluster - cannot proceed without one")
+    Mix.shell().error(
+      "\n🛑 Distributed tests require a working cluster - cannot proceed without one"
+    )
+
     Mix.shell().error("🛑 Fix the cluster issues above and try again")
     System.halt(1)
   end
-
 end

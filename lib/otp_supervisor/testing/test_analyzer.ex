@@ -1,7 +1,7 @@
 defmodule OTPSupervisor.Testing.TestAnalyzer do
   @moduledoc """
   Analyzes test files to determine distributed testing requirements.
-  
+
   This module scans test files for distributed testing tags and patterns to determine:
   - Whether tests need a cluster
   - Minimum cluster size requirements
@@ -13,10 +13,10 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
 
   @doc """
   Analyzes test files based on file patterns to determine distributed testing requirements.
-  
+
   ## Parameters
   - `file_patterns` - List of file patterns or paths to analyze
-  
+
   ## Returns
   - `%{needs_cluster: boolean(), min_cluster_size: integer(), test_files: list(), distributed_tests: list()}`
   """
@@ -39,16 +39,16 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
       {:ok, content} ->
         metadata = extract_test_metadata(content)
         requirements = analyze_distributed_requirements(metadata)
-        
+
         %{
           file_path: file_path,
           metadata: metadata,
           requirements: requirements
         }
-        
+
       {:error, reason} ->
         Logger.warning("Failed to read test file #{file_path}: #{inspect(reason)}")
-        
+
         %{
           file_path: file_path,
           metadata: %{},
@@ -73,13 +73,13 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
     cond do
       File.regular?(pattern) ->
         [pattern]
-        
+
       File.dir?(pattern) ->
         Path.wildcard(Path.join(pattern, "**/*_test.exs"))
-        
+
       String.contains?(pattern, "*") ->
         Path.wildcard(pattern)
-        
+
       true ->
         # Try as a directory pattern
         if File.dir?(pattern) do
@@ -109,26 +109,26 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
 
   defp detect_distributed_tag(content) do
     String.contains?(content, "@tag :distributed") or
-    String.contains?(content, "@tag distributed") or
-    Regex.match?(~r/@tag\s+:distributed/, content)
+      String.contains?(content, "@tag distributed") or
+      Regex.match?(~r/@tag\s+:distributed/, content)
   end
 
   defp detect_cluster_tag(content) do
     String.contains?(content, "@tag :cluster") or
-    String.contains?(content, "@tag cluster") or
-    Regex.match?(~r/@tag\s+:cluster/, content)
+      String.contains?(content, "@tag cluster") or
+      Regex.match?(~r/@tag\s+:cluster/, content)
   end
 
   defp detect_multi_node_tag(content) do
     String.contains?(content, "@tag :multi_node") or
-    String.contains?(content, "@tag multi_node") or
-    Regex.match?(~r/@tag\s+:multi_node/, content)
+      String.contains?(content, "@tag multi_node") or
+      Regex.match?(~r/@tag\s+:multi_node/, content)
   end
 
   defp extract_cluster_size_tags(content) do
     # Match patterns like @tag cluster_size: 3 or @tag cluster_size: N
     cluster_size_regex = ~r/@tag\s+cluster_size:\s*(\d+)/
-    
+
     cluster_size_regex
     |> Regex.scan(content, capture: :all_but_first)
     |> Enum.map(fn [size_str] -> String.to_integer(size_str) end)
@@ -136,17 +136,17 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
 
   defp detect_cluster_helper_usage(content) do
     String.contains?(content, "ClusterTestHelper") or
-    String.contains?(content, "cluster_test_helper") or
-    String.contains?(content, "start_test_cluster") or
-    String.contains?(content, "stop_test_cluster")
+      String.contains?(content, "cluster_test_helper") or
+      String.contains?(content, "start_test_cluster") or
+      String.contains?(content, "stop_test_cluster")
   end
 
   defp detect_node_operations(content) do
     String.contains?(content, "Node.list()") or
-    String.contains?(content, "Node.connect") or
-    String.contains?(content, "Node.spawn") or
-    String.contains?(content, ":rpc.call") or
-    String.contains?(content, "GenServer.call({") and String.contains?(content, "node}")
+      String.contains?(content, "Node.connect") or
+      String.contains?(content, "Node.spawn") or
+      String.contains?(content, ":rpc.call") or
+      (String.contains?(content, "GenServer.call({") and String.contains?(content, "node}"))
   end
 
   defp extract_module_name(content) do
@@ -162,7 +162,7 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
     distributed_tags = Regex.scan(~r/@tag\s+:distributed/, content)
     cluster_tags = Regex.scan(~r/@tag\s+:cluster/, content)
     multi_node_tags = Regex.scan(~r/@tag\s+:multi_node/, content)
-    
+
     length(distributed_tags) + length(cluster_tags) + length(multi_node_tags)
   end
 
@@ -173,7 +173,7 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
     needs_cluster = determine_cluster_need(metadata)
     min_cluster_size = determine_min_cluster_size(metadata)
     test_type = determine_test_type(metadata)
-    
+
     %{
       needs_cluster: needs_cluster,
       min_cluster_size: min_cluster_size,
@@ -185,31 +185,35 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
 
   defp determine_cluster_need(metadata) do
     metadata[:has_distributed_tag] or
-    metadata[:has_cluster_tag] or
-    metadata[:has_multi_node_tag] or
-    metadata[:uses_cluster_helper] or
-    metadata[:uses_node_operations] or
-    (metadata[:cluster_size_requirements] && length(metadata[:cluster_size_requirements]) > 0)
+      metadata[:has_cluster_tag] or
+      metadata[:has_multi_node_tag] or
+      metadata[:uses_cluster_helper] or
+      metadata[:uses_node_operations] or
+      (metadata[:cluster_size_requirements] && length(metadata[:cluster_size_requirements]) > 0)
   end
 
   defp determine_min_cluster_size(metadata) do
     explicit_sizes = metadata[:cluster_size_requirements] || []
-    
+
     cond do
       length(explicit_sizes) > 0 ->
         Enum.max(explicit_sizes)
-        
+
       metadata[:has_multi_node_tag] ->
-        3  # Multi-node typically implies at least 3 nodes
-        
+        # Multi-node typically implies at least 3 nodes
+        3
+
       metadata[:has_distributed_tag] or metadata[:has_cluster_tag] ->
-        2  # Basic distributed testing needs at least 2 nodes
-        
+        # Basic distributed testing needs at least 2 nodes
+        2
+
       metadata[:uses_cluster_helper] or metadata[:uses_node_operations] ->
-        2  # Assume minimum cluster for node operations
-        
+        # Assume minimum cluster for node operations
+        2
+
       true ->
-        0  # No cluster needed
+        # No cluster needed
+        0
     end
   end
 
@@ -229,35 +233,39 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
   """
   def aggregate_requirements(file_analyses) do
     valid_analyses = Enum.reject(file_analyses, &Map.has_key?(&1, :error))
-    
-    needs_cluster = Enum.any?(valid_analyses, fn analysis -> 
-      analysis.requirements.needs_cluster 
-    end)
-    
-    min_cluster_size = valid_analyses
-    |> Enum.map(fn analysis -> analysis.requirements.min_cluster_size end)
-    |> case do
-      [] -> 0
-      sizes -> Enum.max(sizes)
-    end
-    
+
+    needs_cluster =
+      Enum.any?(valid_analyses, fn analysis ->
+        analysis.requirements.needs_cluster
+      end)
+
+    min_cluster_size =
+      valid_analyses
+      |> Enum.map(fn analysis -> analysis.requirements.min_cluster_size end)
+      |> case do
+        [] -> 0
+        sizes -> Enum.max(sizes)
+      end
+
     test_files = Enum.map(valid_analyses, & &1.file_path)
-    
-    distributed_tests = valid_analyses
-    |> Enum.filter(fn analysis -> analysis.requirements.needs_cluster end)
-    |> Enum.map(fn analysis ->
-      %{
-        file_path: analysis.file_path,
-        test_type: analysis.requirements.test_type,
-        cluster_size: analysis.requirements.min_cluster_size,
-        estimated_count: analysis.requirements.estimated_test_count
-      }
-    end)
-    
-    total_distributed_tests = distributed_tests
-    |> Enum.map(& &1.estimated_count)
-    |> Enum.sum()
-    
+
+    distributed_tests =
+      valid_analyses
+      |> Enum.filter(fn analysis -> analysis.requirements.needs_cluster end)
+      |> Enum.map(fn analysis ->
+        %{
+          file_path: analysis.file_path,
+          test_type: analysis.requirements.test_type,
+          cluster_size: analysis.requirements.min_cluster_size,
+          estimated_count: analysis.requirements.estimated_test_count
+        }
+      end)
+
+    total_distributed_tests =
+      distributed_tests
+      |> Enum.map(& &1.estimated_count)
+      |> Enum.sum()
+
     %{
       needs_cluster: needs_cluster,
       min_cluster_size: min_cluster_size,
@@ -279,7 +287,7 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
   def has_distributed_tests? do
     # Check common test directories
     test_patterns = ["test/**/*_test.exs", "test/**/*_test.ex"]
-    
+
     case analyze_test_files(test_patterns) do
       %{needs_cluster: needs_cluster} -> needs_cluster
       _ -> false

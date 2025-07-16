@@ -30,6 +30,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerTest do
 
           # Verify cluster is actually functional
           nodes = cluster_info.nodes
+
           Enum.each(nodes, fn node ->
             assert Node.ping(node) == :pong
           end)
@@ -104,7 +105,8 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerTest do
       # Create requirements that might fail (very large cluster)
       requirements = %{
         needs_cluster: true,
-        min_cluster_size: 10,  # Unreasonably large
+        # Unreasonably large
+        min_cluster_size: 10,
         test_type: :distributed
       }
 
@@ -117,7 +119,12 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerTest do
           # Should provide helpful diagnosis
           assert is_binary(diagnosis.problem)
           assert is_list(diagnosis.solutions)
-          assert diagnosis.fallback_strategy in [:reduce_cluster_size, :skip_distributed_tests, :fail_fast]
+
+          assert diagnosis.fallback_strategy in [
+                   :reduce_cluster_size,
+                   :skip_distributed_tests,
+                   :fail_fast
+                 ]
       end
     end
   end
@@ -171,11 +178,13 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerTest do
 
           requirements = %{
             needs_cluster: true,
-            min_cluster_size: 3,  # Larger than available
+            # Larger than available
+            min_cluster_size: 3,
             test_type: :distributed
           }
 
-          assert {:error, :insufficient_size} = AutoClusterManager.check_cluster_availability(requirements)
+          assert {:error, :insufficient_size} =
+                   AutoClusterManager.check_cluster_availability(requirements)
 
           # Cleanup
           Manager.stop_cluster()
@@ -200,7 +209,8 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerTest do
 
         requirements = %{
           needs_cluster: true,
-          min_cluster_size: 5,  # Request large cluster
+          # Request large cluster
+          min_cluster_size: 5,
           test_type: :distributed
         }
 
