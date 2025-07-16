@@ -102,6 +102,7 @@ Integrate the robust cluster testing system into Mix's test workflow to make dis
 
 
 
+
   - Update existing test files to properly use AutoClusterManager for distributed tests
   - Fix tests that currently return empty lists/false values to work with real clusters
   - Update DistributedTestCaseTest to test with actual cluster when available

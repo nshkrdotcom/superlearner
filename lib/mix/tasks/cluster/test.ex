@@ -135,18 +135,20 @@ defmodule Mix.Tasks.Cluster.Test do
         Mix.shell().info("💡 Try: mix cluster.test clean")
       end
     else
-      # Try Manager cleanup for completeness
+      # No running processes detected
+      Mix.shell().info("ℹ️  No cluster processes detected - cluster is already stopped")
+
+      # Try Manager cleanup for completeness, but don't claim success if nothing was running
       case ensure_manager_started() do
         :ok ->
           case Manager.stop_cluster() do
             :ok ->
-              Mix.shell().info("✅ Test cluster stopped successfully!")
+              Mix.shell().info("ℹ️  Manager cleanup completed (no active nodes)")
             {:error, reason} ->
-              Mix.shell().info("ℹ️  Manager cleanup failed: #{inspect(reason)}")
-              Mix.shell().info("✅ No running processes detected anyway")
+              Mix.shell().info("ℹ️  Manager cleanup failed: #{inspect(reason)} (cluster was already stopped)")
           end
         {:error, _} ->
-          Mix.shell().info("✅ No cluster processes detected")
+          Mix.shell().info("ℹ️  Manager not available (cluster was already stopped)")
       end
     end
   end
@@ -479,15 +481,17 @@ defmodule Mix.Tasks.Cluster.Test do
 
     killed_any = false
 
-    Enum.each(patterns, fn pattern ->
+    killed_any = Enum.reduce(patterns, killed_any, fn pattern, acc ->
       case System.cmd("pkill", ["-f", pattern], stderr_to_stdout: true) do
         {_, 0} ->
           Mix.shell().info("  ✅ Killed processes matching: #{pattern}")
-          killed_any = true
+          true
         {_, 1} ->
           Mix.shell().info("  ℹ️  No processes found for: #{pattern}")
+          acc
         {error, _} ->
           Mix.shell().info("  ⚠️  Failed to kill #{pattern}: #{error}")
+          acc
       end
     end)
 
