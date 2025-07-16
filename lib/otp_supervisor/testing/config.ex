@@ -277,7 +277,7 @@ defmodule OTPSupervisor.Testing.Config do
           System.get_env("CI"),
           System.get_env("CONTINUOUS_INTEGRATION")
         ]
-        
+
         secondary_ci_indicators = [
           System.get_env("GITHUB_ACTIONS"),
           System.get_env("GITLAB_CI"),
@@ -287,13 +287,15 @@ defmodule OTPSupervisor.Testing.Config do
         ]
 
         # Must have a primary indicator OR multiple secondary indicators
-        has_primary = Enum.any?(primary_ci_indicators, fn indicator ->
-          indicator != nil and indicator != "" and indicator != "false"
-        end)
-        
-        secondary_count = Enum.count(secondary_ci_indicators, fn indicator ->
-          indicator != nil and indicator != "" and indicator != "false"
-        end)
+        has_primary =
+          Enum.any?(primary_ci_indicators, fn indicator ->
+            indicator != nil and indicator != "" and indicator != "false"
+          end)
+
+        secondary_count =
+          Enum.count(secondary_ci_indicators, fn indicator ->
+            indicator != nil and indicator != "" and indicator != "false"
+          end)
 
         has_primary or secondary_count >= 2
 

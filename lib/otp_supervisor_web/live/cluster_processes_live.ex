@@ -208,7 +208,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
         metrics={status_bar_metrics(assigns)}
         navigation_links={TerminalNavigationLinks.page_navigation_links("cluster-processes", %{})}
       />
-
+      
     <!-- Main Content Area -->
       <div class="flex-1 p-4 overflow-hidden">
         <div class="h-full bg-gray-800 rounded border border-green-500/30 p-4 overflow-y-auto">
@@ -238,7 +238,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                 </div>
               </div>
             <% end %>
-
+            
     <!-- Error Message Display -->
             <%= if @error_message do %>
               <div class="mb-4 p-3 bg-red-900/20 border border-red-500/30 rounded">
@@ -302,7 +302,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     <% end %>
                   </select>
                 </div>
-
+                
     <!-- Type Filter -->
                 <div class="flex items-center space-x-2">
                   <label class="text-green-400/70 font-mono text-sm">Type:</label>
@@ -320,7 +320,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     <% end %>
                   </select>
                 </div>
-
+                
     <!-- Application Filter -->
                 <div class="flex items-center space-x-2">
                   <label class="text-green-400/70 font-mono text-sm">App:</label>
@@ -336,7 +336,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     <% end %>
                   </select>
                 </div>
-
+                
     <!-- Clear Filters Button -->
                 <%= if has_active_filters?(@filters) do %>
                   <button
@@ -351,7 +351,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     <% end %>
                   </button>
                 <% end %>
-
+                
     <!-- Active Filter Indicators -->
                 <%= if has_active_filters?(@filters) do %>
                   <div class="flex items-center space-x-2 text-xs font-mono">
@@ -374,7 +374,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                   </div>
                 <% end %>
               </div>
-
+              
     <!-- Search/Filter Results Counter -->
               <%= if @search_term != "" or has_active_filters?(@filters) do %>
                 <div class="mt-3 pt-3 border-t border-green-500/20">
@@ -419,7 +419,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                         </div>
                       </div>
                     </div>
-
+                    
     <!-- Node Content (Expandable) -->
                     <%= if node_expanded?(assigns, node) do %>
                       <div class="p-3 animate-in slide-in-from-top-2 duration-300 ease-out">
@@ -456,12 +456,14 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">Type:</span>
                                       <span class={"inline-flex items-center px-2 py-1 rounded text-xs font-medium #{type_colors.bg} #{type_colors.text} #{type_colors.border}"}>
-                                        <span class={"mr-1 #{type_colors.icon}"}>{get_process_type_icon(process.type)}</span>
+                                        <span class={"mr-1 #{type_colors.icon}"}>
+                                          {get_process_type_icon(process.type)}
+                                        </span>
                                         {formatted.type_display}
                                       </span>
                                     </div>
                                   </div>
-
+                                  
     <!-- Process Details -->
                                   <div class="space-y-1">
                                     <div class="text-green-300">
@@ -495,7 +497,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                                       </span>
                                     </div>
                                   </div>
-
+                                  
     <!-- Function Information -->
                                   <div class="space-y-1 md:col-span-2 lg:col-span-1">
                                     <div class="text-green-300 text-xs">
@@ -531,7 +533,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                   </div>
                 <% end %>
               </div>
-
+              
     <!-- Pagination Controls -->
               <%= if @filtered_process_count > @per_page do %>
                 <div class="mt-6 p-3 bg-gray-900/50 rounded border border-green-500/20">
@@ -545,7 +547,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                       Showing {start_item}-{end_item} of {@filtered_process_count} processes
                       (Page {@current_page} of {max_page})
                     </div>
-
+                    
     <!-- Pagination Buttons -->
                     <div class="flex items-center space-x-2">
                       <!-- First Page -->
@@ -567,7 +569,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                           ««
                         </button>
                       <% end %>
-
+                      
     <!-- Previous Page -->
                       <%= if @current_page > 1 and not @operation_in_progress do %>
                         <button
@@ -587,7 +589,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                           ‹
                         </button>
                       <% end %>
-
+                      
     <!-- Page Numbers -->
                       <%= for page_num <- pagination_range(@current_page, max_page) do %>
                         <%= if page_num == @current_page do %>
@@ -608,7 +610,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                           </button>
                         <% end %>
                       <% end %>
-
+                      
     <!-- Next Page -->
                       <%= if @current_page < max_page and not @operation_in_progress do %>
                         <button
@@ -628,7 +630,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                           ›
                         </button>
                       <% end %>
-
+                      
     <!-- Last Page -->
                       <%= if @current_page < max_page and not @operation_in_progress do %>
                         <button
@@ -1558,10 +1560,14 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
   defp get_memory_color_class(memory) when is_integer(memory) do
     cond do
-      memory >= 10_485_760 -> "text-red-400 font-semibold"  # >= 10MB - high memory usage
-      memory >= 1_048_576 -> "text-yellow-400 font-medium"  # >= 1MB - moderate memory usage
-      memory >= 102_400 -> "text-green-300"                 # >= 100KB - normal memory usage
-      true -> "text-green-400/70"                           # < 100KB - low memory usage
+      # >= 10MB - high memory usage
+      memory >= 10_485_760 -> "text-red-400 font-semibold"
+      # >= 1MB - moderate memory usage
+      memory >= 1_048_576 -> "text-yellow-400 font-medium"
+      # >= 100KB - normal memory usage
+      memory >= 102_400 -> "text-green-300"
+      # < 100KB - low memory usage
+      true -> "text-green-400/70"
     end
   end
 
@@ -1569,10 +1575,14 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
   defp get_queue_color_class(queue_len) when is_integer(queue_len) do
     cond do
-      queue_len >= 100 -> "text-red-400 font-semibold"      # >= 100 messages - high queue
-      queue_len >= 10 -> "text-yellow-400 font-medium"      # >= 10 messages - moderate queue
-      queue_len > 0 -> "text-green-300"                     # > 0 messages - some queue
-      true -> "text-green-400/70"                           # 0 messages - empty queue
+      # >= 100 messages - high queue
+      queue_len >= 100 -> "text-red-400 font-semibold"
+      # >= 10 messages - moderate queue
+      queue_len >= 10 -> "text-yellow-400 font-medium"
+      # > 0 messages - some queue
+      queue_len > 0 -> "text-green-300"
+      # 0 messages - empty queue
+      true -> "text-green-400/70"
     end
   end
 
@@ -1580,9 +1590,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
   defp get_process_status_icon(process) do
     if Map.get(process, :alive, true) do
-      "●"  # Running process
+      # Running process
+      "●"
     else
-      "○"  # Terminated process
+      # Terminated process
+      "○"
     end
   end
 

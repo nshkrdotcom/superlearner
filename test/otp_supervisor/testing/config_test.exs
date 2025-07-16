@@ -148,7 +148,7 @@ defmodule OTPSupervisor.Testing.ConfigTest do
       # Test secondary indicators (need multiple)
       all_vars = ["CI", "CONTINUOUS_INTEGRATION", "GITHUB_ACTIONS", "GITLAB_CI"]
       Enum.each(all_vars, &System.delete_env/1)
-      
+
       # Set multiple secondary indicators
       System.put_env("GITHUB_ACTIONS", "true")
       System.put_env("GITLAB_CI", "true")
