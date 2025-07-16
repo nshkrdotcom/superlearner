@@ -91,7 +91,28 @@ Integrate the robust cluster testing system into Mix's test workflow to make dis
   - Add enhanced error reporting and debugging capabilities
   - _Requirements: 5.1, 5.2, 5.3, 9.2, 9.3_
 
+- [x] 6a. Verify and update tests to work with live cluster and AutoClusterManager
+
+
+
+
+
+
+
+
+
+
+  - Update existing test files to properly use AutoClusterManager for distributed tests
+  - Fix tests that currently return empty lists/false values to work with real clusters
+  - Update DistributedTestCaseTest to test with actual cluster when available
+  - Fix AutoClusterManagerTest integration tests to work reliably with live clusters
+  - Update ConfigTest to verify configuration works with real cluster scenarios
+  - Ensure all distributed test examples properly demonstrate live cluster usage
+  - _Requirements: 1.2, 1.3, 5.1, 5.2, 6.1, 9.1_
+
 - [ ] 7. Implement error handling and graceful degradation
+
+
   - Create `lib/otp_supervisor/testing/error_handler.ex` for comprehensive error management
   - Implement fallback strategies (skip tests, reduce cluster size, simulation mode)
   - Add detailed error reporting with actionable solutions
