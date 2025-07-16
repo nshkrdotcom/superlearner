@@ -3,8 +3,8 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
 
   alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
   alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
+  alias OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget
   alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
-  alias OtpSupervisorWeb.Components.Widgets.SystemMetricsWidget
   alias OtpSupervisorWeb.Components.Widgets.ChartWidget
   alias OtpSupervisorWeb.Components.Widgets.AlertWidget
 
@@ -154,13 +154,12 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       # Cluster Topology Overview
       %{
         title: "Cluster Topology",
-        component: SystemMetricsWidget,
+        component: TerminalMetricWidget,
         assigns: %{
           id: "cluster-topology",
+          title: "Cluster Overview",
           metrics: cluster_topology_metrics(assigns),
-          real_time: true,
-          show_charts: false,
-          title: "Cluster Overview"
+          size: :medium
         },
         span: %{cols: 2, rows: 1}
       },
@@ -168,13 +167,12 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       # Current Node Details
       %{
         title: "Current Node (#{assigns.current_node})",
-        component: SystemMetricsWidget,
+        component: TerminalMetricWidget,
         assigns: %{
-          id: "current-node-metrics", 
+          id: "current-node-metrics",
+          title: "Current Node Status",
           metrics: current_node_metrics(assigns),
-          real_time: true,
-          show_charts: true,
-          title: "Current Node Status"
+          size: :medium
         },
         span: %{cols: 1, rows: 2}
       },
@@ -200,13 +198,12 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       # Other Nodes Status
       %{
         title: "Other Cluster Nodes",
-        component: SystemMetricsWidget,
+        component: TerminalMetricWidget,
         assigns: %{
           id: "other-nodes-status",
+          title: "Remote Nodes",
           metrics: other_nodes_metrics(assigns),
-          real_time: true,
-          show_charts: false,
-          title: "Remote Nodes"
+          size: :medium
         },
         span: %{cols: 2, rows: 1}
       },

@@ -161,10 +161,27 @@ defmodule Mix.Tasks.Cluster.Test do
   defp restart_cluster do
     IO.puts("🔄 Restarting distributed test cluster...")
 
-    with :ok <- Manager.stop_cluster(),
+    # First, force stop any existing cluster processes
+    real_status = check_real_cluster_status()
+    if real_status.overall_status == :running do
+      IO.puts("🔍 Detected running cluster processes - performing force cleanup...")
+      force_stop_cluster()
+      
+      # Clean up EPMD to avoid name conflicts
+      case System.cmd("epmd", ["-kill"], stderr_to_stdout: true) do
+        {_, 0} -> 
+          IO.puts("  ✅ Cleaned up EPMD")
+          System.cmd("epmd", ["-daemon"], stderr_to_stdout: true)
+        _ -> :ok
+      end
+    end
+
+    # Now start fresh cluster
+    with :ok <- ensure_manager_started(),
          {:ok, nodes} <- Manager.start_cluster() do
       IO.puts("✅ Test cluster restarted successfully!")
       IO.puts("📍 Nodes: #{inspect(nodes)}")
+      show_cluster_info(nodes)
     else
       {:error, reason} ->
         diagnosis = Diagnostics.diagnose_startup_failure(reason)

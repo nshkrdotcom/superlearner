@@ -166,63 +166,30 @@ defmodule OTPSupervisor.TestCluster.Diagnostics do
 
     test_ports = http_samples ++ dist_samples
 
-    IO.puts("🔍 DEBUG: About to check ports: #{inspect(test_ports)}")
-    
-    # Check what's actually using these ports
-    Enum.each(test_ports, fn port ->
-      case System.cmd("lsof", ["-i", ":#{port}"], stderr_to_stdout: true) do
-        {output, 0} -> 
-          IO.puts("🔍 DEBUG: Port #{port} lsof output:\n#{output}")
-        {_output, _} -> 
-          IO.puts("🔍 DEBUG: Port #{port} - no processes found via lsof")
-      end
-    end)
-
     case check_ports_available(test_ports) do
       [] ->
-        IO.puts("🔍 DEBUG: All ports available")
         {"Ports", :ok}
 
       busy_ports ->
-        IO.puts("🔍 DEBUG: Busy ports detected: #{inspect(busy_ports)}")
         {"Ports", {:error, "Ports in use: #{inspect(busy_ports)}"}}
     end
   end
 
   defp check_ports_available(ports) do
     Enum.filter(ports, fn port ->
-      # Try multiple times with small delays to handle socket cleanup timing
-      is_port_busy_retry(port, 3)
+      case :gen_tcp.listen(port, [{:reuseaddr, true}]) do
+        {:ok, socket} ->
+          :gen_tcp.close(socket)
+          false
+
+        {:error, :eaddrinuse} ->
+          true
+
+        {:error, _other} ->
+          false
+      end
     end)
   end
-
-  defp is_port_busy_retry(port, retries_left) when retries_left > 0 do
-    case :gen_tcp.listen(port, [{:reuseaddr, true}]) do
-      {:ok, socket} ->
-        :gen_tcp.close(socket)
-        # Give the socket time to fully close
-        :timer.sleep(10)
-        IO.puts("🔍 DEBUG: Port #{port} - TCP listen succeeded, port is available")
-        false
-
-      {:error, :eaddrinuse} ->
-        IO.puts("🔍 DEBUG: Port #{port} - TCP listen failed with :eaddrinuse, port is busy")
-        true
-
-      {:error, other} when retries_left > 1 ->
-        IO.puts("🔍 DEBUG: Port #{port} - TCP listen failed with #{inspect(other)}, retrying...")
-        # For other errors, retry after a short delay
-        :timer.sleep(50)
-        is_port_busy_retry(port, retries_left - 1)
-
-      {:error, other} ->
-        IO.puts("🔍 DEBUG: Port #{port} - TCP listen failed with #{inspect(other)}, considering available")
-        # Consider other errors as port being available
-        false
-    end
-  end
-
-  defp is_port_busy_retry(_port, 0), do: false
 
   # Private functions for detailed diagnostics
 
@@ -288,7 +255,6 @@ defmodule OTPSupervisor.TestCluster.Diagnostics do
     case :gen_tcp.listen(port, [{:reuseaddr, true}]) do
       {:ok, socket} ->
         :gen_tcp.close(socket)
-        :timer.sleep(10)
         true
 
       {:error, :eaddrinuse} ->
