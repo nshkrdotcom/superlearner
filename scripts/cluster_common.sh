@@ -30,25 +30,31 @@ print_success() {
 # Node configurations
 get_node_config() {
     local node_num=$1
+    local max_nodes=${MAX_NODES:-10}
     
-    case $node_num in
-        1)
-            NODE_NAME="superlearner@U2401"
-            NODE_PORT=4000
-            NODE_ROLE="primary"
-            CONFIG_FILE="dev"
-            ;;
-        2)
-            NODE_NAME="superlearner2@U2402"
-            NODE_PORT=4010
-            NODE_ROLE="secondary"
-            CONFIG_FILE="dev2"
-            ;;
-        *)
-            print_error "Invalid node number: $node_num. Use 1 or 2."
-            exit 1
-            ;;
-    esac
+    if [[ $node_num -lt 1 || $node_num -gt $max_nodes ]]; then
+        print_error "Invalid node number: $node_num. Use 1-$max_nodes."
+        exit 1
+    fi
+    
+    # Get hostname from environment or use default
+    local hostname=${NODE_HOSTNAME:-${HOSTNAME:-localhost}}
+    
+    # Dynamic configuration
+    if [[ $node_num -eq 1 ]]; then
+        NODE_NAME="superlearner@${hostname}"
+    else
+        NODE_NAME="superlearner${node_num}@${hostname}"
+    fi
+    
+    # Calculate port dynamically (base port + (node_num - 1) * spacing)
+    local base_port=${BASE_HTTP_PORT:-4000}
+    local port_spacing=${PORT_SPACING:-10}
+    NODE_PORT=$((base_port + (node_num - 1) * port_spacing))
+    
+    NODE_INDEX=$node_num
+    NODE_ROLE=$([ $node_num -eq 1 ] && echo "primary" || echo "node${node_num}")
+    CONFIG_FILE="dev"  # Use same config file with environment variables
 }
 
 # Setup function
@@ -229,8 +235,7 @@ create_startup_script() {
     local node_num=$1
     get_node_config $node_num
     
-    if [[ $node_num == 2 ]]; then
-        cat > scripts/start_node$node_num.sh << EOF
+    cat > scripts/start_node$node_num.sh << EOF
 #!/bin/bash
 # Start Node $node_num ($NODE_ROLE)
 
@@ -241,34 +246,16 @@ echo "Web interface: http://localhost:$NODE_PORT"
 echo "Press Ctrl+C to stop"
 echo "=================================================="
 
-# Set environment
+# Set environment variables for dynamic configuration
 export MIX_ENV=dev
-export NODE_ROLE=$NODE_ROLE
-export MIX_CONFIG=config/dev2.exs
+export NODE_INDEX=$node_num
+export NODE_HOSTNAME=${NODE_HOSTNAME:-${HOSTNAME:-localhost}}
+export CLUSTER_SIZE=${CLUSTER_SIZE:-2}
+export PHX_PORT=$NODE_PORT
 
 # Start with proper node name, cookie, and config
 exec iex --name $NODE_NAME --cookie secret_cluster_cookie -S mix phx.server
 EOF
-    else
-        cat > scripts/start_node$node_num.sh << EOF
-#!/bin/bash
-# Start Node $node_num ($NODE_ROLE)
-
-cd "\$(dirname "\$0")/.."
-
-echo "🚀 Starting Node $node_num ($NODE_ROLE) - $NODE_NAME"
-echo "Web interface: http://localhost:$NODE_PORT"
-echo "Press Ctrl+C to stop"
-echo "=================================================="
-
-# Set environment
-export MIX_ENV=dev
-export NODE_ROLE=$NODE_ROLE
-
-# Start with proper node name, cookie, and config
-exec iex --name $NODE_NAME --cookie secret_cluster_cookie -S mix phx.server
-EOF
-    fi
     
     chmod +x scripts/start_node$node_num.sh
     print_status "Node $node_num startup script created at scripts/start_node$node_num.sh"

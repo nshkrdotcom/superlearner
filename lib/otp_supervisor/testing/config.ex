@@ -15,8 +15,8 @@ defmodule OTPSupervisor.Testing.Config do
     reuse_clusters: true,
 
     # Cluster sizing
-    default_cluster_size: 2,
-    max_cluster_size: 5,
+    default_cluster_size: 2,  # Will be overridden by environment variable in load_config
+    max_cluster_size: 10,
     min_cluster_size: 1,
 
     # Timeouts (in milliseconds)
@@ -75,6 +75,7 @@ defmodule OTPSupervisor.Testing.Config do
     @default_config
     |> Map.merge(Enum.into(base_config, %{}))
     |> Map.merge(Enum.into(runtime_opts, %{}))
+    |> apply_environment_overrides()
     |> detect_environment()
     |> adjust_for_environment()
   end
@@ -375,6 +376,22 @@ defmodule OTPSupervisor.Testing.Config do
 
       {:error, _other} ->
         false
+    end
+  end
+
+  defp apply_environment_overrides(config) do
+    # Apply environment variable overrides
+    config
+    |> maybe_override(:default_cluster_size, "CLUSTER_SIZE", &String.to_integer/1)
+    |> maybe_override(:ci_cluster_size, "CI_CLUSTER_SIZE", &String.to_integer/1)
+    |> maybe_override(:dev_cluster_size, "DEV_CLUSTER_SIZE", &String.to_integer/1)
+    |> maybe_override(:max_cluster_size, "MAX_CLUSTER_SIZE", &String.to_integer/1)
+  end
+
+  defp maybe_override(config, key, env_var, converter) do
+    case System.get_env(env_var) do
+      nil -> config
+      value -> Map.put(config, key, converter.(value))
     end
   end
 end

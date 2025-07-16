@@ -19,16 +19,23 @@ defmodule Mix.Tasks.Cluster.Test do
       mix cluster.test logs [node]     # Show logs from test nodes
       mix cluster.test preflight       # Run pre-flight environment checks
 
+  ## Options
+
+      --size, -s    # Number of nodes in the cluster (default: 2)
+
   ## Examples
 
       # Check if environment is ready for distributed testing
       mix cluster.test preflight
 
-      # Start a fresh test cluster
+      # Start a fresh test cluster with default size
       mix cluster.test start
 
-      # Run distributed tests with automatic cluster management
-      mix cluster.test run
+      # Start a cluster with 4 nodes
+      mix cluster.test start --size 4
+
+      # Run distributed tests with 3-node cluster
+      mix cluster.test run --size 3
 
       # Check if cluster is healthy
       mix cluster.test health
@@ -69,14 +76,23 @@ defmodule Mix.Tasks.Cluster.Test do
     # Ensure the application is started for our GenServers
     Application.ensure_all_started(:otp_supervisor)
 
-    case args do
+    # Parse options and command
+    {opts, cmd_args, _} = OptionParser.parse(args, 
+      strict: [size: :integer, help: :boolean],
+      aliases: [s: :size, h: :help]
+    )
+    
+    # Extract cluster size if provided
+    cluster_size = Keyword.get(opts, :size)
+    
+    case cmd_args do
       [] -> show_help()
-      ["start"] -> start_cluster()
+      ["start"] -> start_cluster(if cluster_size, do: [cluster_size: cluster_size], else: [])
       ["stop"] -> stop_cluster()
-      ["restart"] -> restart_cluster()
+      ["restart"] -> restart_cluster(if cluster_size, do: [cluster_size: cluster_size], else: [])
       ["status"] -> show_status()
       ["clean"] -> clean_cluster()
-      ["run"] -> run_full_cycle()
+      ["run"] -> run_full_cycle(if cluster_size, do: [cluster_size: cluster_size], else: [])
       ["health"] -> health_check()
       ["logs"] -> show_logs()
       ["logs", node] -> show_logs(node)
@@ -85,13 +101,19 @@ defmodule Mix.Tasks.Cluster.Test do
     end
   end
 
-  defp start_cluster do
-    IO.puts("🚀 Starting distributed test cluster...")
+  defp start_cluster(opts) do
+    cluster_size = Keyword.get(opts, :cluster_size)
+    
+    if cluster_size do
+      IO.puts("🚀 Starting distributed test cluster with #{cluster_size} nodes...")
+    else
+      IO.puts("🚀 Starting distributed test cluster...")
+    end
 
     # Run prerequisite check first
     case Diagnostics.check_prerequisites() do
       :ok ->
-        start_cluster_after_checks()
+        start_cluster_after_checks(opts)
 
       {:error, failed_checks} ->
         IO.puts("❌ Prerequisites failed:")
@@ -100,9 +122,15 @@ defmodule Mix.Tasks.Cluster.Test do
     end
   end
 
-  defp start_cluster_after_checks do
+  defp start_cluster_after_checks(opts) do
+    manager_opts = if cluster_size = Keyword.get(opts, :cluster_size) do
+      [node_count: cluster_size]
+    else
+      []
+    end
+    
     with :ok <- ensure_manager_started(),
-         {:ok, nodes} <- Manager.start_cluster() do
+         {:ok, nodes} <- Manager.start_cluster(manager_opts) do
       IO.puts("✅ Test cluster started successfully!")
       IO.puts("📍 Nodes: #{inspect(nodes)}")
       show_cluster_info(nodes)
@@ -158,8 +186,14 @@ defmodule Mix.Tasks.Cluster.Test do
     end
   end
 
-  defp restart_cluster do
-    IO.puts("🔄 Restarting distributed test cluster...")
+  defp restart_cluster(opts) do
+    cluster_size = Keyword.get(opts, :cluster_size)
+    
+    if cluster_size do
+      IO.puts("🔄 Restarting distributed test cluster with #{cluster_size} nodes...")
+    else
+      IO.puts("🔄 Restarting distributed test cluster...")
+    end
 
     # First, force stop any existing cluster processes
     real_status = check_real_cluster_status()
@@ -177,8 +211,10 @@ defmodule Mix.Tasks.Cluster.Test do
     end
 
     # Now start fresh cluster
+    manager_opts = if cluster_size, do: [node_count: cluster_size], else: []
+    
     with :ok <- ensure_manager_started(),
-         {:ok, nodes} <- Manager.start_cluster() do
+         {:ok, nodes} <- Manager.start_cluster(manager_opts) do
       IO.puts("✅ Test cluster restarted successfully!")
       IO.puts("📍 Nodes: #{inspect(nodes)}")
       show_cluster_info(nodes)
@@ -244,13 +280,19 @@ defmodule Mix.Tasks.Cluster.Test do
     end
   end
 
-  defp run_full_cycle do
-    IO.puts("🎯 Running full distributed test cycle...")
+  defp run_full_cycle(opts) do
+    cluster_size = Keyword.get(opts, :cluster_size)
+    
+    if cluster_size do
+      IO.puts("🎯 Running full distributed test cycle with #{cluster_size} nodes...")
+    else
+      IO.puts("🎯 Running full distributed test cycle...")
+    end
 
     # Run prerequisite check first
     case Diagnostics.check_prerequisites() do
       :ok ->
-        run_full_cycle_after_checks()
+        run_full_cycle_after_checks(opts)
 
       {:error, failed_checks} ->
         IO.puts("❌ Prerequisites failed:")
@@ -259,9 +301,15 @@ defmodule Mix.Tasks.Cluster.Test do
     end
   end
 
-  defp run_full_cycle_after_checks do
+  defp run_full_cycle_after_checks(opts) do
+    manager_opts = if cluster_size = Keyword.get(opts, :cluster_size) do
+      [node_count: cluster_size]
+    else
+      []
+    end
+    
     with :ok <- ensure_manager_started(),
-         {:ok, _nodes} <- Manager.start_cluster(),
+         {:ok, _nodes} <- Manager.start_cluster(manager_opts),
          :ok <- run_distributed_tests(),
          :ok <- Manager.stop_cluster() do
       IO.puts("✅ Full test cycle completed successfully!")
@@ -1005,40 +1053,5 @@ defmodule Mix.Tasks.Cluster.Test do
     :ok
   end
 
-  defp _check_and_clean_stale_locks do
-    lock_file = "_build/.mix/compile.lock"
-    
-    if File.exists?(lock_file) do
-      case File.read(lock_file) do
-        {:ok, content} ->
-          case String.trim(content) |> String.to_integer() do
-            pid when is_integer(pid) ->
-              case System.cmd("ps", ["-p", Integer.to_string(pid)], stderr_to_stdout: true) do
-                {_, 0} ->
-                  # Process exists, check if it's actually a test node
-                  case System.cmd("ps", ["-p", Integer.to_string(pid), "-o", "cmd", "--no-headers"], stderr_to_stdout: true) do
-                    {cmd_output, 0} ->
-                      if String.contains?(cmd_output, "test_node") do
-                        IO.puts("ℹ️  Build lock held by active test node (PID #{pid})")
-                        IO.puts("💡 Use 'mix cluster.test clean' to force cleanup")
-                      else
-                        IO.puts("ℹ️  Build lock held by non-test process (PID #{pid})")
-                      end
-                    _ ->
-                      IO.puts("⚠️  Could not check process command for PID #{pid}")
-                  end
-                {_, _} ->
-                  # Process doesn't exist, remove stale lock
-                  IO.puts("🧹 Removing stale build lock (PID #{pid} not found)")
-                  File.rm(lock_file)
-              end
-            _ ->
-              IO.puts("⚠️  Invalid lock file format")
-          end
-        {:error, _} ->
-          IO.puts("⚠️  Could not read lock file")
-      end
-    end
-  end
 
 end

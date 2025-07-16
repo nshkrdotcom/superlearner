@@ -52,15 +52,15 @@ config :otp_supervisor, :distributed_testing,
   reuse_clusters: true,
 
   # Cluster sizing
-  default_cluster_size: 2,
-  max_cluster_size: 5,
+  default_cluster_size: System.get_env("CLUSTER_SIZE", "2") |> String.to_integer(),
+  max_cluster_size: 10,
   min_cluster_size: 1,
 
   # Environment-specific cluster sizes
   # Smaller clusters in CI to conserve resources
-  ci_cluster_size: 2,
+  ci_cluster_size: System.get_env("CI_CLUSTER_SIZE", "2") |> String.to_integer(),
   # Development cluster size
-  dev_cluster_size: 2,
+  dev_cluster_size: System.get_env("DEV_CLUSTER_SIZE", "2") |> String.to_integer(),
 
   # Timeouts (in milliseconds)
   # 30 seconds

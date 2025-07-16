@@ -22,36 +22,44 @@ end
 
 # Development environment overrides
 if config_env() == :dev do
-  # Get node role (primary or secondary)
-  node_role = System.get_env("NODE_ROLE", "primary")
-
-  # Configure based on node role
-  case node_role do
-    "secondary" ->
-      # Node 2 configuration
-      config :otp_supervisor, OtpSupervisorWeb.Endpoint,
-        http: [ip: {127, 0, 0, 1}, port: 4010],
-        watchers: []
-
-      config :otp_supervisor, :node_name, :superlearner2@U2402
-      config :otp_supervisor, :node_port, 4010
-      config :otp_supervisor, :node_role, :secondary
-
-    "primary" ->
-      # Node 1 configuration (default)
-      port =
-        if System.get_env("PHX_PORT") do
-          String.to_integer(System.get_env("PHX_PORT"))
-        else
-          4000
-        end
-
-      config :otp_supervisor, OtpSupervisorWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: port]
-
-      config :otp_supervisor, :node_name, :superlearner@U2401
-      config :otp_supervisor, :node_port, port
-      config :otp_supervisor, :node_role, :primary
+  # Dynamic node configuration based on NODE_INDEX
+  node_index = System.get_env("NODE_INDEX", "1") |> String.to_integer()
+  cluster_size = System.get_env("CLUSTER_SIZE", "2") |> String.to_integer()
+  
+  # Base ports for HTTP and distribution
+  base_http_port = 4000
+  port_spacing = 10  # Space between node ports
+  
+  # Calculate this node's port
+  node_port = if System.get_env("PHX_PORT") do
+    String.to_integer(System.get_env("PHX_PORT"))
+  else
+    base_http_port + (node_index - 1) * port_spacing
   end
+  
+  # Get hostname from environment or use default
+  hostname = System.get_env("NODE_HOSTNAME", System.get_env("HOSTNAME", "localhost"))
+  
+  # Generate node name dynamically
+  node_name = if node_index == 1 do
+    :"superlearner@#{hostname}"
+  else
+    :"superlearner#{node_index}@#{hostname}"
+  end
+  
+  # Configure the node
+  config :otp_supervisor, OtpSupervisorWeb.Endpoint,
+    http: [ip: {127, 0, 0, 1}, port: node_port],
+    watchers: if(node_index == 1, do: [], else: [])
+  
+  config :otp_supervisor, :node_name, node_name
+  config :otp_supervisor, :node_port, node_port
+  config :otp_supervisor, :node_index, node_index
+  config :otp_supervisor, :cluster_size, cluster_size
+  
+  # Maintain backward compatibility with node_role
+  node_role = if node_index == 1, do: :primary, else: :secondary
+  config :otp_supervisor, :node_role, node_role
 end
 
 if config_env() == :prod do
