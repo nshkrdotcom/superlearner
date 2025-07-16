@@ -782,13 +782,16 @@ defmodule ClusterTestHelper do
     # We don't directly clean up auto clusters - that's the AutoClusterManager's job
     # But we can check if coordination is needed
     case get_auto_cluster_info() do
-      {:ok, %{managed: true}} ->
-        Logger.debug("Auto cluster is managed, no coordination needed")
-        :ok
+      {:ok, cluster_info} ->
+        case Map.get(cluster_info, :managed, false) do
+          true ->
+            Logger.debug("Auto cluster is managed, no coordination needed")
+            :ok
 
-      {:ok, %{managed: false}} ->
-        Logger.debug("Auto cluster is not managed by current process")
-        :ok
+          false ->
+            Logger.debug("Auto cluster is not managed by current process")
+            :ok
+        end
 
       {:error, _reason} ->
         Logger.debug("No auto cluster to coordinate")

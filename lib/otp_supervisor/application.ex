@@ -59,7 +59,7 @@ defmodule OtpSupervisor.Application do
   # Private helper functions
 
   defp maybe_test_cluster_manager do
-    if Application.get_env(:mix, :env) == :test do
+    if distributed_testing_enabled?() do
       OTPSupervisor.TestCluster.Manager
     else
       # Return a no-op child spec for non-test environments
@@ -72,7 +72,7 @@ defmodule OtpSupervisor.Application do
   end
 
   defp maybe_auto_cluster_manager do
-    if Application.get_env(:mix, :env) == :test do
+    if distributed_testing_enabled?() do
       OTPSupervisor.Testing.AutoClusterManager
     else
       # Return a no-op child spec for non-test environments
@@ -82,5 +82,11 @@ defmodule OtpSupervisor.Application do
         restart: :temporary
       }
     end
+  end
+
+  defp distributed_testing_enabled? do
+    # Check if distributed testing configuration is present
+    config = Application.get_env(:otp_supervisor, :distributed_testing)
+    is_list(config) && Keyword.get(config, :auto_cluster, false)
   end
 end
