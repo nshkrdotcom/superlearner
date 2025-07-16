@@ -2,19 +2,23 @@
 IO.puts("=== Testing ClusterLive status_bar_metrics ===")
 
 # Get actual data
-{:ok, params} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.validate_params(%{
-  "include_processes" => false,
-  "include_health" => true
-})
+{:ok, params} =
+  OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.validate_params(%{
+    "include_processes" => false,
+    "include_health" => true
+  })
 
-{:ok, topology} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.execute(params)
+{:ok, topology} =
+  OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.execute(params)
 
-{:ok, health_params} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
-  "include_metrics" => true,
-  "include_history" => false
-})
+{:ok, health_params} =
+  OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
+    "include_metrics" => true,
+    "include_history" => false
+  })
 
-{:ok, health} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(health_params)
+{:ok, health} =
+  OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(health_params)
 
 # Create assigns like ClusterLive would have
 assigns = %{
@@ -36,10 +40,10 @@ IO.puts("  total_nodes: #{total_nodes}")
 IO.puts("  healthy_nodes: #{healthy_nodes}")
 IO.puts("  current_node: #{current_node}")
 
-cluster_status = 
+cluster_status =
   case Map.get(health, :overall_status, :healthy) do
     :healthy -> %{label: "Status", value: "Healthy", color: "text-green-400"}
-    :warning -> %{label: "Status", value: "Warning", color: "text-yellow-400"} 
+    :warning -> %{label: "Status", value: "Warning", color: "text-yellow-400"}
     :degraded -> %{label: "Status", value: "Degraded", color: "text-orange-400"}
     :critical -> %{label: "Status", value: "Critical", color: "text-red-400"}
     _ -> %{label: "Status", value: "Unknown", color: "text-gray-400"}
@@ -48,11 +52,12 @@ cluster_status =
 IO.puts("  cluster_status: #{inspect(cluster_status)}")
 
 # Test the get_cluster_mode_display logic
-mode_display = case Map.get(topology, :mode, :single_node) do
-  :multi_node -> "Multi-Node"
-  :single_node -> "Single Node"
-  _ -> "Unknown"
-end
+mode_display =
+  case Map.get(topology, :mode, :single_node) do
+    :multi_node -> "Multi-Node"
+    :single_node -> "Single Node"
+    _ -> "Unknown"
+  end
 
 IO.puts("  mode_display: #{mode_display}")
 

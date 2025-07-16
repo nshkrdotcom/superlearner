@@ -10,7 +10,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
 
   @moduledoc """
   Cluster monitoring and management interface.
-  
+
   Shows information about the current server and other servers in the cluster,
   using the Arsenal cluster operations for real-time data.
   """
@@ -21,13 +21,14 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       Phoenix.PubSub.subscribe(OtpSupervisor.PubSub, "cluster_updates")
     end
 
-    socket = socket
-     |> assign(:page_title, "Cluster Monitor")
-     |> assign(:current_page, "cluster")
-     |> assign(:selected_node, nil)
-     |> assign(:cluster_health, %{})
-     |> assign(:cluster_topology, %{})
-     |> assign(:current_node, Node.self())
+    socket =
+      socket
+      |> assign(:page_title, "Cluster Monitor")
+      |> assign(:current_page, "cluster")
+      |> assign(:selected_node, nil)
+      |> assign(:cluster_health, %{})
+      |> assign(:cluster_topology, %{})
+      |> assign(:current_node, Node.self())
 
     socket = load_cluster_data(socket)
 
@@ -63,7 +64,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
         navigation_links={TerminalNavigationLinks.page_navigation_links("cluster", %{})}
       />
       
-      <!-- Main Grid Layout -->
+    <!-- Main Grid Layout -->
       <.live_component
         module={TerminalPanelLayout}
         id="cluster-grid-layout"
@@ -102,7 +103,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
   defp load_cluster_data(socket) do
     topology = get_cluster_topology()
     health = get_cluster_health()
-    
+
     socket
     |> assign(:cluster_topology, topology)
     |> assign(:cluster_health, health)
@@ -145,7 +146,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
     healthy_nodes = Map.get(health, :nodes_healthy, 1)
     current_node = assigns.current_node
 
-    cluster_status = 
+    cluster_status =
       case Map.get(health, :overall_status, :healthy) do
         :healthy -> %{label: "Status", value: "Healthy"}
         :warning -> %{label: "Status", value: "Warning"}
@@ -242,38 +243,42 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
 
   defp get_cluster_topology do
     try do
-      {:ok, params} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.validate_params(%{
-        "include_processes" => false,
-        "include_health" => true
-      })
-      
+      {:ok, params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.validate_params(%{
+          "include_processes" => false,
+          "include_health" => true
+        })
+
       case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.execute(params) do
-        {:ok, topology} -> 
+        {:ok, topology} ->
           topology
-        {:error, _reason} -> 
+
+        {:error, _reason} ->
           get_fallback_topology()
       end
     rescue
-      _error -> 
+      _error ->
         get_fallback_topology()
     end
   end
 
   defp get_cluster_health do
     try do
-      {:ok, params} = OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
-        "include_metrics" => true,
-        "include_history" => false
-      })
-      
+      {:ok, params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
+          "include_metrics" => true,
+          "include_history" => false
+        })
+
       case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(params) do
-        {:ok, health} -> 
+        {:ok, health} ->
           health
-        {:error, _reason} -> 
+
+        {:error, _reason} ->
           get_fallback_health()
       end
     rescue
-      _error -> 
+      _error ->
         get_fallback_health()
     end
   end
@@ -343,7 +348,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
         status: :info
       },
       %{
-        label: "Total Nodes", 
+        label: "Total Nodes",
         value: Map.get(topology, :total_nodes, 1),
         format: :number,
         status: :success
@@ -357,14 +362,15 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
     ]
 
     if Map.get(topology, :simulation_enabled, false) do
-      base_metrics ++ [
-        %{
-          label: "Simulation Mode",
-          value: "Active",
-          format: :text,
-          status: :warning
-        }
-      ]
+      base_metrics ++
+        [
+          %{
+            label: "Simulation Mode",
+            value: "Active",
+            format: :text,
+            status: :warning
+          }
+        ]
     else
       base_metrics
     end
@@ -439,12 +445,13 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
         else
           # For real nodes, check if node is connected
           is_connected = node in Node.list()
-          
-          status_info = if is_connected do
-            %{value: "Up", status: :success}
-          else
-            %{value: "Down", status: :error}
-          end
+
+          status_info =
+            if is_connected do
+              %{value: "Up", status: :success}
+            else
+              %{value: "Down", status: :error}
+            end
 
           [
             %{
@@ -467,7 +474,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
 
     for i <- 29..0//-1 do
       timestamp = DateTime.add(now, -i * 10, :second)
-      
+
       %{
         timestamp: timestamp,
         healthy_nodes: healthy_nodes + :rand.uniform(2) - 1,
@@ -480,59 +487,65 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
   defp cluster_alerts_data(assigns) do
     health = assigns.cluster_health
     topology = assigns.cluster_topology
-    
+
     base_alerts = []
 
     # Add alerts based on cluster health (only if actually unhealthy)
-    alerts = case Map.get(health, :overall_status, :healthy) do
-      :critical ->
-        base_alerts ++ [
+    alerts =
+      case Map.get(health, :overall_status, :healthy) do
+        :critical ->
+          base_alerts ++
+            [
+              %{
+                id: "cluster-critical",
+                severity: :critical,
+                title: "Cluster Critical",
+                message: "Multiple nodes are unavailable",
+                timestamp: DateTime.utc_now(),
+                source: "cluster_monitor",
+                count: 1
+              }
+            ]
+
+        :degraded ->
+          # Only show degraded alert if there are actually unhealthy nodes
+          unhealthy_nodes = Map.get(health, :nodes_unhealthy, 0)
+
+          if unhealthy_nodes > 0 do
+            base_alerts ++
+              [
+                %{
+                  id: "cluster-degraded",
+                  severity: :warning,
+                  title: "Cluster Degraded",
+                  message: "#{unhealthy_nodes} nodes are unhealthy",
+                  timestamp: DateTime.utc_now(),
+                  source: "cluster_monitor",
+                  count: 1
+                }
+              ]
+          else
+            base_alerts
+          end
+
+        _ ->
+          base_alerts
+      end
+
+    # Add simulation mode alert if active
+    if Map.get(topology, :simulation_enabled, false) do
+      alerts ++
+        [
           %{
-            id: "cluster-critical",
-            severity: :critical,
-            title: "Cluster Critical",
-            message: "Multiple nodes are unavailable",
+            id: "simulation-active",
+            severity: :info,
+            title: "Simulation Mode Active",
+            message: "Cluster is running in simulation mode",
             timestamp: DateTime.utc_now(),
             source: "cluster_monitor",
             count: 1
           }
         ]
-      
-      :degraded ->
-        # Only show degraded alert if there are actually unhealthy nodes
-        unhealthy_nodes = Map.get(health, :nodes_unhealthy, 0)
-        if unhealthy_nodes > 0 do
-          base_alerts ++ [
-            %{
-              id: "cluster-degraded", 
-              severity: :warning,
-              title: "Cluster Degraded",
-              message: "#{unhealthy_nodes} nodes are unhealthy",
-              timestamp: DateTime.utc_now(),
-              source: "cluster_monitor",
-              count: 1
-            }
-          ]
-        else
-          base_alerts
-        end
-      
-      _ -> base_alerts
-    end
-
-    # Add simulation mode alert if active
-    if Map.get(topology, :simulation_enabled, false) do
-      alerts ++ [
-        %{
-          id: "simulation-active",
-          severity: :info,
-          title: "Simulation Mode Active",
-          message: "Cluster is running in simulation mode",
-          timestamp: DateTime.utc_now(),
-          source: "cluster_monitor", 
-          count: 1
-        }
-      ]
     else
       alerts
     end
@@ -543,7 +556,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
   defp calculate_connected_nodes_count(topology) do
     total_nodes = Map.get(topology, :total_nodes, 1)
     simulation_enabled = Map.get(topology, :simulation_enabled, false)
-    
+
     if simulation_enabled && total_nodes > 1 do
       # In simulation mode, show total_nodes - 1 (excluding current node)
       total_nodes - 1
@@ -556,7 +569,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
   defp get_cluster_mode_display(topology) do
     total_nodes = Map.get(topology, :total_nodes, 1)
     simulation_enabled = Map.get(topology, :simulation_enabled, false)
-    
+
     cond do
       simulation_enabled && total_nodes > 1 -> "Multi-Node (Simulation)"
       total_nodes > 1 -> "Multi-Node"

@@ -15,7 +15,8 @@ defmodule OTPSupervisor.Testing.Config do
     reuse_clusters: true,
 
     # Cluster sizing
-    default_cluster_size: 2,  # Will be overridden by environment variable in load_config
+    # Will be overridden by environment variable in load_config
+    default_cluster_size: 2,
     max_cluster_size: 10,
     min_cluster_size: 1,
 

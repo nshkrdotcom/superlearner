@@ -77,14 +77,15 @@ defmodule Mix.Tasks.Cluster.Test do
     Application.ensure_all_started(:otp_supervisor)
 
     # Parse options and command
-    {opts, cmd_args, _} = OptionParser.parse(args, 
-      strict: [size: :integer, help: :boolean],
-      aliases: [s: :size, h: :help]
-    )
-    
+    {opts, cmd_args, _} =
+      OptionParser.parse(args,
+        strict: [size: :integer, help: :boolean],
+        aliases: [s: :size, h: :help]
+      )
+
     # Extract cluster size if provided
     cluster_size = Keyword.get(opts, :size)
-    
+
     case cmd_args do
       [] -> show_help()
       ["start"] -> start_cluster(if cluster_size, do: [cluster_size: cluster_size], else: [])
@@ -103,7 +104,7 @@ defmodule Mix.Tasks.Cluster.Test do
 
   defp start_cluster(opts) do
     cluster_size = Keyword.get(opts, :cluster_size)
-    
+
     if cluster_size do
       IO.puts("🚀 Starting distributed test cluster with #{cluster_size} nodes...")
     else
@@ -123,12 +124,13 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp start_cluster_after_checks(opts) do
-    manager_opts = if cluster_size = Keyword.get(opts, :cluster_size) do
-      [node_count: cluster_size]
-    else
-      []
-    end
-    
+    manager_opts =
+      if cluster_size = Keyword.get(opts, :cluster_size) do
+        [node_count: cluster_size]
+      else
+        []
+      end
+
     with :ok <- ensure_manager_started(),
          {:ok, nodes} <- Manager.start_cluster(manager_opts) do
       IO.puts("✅ Test cluster started successfully!")
@@ -188,7 +190,7 @@ defmodule Mix.Tasks.Cluster.Test do
 
   defp restart_cluster(opts) do
     cluster_size = Keyword.get(opts, :cluster_size)
-    
+
     if cluster_size do
       IO.puts("🔄 Restarting distributed test cluster with #{cluster_size} nodes...")
     else
@@ -197,22 +199,25 @@ defmodule Mix.Tasks.Cluster.Test do
 
     # First, force stop any existing cluster processes
     real_status = check_real_cluster_status()
+
     if real_status.overall_status == :running do
       IO.puts("🔍 Detected running cluster processes - performing force cleanup...")
       force_stop_cluster()
-      
+
       # Clean up EPMD to avoid name conflicts
       case System.cmd("epmd", ["-kill"], stderr_to_stdout: true) do
-        {_, 0} -> 
+        {_, 0} ->
           IO.puts("  ✅ Cleaned up EPMD")
           System.cmd("epmd", ["-daemon"], stderr_to_stdout: true)
-        _ -> :ok
+
+        _ ->
+          :ok
       end
     end
 
     # Now start fresh cluster
     manager_opts = if cluster_size, do: [node_count: cluster_size], else: []
-    
+
     with :ok <- ensure_manager_started(),
          {:ok, nodes} <- Manager.start_cluster(manager_opts) do
       IO.puts("✅ Test cluster restarted successfully!")
@@ -282,7 +287,7 @@ defmodule Mix.Tasks.Cluster.Test do
 
   defp run_full_cycle(opts) do
     cluster_size = Keyword.get(opts, :cluster_size)
-    
+
     if cluster_size do
       IO.puts("🎯 Running full distributed test cycle with #{cluster_size} nodes...")
     else
@@ -302,12 +307,13 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp run_full_cycle_after_checks(opts) do
-    manager_opts = if cluster_size = Keyword.get(opts, :cluster_size) do
-      [node_count: cluster_size]
-    else
-      []
-    end
-    
+    manager_opts =
+      if cluster_size = Keyword.get(opts, :cluster_size) do
+        [node_count: cluster_size]
+      else
+        []
+      end
+
     with :ok <- ensure_manager_started(),
          {:ok, _nodes} <- Manager.start_cluster(manager_opts),
          :ok <- run_distributed_tests(),
@@ -1052,6 +1058,4 @@ defmodule Mix.Tasks.Cluster.Test do
     # This is a placeholder for database cleanup if needed
     :ok
   end
-
-
 end
