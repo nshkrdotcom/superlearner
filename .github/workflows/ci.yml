@@ -47,7 +47,9 @@ jobs:
       run: mix format --check-formatted
     
     - name: Run tests
-      run: MIX_ENV=test mix test --max-cases 1 || MIX_ENV=test mix test --max-cases 1
+      run: |
+        epmd -daemon
+        MIX_ENV=test mix test --max-cases 1 || MIX_ENV=test mix test --max-cases 1
     
     - name: Run dialyzer
       run: mix dialyzer
