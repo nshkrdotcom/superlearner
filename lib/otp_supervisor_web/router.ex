@@ -27,6 +27,7 @@ defmodule OtpSupervisorWeb.Router do
     get "/", PageController, :home
     live "/supervisors", Live.SupervisorLive
     live "/system", Live.SystemDashboardLive
+    live "/cluster", Live.ClusterLive
     live "/arsenal", Live.ArsenalLive
     live "/docs", Live.DocsLive
   end

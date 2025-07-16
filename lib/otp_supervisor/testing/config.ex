@@ -360,14 +360,31 @@ defmodule OTPSupervisor.Testing.Config do
     sample_ports = [start_port, start_port + 10, start_port + 20, end_port - 10, end_port]
 
     Enum.all?(sample_ports, fn port ->
-      case :gen_tcp.listen(port, []) do
-        {:ok, socket} ->
-          :gen_tcp.close(socket)
-          true
-
-        {:error, _} ->
-          false
-      end
+      is_port_available_retry(port, 3)
     end)
   end
+
+  defp is_port_available_retry(port, retries_left) when retries_left > 0 do
+    case :gen_tcp.listen(port, [{:reuseaddr, true}]) do
+      {:ok, socket} ->
+        :gen_tcp.close(socket)
+        # Give the socket time to fully close
+        :timer.sleep(10)
+        true
+
+      {:error, :eaddrinuse} ->
+        false
+
+      {:error, _other} when retries_left > 1 ->
+        # For other errors, retry after a short delay
+        :timer.sleep(50)
+        is_port_available_retry(port, retries_left - 1)
+
+      {:error, _other} ->
+        # Consider other errors as port being unavailable
+        false
+    end
+  end
+
+  defp is_port_available_retry(_port, 0), do: false
 end

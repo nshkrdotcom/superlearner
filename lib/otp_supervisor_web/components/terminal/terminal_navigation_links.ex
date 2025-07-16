@@ -79,6 +79,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
         key: "supervisor"
       },
       %{
+        label: "Cluster",
+        path: "/cluster",
+        icon: "🔗",
+        key: "cluster"
+      },
+      %{
         label: "Arsenal",
         path: "/arsenal",
         icon: "⚡",
@@ -106,6 +112,9 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
 
       "supervisor" ->
         add_supervisor_navigation(base_links_with_active, context)
+
+      "cluster" ->
+        add_cluster_navigation(base_links_with_active, context)
 
       "arsenal" ->
         add_arsenal_navigation(base_links_with_active, context)
@@ -163,6 +172,9 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
       {"supervisor", "supervisor"} ->
         true
 
+      {"cluster", "cluster"} ->
+        true
+
       {"docs", "docs"} ->
         true
 
@@ -191,6 +203,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
 
   defp add_supervisor_navigation(links, _context) do
     # Supervisor page handles its own internal navigation
+    # No additional external routes needed
+    links
+  end
+
+  defp add_cluster_navigation(links, _context) do
+    # Cluster page handles its own internal navigation
     # No additional external routes needed
     links
   end
