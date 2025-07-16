@@ -27,7 +27,11 @@
   - Test integration with real cluster data
   - _Requirements: 1.1, 1.4_
 
-- [ ] 3. Create process grouping and display logic
+- [x] 3. Create process grouping and display logic
+
+
+
+
   - Add group_processes_by_node/1 function to organize processes by node
   - Implement calculate_process_stats/1 function for summary statistics
   - Add format_process_info/1 function to prepare process details for display
@@ -36,7 +40,12 @@
   - Implement "No processes" message for empty nodes
   - _Requirements: 1.2, 1.3, 1.5, 1.6_
 
-- [ ] 4. Build filtering system
+- [x] 4. Build filtering system
+
+
+
+
+
   - Add filter controls in render/1 function for process type, application, and node
   - Implement handle_event/3 for "filter_change" with filter parameters
   - Create apply_filters/2 function to filter processes based on current filters
@@ -45,7 +54,13 @@
   - Add filter indicators showing active filters
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 5. Implement real-time search functionality
+- [x] 5. Implement real-time search functionality
+
+
+
+
+
+
   - Add search input field in render/1 function
   - Implement handle_event/3 for "search_change" with search term
   - Create search_processes/2 function for client-side process filtering
@@ -54,7 +69,13 @@
   - Add search result counter and "Showing X of Y" indicator
   - _Requirements: 2.5, 2.6, 2.7_
 
-- [ ] 6. Add pagination for large process lists
+- [x] 6. Add pagination for large process lists
+
+
+
+
+
+
   - Implement pagination logic with configurable per_page (default 100)
   - Add pagination controls in render/1 function
   - Create paginate_processes/3 function for process list slicing
@@ -63,7 +84,10 @@
   - Ensure pagination works with filters and search
   - _Requirements: 3.5_
 
-- [ ] 7. Implement real-time updates with PubSub
+- [-] 7. Implement real-time updates with PubSub
+
+
+
   - Add ClusterStateManager.subscribe_to_changes/0 call in mount/3 when connected
   - Implement handle_info/2 for cluster_state_changes PubSub messages
   - Add periodic refresh timer setup with 5-second interval
