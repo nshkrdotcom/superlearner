@@ -21,23 +21,34 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       Phoenix.PubSub.subscribe(OtpSupervisor.PubSub, "cluster_updates")
     end
 
-    {:ok,
-     socket
+    socket = socket
      |> assign(:page_title, "Cluster Monitor")
      |> assign(:current_page, "cluster")
      |> assign(:selected_node, nil)
      |> assign(:cluster_health, %{})
      |> assign(:cluster_topology, %{})
      |> assign(:current_node, Node.self())
-     |> load_cluster_data()}
+
+    socket = load_cluster_data(socket)
+
+    {:ok, socket}
   end
 
   def handle_info(:update_cluster_data, socket) do
     {:noreply, update_cluster_data(socket)}
   end
 
+  def handle_info(:update_chart_data, socket) do
+    {:noreply, socket}
+  end
+
   def handle_info({:cluster_update, data}, socket) do
     {:noreply, handle_cluster_update(socket, data)}
+  end
+
+  def handle_info(_msg, socket) do
+    # Catch-all for unexpected messages to prevent crashes
+    {:noreply, socket}
   end
 
   def render(assigns) do
@@ -89,9 +100,12 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
   # Private functions
 
   defp load_cluster_data(socket) do
+    topology = get_cluster_topology()
+    health = get_cluster_health()
+    
     socket
-    |> assign(:cluster_topology, get_cluster_topology())
-    |> assign(:cluster_health, get_cluster_health())
+    |> assign(:cluster_topology, topology)
+    |> assign(:cluster_health, health)
     |> assign(:node_details, %{})
   end
 
@@ -133,11 +147,11 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
 
     cluster_status = 
       case Map.get(health, :overall_status, :healthy) do
-        :healthy -> %{label: "Status", value: "Healthy", color: "text-green-400"}
-        :warning -> %{label: "Status", value: "Warning", color: "text-yellow-400"} 
-        :degraded -> %{label: "Status", value: "Degraded", color: "text-orange-400"}
-        :critical -> %{label: "Status", value: "Critical", color: "text-red-400"}
-        _ -> %{label: "Status", value: "Unknown", color: "text-gray-400"}
+        :healthy -> %{label: "Status", value: "Healthy"}
+        :warning -> %{label: "Status", value: "Warning"}
+        :degraded -> %{label: "Status", value: "Degraded"}
+        :critical -> %{label: "Status", value: "Critical"}
+        _ -> %{label: "Status", value: "Unknown"}
       end
 
     [
@@ -234,11 +248,14 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       })
       
       case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology.execute(params) do
-        {:ok, topology} -> topology
-        {:error, _} -> get_fallback_topology()
+        {:ok, topology} -> 
+          topology
+        {:error, _reason} -> 
+          get_fallback_topology()
       end
     rescue
-      _ -> get_fallback_topology()
+      _error -> 
+        get_fallback_topology()
     end
   end
 
@@ -250,11 +267,14 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       })
       
       case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(params) do
-        {:ok, health} -> health
-        {:error, _} -> get_fallback_health()
+        {:ok, health} -> 
+          health
+        {:error, _reason} -> 
+          get_fallback_health()
       end
     rescue
-      _ -> get_fallback_health()
+      _error -> 
+        get_fallback_health()
     end
   end
 
@@ -330,7 +350,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       },
       %{
         label: "Connected Nodes",
-        value: length(Map.get(topology, :connected_nodes, [])),
+        value: calculate_connected_nodes_count(topology),
         format: :number,
         status: :success
       }
@@ -393,6 +413,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
     all_nodes = Map.get(topology, :nodes, [])
     current_node = assigns.current_node
     other_nodes = Enum.reject(all_nodes, &(&1 == current_node))
+    simulation_enabled = Map.get(topology, :simulation_enabled, false)
 
     if Enum.empty?(other_nodes) do
       [
@@ -405,24 +426,35 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
       ]
     else
       Enum.flat_map(other_nodes, fn node ->
-        node_details = Map.get(assigns.node_details, node, %{})
-        status = Map.get(node_details, :status, :unknown)
+        if simulation_enabled do
+          # For simulated nodes, always show as "Up"
+          [
+            %{
+              label: to_string(node),
+              value: "Up",
+              format: :text,
+              status: :success
+            }
+          ]
+        else
+          # For real nodes, check if node is connected
+          is_connected = node in Node.list()
+          
+          status_info = if is_connected do
+            %{value: "Up", status: :success}
+          else
+            %{value: "Down", status: :error}
+          end
 
-        status_info = case status do
-          :up -> %{value: "Up", status: :success}
-          :down -> %{value: "Down", status: :error}
-          :partitioned -> %{value: "Partitioned", status: :warning}
-          _ -> %{value: "Unknown", status: :warning}
+          [
+            %{
+              label: to_string(node),
+              value: status_info.value,
+              format: :text,
+              status: status_info.status
+            }
+          ]
         end
-
-        [
-          %{
-            label: to_string(node),
-            value: status_info.value,
-            format: :text,
-            status: status_info.status
-          }
-        ]
       end)
     end
   end
@@ -451,7 +483,7 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
     
     base_alerts = []
 
-    # Add alerts based on cluster health
+    # Add alerts based on cluster health (only if actually unhealthy)
     alerts = case Map.get(health, :overall_status, :healthy) do
       :critical ->
         base_alerts ++ [
@@ -467,17 +499,23 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
         ]
       
       :degraded ->
-        base_alerts ++ [
-          %{
-            id: "cluster-degraded", 
-            severity: :warning,
-            title: "Cluster Degraded",
-            message: "Some nodes are unhealthy",
-            timestamp: DateTime.utc_now(),
-            source: "cluster_monitor",
-            count: 1
-          }
-        ]
+        # Only show degraded alert if there are actually unhealthy nodes
+        unhealthy_nodes = Map.get(health, :nodes_unhealthy, 0)
+        if unhealthy_nodes > 0 do
+          base_alerts ++ [
+            %{
+              id: "cluster-degraded", 
+              severity: :warning,
+              title: "Cluster Degraded",
+              message: "#{unhealthy_nodes} nodes are unhealthy",
+              timestamp: DateTime.utc_now(),
+              source: "cluster_monitor",
+              count: 1
+            }
+          ]
+        else
+          base_alerts
+        end
       
       _ -> base_alerts
     end
@@ -502,11 +540,27 @@ defmodule OtpSupervisorWeb.Live.ClusterLive do
 
   # Helper functions
 
+  defp calculate_connected_nodes_count(topology) do
+    total_nodes = Map.get(topology, :total_nodes, 1)
+    simulation_enabled = Map.get(topology, :simulation_enabled, false)
+    
+    if simulation_enabled && total_nodes > 1 do
+      # In simulation mode, show total_nodes - 1 (excluding current node)
+      total_nodes - 1
+    else
+      # In real cluster mode, use actual connected_nodes count
+      length(Map.get(topology, :connected_nodes, []))
+    end
+  end
+
   defp get_cluster_mode_display(topology) do
-    case Map.get(topology, :mode, :single_node) do
-      :multi_node -> "Multi-Node"
-      :single_node -> "Single Node"
-      _ -> "Unknown"
+    total_nodes = Map.get(topology, :total_nodes, 1)
+    simulation_enabled = Map.get(topology, :simulation_enabled, false)
+    
+    cond do
+      simulation_enabled && total_nodes > 1 -> "Multi-Node (Simulation)"
+      total_nodes > 1 -> "Multi-Node"
+      true -> "Single Node"
     end
   end
 

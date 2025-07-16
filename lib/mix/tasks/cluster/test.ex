@@ -1004,4 +1004,41 @@ defmodule Mix.Tasks.Cluster.Test do
     # This is a placeholder for database cleanup if needed
     :ok
   end
+
+  defp _check_and_clean_stale_locks do
+    lock_file = "_build/.mix/compile.lock"
+    
+    if File.exists?(lock_file) do
+      case File.read(lock_file) do
+        {:ok, content} ->
+          case String.trim(content) |> String.to_integer() do
+            pid when is_integer(pid) ->
+              case System.cmd("ps", ["-p", Integer.to_string(pid)], stderr_to_stdout: true) do
+                {_, 0} ->
+                  # Process exists, check if it's actually a test node
+                  case System.cmd("ps", ["-p", Integer.to_string(pid), "-o", "cmd", "--no-headers"], stderr_to_stdout: true) do
+                    {cmd_output, 0} ->
+                      if String.contains?(cmd_output, "test_node") do
+                        IO.puts("ℹ️  Build lock held by active test node (PID #{pid})")
+                        IO.puts("💡 Use 'mix cluster.test clean' to force cleanup")
+                      else
+                        IO.puts("ℹ️  Build lock held by non-test process (PID #{pid})")
+                      end
+                    _ ->
+                      IO.puts("⚠️  Could not check process command for PID #{pid}")
+                  end
+                {_, _} ->
+                  # Process doesn't exist, remove stale lock
+                  IO.puts("🧹 Removing stale build lock (PID #{pid} not found)")
+                  File.rm(lock_file)
+              end
+            _ ->
+              IO.puts("⚠️  Invalid lock file format")
+          end
+        {:error, _} ->
+          IO.puts("⚠️  Could not read lock file")
+      end
+    end
+  end
+
 end

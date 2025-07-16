@@ -185,8 +185,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
     env = [
       {"PHX_PORT", Integer.to_string(config.http_port)},
       {"PORT", Integer.to_string(config.http_port)},
-      # Use test environment, not dev
-      {"MIX_ENV", "test"},
+      {"MIX_ENV", "dev"},
       {"NODE_NAME", Atom.to_string(config.name)},
       {"PHX_SERVER", "true"},
       # CRITICAL: Pass cookie via environment to ensure it's set early
