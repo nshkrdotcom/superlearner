@@ -25,7 +25,7 @@ defmodule OtpSupervisor.MixProject do
   def application do
     [
       mod: {OtpSupervisor.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end
 

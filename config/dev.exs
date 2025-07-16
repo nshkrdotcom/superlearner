@@ -79,3 +79,10 @@ config :otp_supervisor, :distributed_tooling,
   # More frequent checks in dev
   health_check_interval: 2_000,
   performance_monitoring: true
+
+# Process listing configuration for development
+config :otp_supervisor, :process_listing,
+  # Higher limits for development to see more processes
+  default_limit: 10000,
+  max_limit: 10000,
+  per_page: 100

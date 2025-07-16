@@ -161,27 +161,32 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
   end
 
   defp validate_limit_param(params) do
+    # Get configuration values
+    process_config = Application.get_env(:otp_supervisor, :process_listing, [])
+    default_limit = Keyword.get(process_config, :default_limit, 1000)
+    max_limit = Keyword.get(process_config, :max_limit, 10000)
+    
     case params["limit"] do
       # Default limit
       nil ->
-        Map.put(params, "limit", 100)
+        Map.put(params, "limit", default_limit)
 
       limit_str when is_binary(limit_str) ->
         case Integer.parse(limit_str) do
-          {limit, ""} when limit > 0 and limit <= 1000 ->
+          {limit, ""} when limit > 0 and limit <= max_limit ->
             Map.put(params, "limit", limit)
 
           _ ->
             # Invalid, use default
-            Map.put(params, "limit", 100)
+            Map.put(params, "limit", default_limit)
         end
 
-      limit when is_integer(limit) and limit > 0 and limit <= 1000 ->
+      limit when is_integer(limit) and limit > 0 and limit <= max_limit ->
         Map.put(params, "limit", limit)
 
       _ ->
         # Invalid, use default
-        Map.put(params, "limit", 100)
+        Map.put(params, "limit", default_limit)
     end
   end
 
@@ -198,11 +203,23 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
 
   defp collect_processes_from_nodes(nodes, params) do
     include_details = params["include_details"]
+    limit = params["limit"] || get_default_limit()
+    
+    # When collecting from multiple nodes, apply a per-node limit
+    # to ensure we get a fair distribution of processes from each node
+    per_node_limit = if length(nodes) > 1, do: div(limit, length(nodes)) + 100, else: limit
 
     nodes
     |> Enum.flat_map(fn node ->
-      collect_processes_from_node(node, include_details)
+      processes = collect_processes_from_node(node, include_details)
+      # Apply per-node limit to ensure fair distribution
+      Enum.take(processes, per_node_limit)
     end)
+  end
+  
+  defp get_default_limit do
+    process_config = Application.get_env(:otp_supervisor, :process_listing, [])
+    Keyword.get(process_config, :default_limit, 1000)
   end
 
   defp collect_processes_from_node(node, include_details) do

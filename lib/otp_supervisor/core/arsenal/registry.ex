@@ -27,7 +27,8 @@ defmodule OTPSupervisor.Core.Arsenal.Registry do
     OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterTopology,
     OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList,
     OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth,
-    OTPSupervisor.Core.Arsenal.Operations.Distributed.NodeInfo
+    OTPSupervisor.Core.Arsenal.Operations.Distributed.NodeInfo,
+    OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTrees
   ]
 
   def start_link(opts \\ []) do

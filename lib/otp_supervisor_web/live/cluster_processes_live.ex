@@ -52,23 +52,22 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     {:noreply, assign(socket, :expanded_nodes, updated_expanded_nodes)}
   end
 
-  def handle_event("filter_change", %{"filter_type" => filter_type, "value" => value}, socket) do
-    current_filters = socket.assigns.filters
-    filter_key = String.to_atom(filter_type)
+  def handle_event("filter_change", form_params, socket) do
+    # Extract filter values from form
+    updated_filters = %{
+      node: parse_filter_value(form_params["node"] || "all"),
+      type: parse_filter_value(form_params["type"] || "all"),
+      application: parse_filter_value(form_params["application"] || "all")
+    }
 
-    # Parse the filter value
-    parsed_value = parse_filter_value(value)
-
-    # Update the specific filter
-    updated_filters = Map.put(current_filters, filter_key, parsed_value)
-
-    # Apply filters and update socket
+    # According to requirements, filters should re-execute Arsenal operation with updated parameters
     socket =
       socket
       |> assign(:filters, updated_filters)
       # Reset to first page when filtering
       |> assign(:current_page, 1)
-      |> apply_filters_and_update_display()
+      |> assign(:operation_in_progress, true)
+      |> reload_process_data_with_filters()
 
     {:noreply, socket}
   end
@@ -81,13 +80,20 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       application: :all
     }
 
+    # Get all nodes to expand them
+    all_nodes = get_unique_nodes(socket.assigns.processes)
+    expanded_nodes = MapSet.new(all_nodes)
+
     socket =
       socket
       |> assign(:filters, default_filters)
       |> assign(:search_term, "")
       # Reset to first page when clearing filters
       |> assign(:current_page, 1)
-      |> apply_filters_and_search_and_update_display()
+      |> assign(:operation_in_progress, true)
+      # Expand all nodes when resetting filters
+      |> assign(:expanded_nodes, expanded_nodes)
+      |> reload_process_data_with_filters()
 
     {:noreply, socket}
   end
@@ -105,6 +111,18 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       socket
       |> assign(:search_term, search_term)
       |> assign(:search_debounce_timer, timer_ref)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("clear_search", _params, socket) do
+    # Clear search and apply filters
+    socket =
+      socket
+      |> assign(:search_term, "")
+      |> assign(:current_page, 1)
+      |> assign(:search_debounce_timer, nil)
+      |> apply_filters_and_search_and_update_display()
 
     {:noreply, socket}
   end
@@ -260,8 +278,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
             <% end %>
             <!-- Filter Controls -->
             <div class="mb-4 p-3 bg-gray-900/50 rounded border border-green-500/20">
-              <!-- Search Input -->
-              <div class="mb-4">
+              <!-- Search Form -->
+              <form phx-change="search_change" class="mb-4">
                 <div class="flex items-center space-x-2">
                   <label class="text-green-400/70 font-mono text-sm">Search:</label>
                   <input
@@ -269,113 +287,113 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     value={@search_term}
                     placeholder="Search by PID, name, or module..."
                     class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-3 py-2 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none flex-1 max-w-md transition-all duration-200 placeholder:text-green-400/40"
-                    phx-change="search_change"
-                    phx-value-search={@search_term}
+                    name="search"
                     phx-debounce="300"
                   />
                   <%= if @search_term != "" do %>
                     <button
+                      type="button"
                       class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-2 py-2 rounded transition-colors"
-                      phx-click="search_change"
-                      phx-value-search=""
+                      phx-click="clear_search"
                       title="Clear search"
                     >
                       ✕
                     </button>
                   <% end %>
                 </div>
-              </div>
+              </form>
 
-              <div class="flex flex-wrap items-center gap-4">
-                <!-- Node Filter -->
-                <div class="flex items-center space-x-2">
-                  <label class="text-green-400/70 font-mono text-sm">Node:</label>
-                  <select
-                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    phx-change="filter_change"
-                    phx-value-filter_type="node"
-                    disabled={@operation_in_progress}
-                  >
-                    <option value="all" selected={@filters.node == :all}>All Nodes</option>
-                    <%= for node <- get_unique_nodes(@processes) do %>
-                      <option value={node} selected={@filters.node == node}>{node}</option>
-                    <% end %>
-                  </select>
-                </div>
-                
-    <!-- Type Filter -->
-                <div class="flex items-center space-x-2">
-                  <label class="text-green-400/70 font-mono text-sm">Type:</label>
-                  <select
-                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    phx-change="filter_change"
-                    phx-value-filter_type="type"
-                    disabled={@operation_in_progress}
-                  >
-                    <option value="all" selected={@filters.type == :all}>All Types</option>
-                    <%= for type <- get_unique_types(@processes) do %>
-                      <option value={type} selected={@filters.type == type}>
-                        {format_process_type(type)}
-                      </option>
-                    <% end %>
-                  </select>
-                </div>
-                
-    <!-- Application Filter -->
-                <div class="flex items-center space-x-2">
-                  <label class="text-green-400/70 font-mono text-sm">App:</label>
-                  <select
-                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    phx-change="filter_change"
-                    phx-value-filter_type="application"
-                    disabled={@operation_in_progress}
-                  >
-                    <option value="all" selected={@filters.application == :all}>All Apps</option>
-                    <%= for app <- get_unique_applications(@processes) do %>
-                      <option value={app} selected={@filters.application == app}>{app}</option>
-                    <% end %>
-                  </select>
-                </div>
-                
-    <!-- Clear Filters Button -->
-                <%= if has_active_filters?(@filters) do %>
-                  <button
-                    class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    phx-click="clear_filters"
-                    disabled={@operation_in_progress}
-                  >
-                    <%= if @operation_in_progress do %>
-                      Processing...
-                    <% else %>
-                      Clear Filters
-                    <% end %>
-                  </button>
-                <% end %>
-                
-    <!-- Active Filter Indicators -->
-                <%= if has_active_filters?(@filters) do %>
-                  <div class="flex items-center space-x-2 text-xs font-mono">
-                    <span class="text-green-400/70">Active:</span>
-                    <%= if @filters.node != :all do %>
-                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
-                        Node: {@filters.node}
-                      </span>
-                    <% end %>
-                    <%= if @filters.type != :all do %>
-                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
-                        Type: {format_process_type(@filters.type)}
-                      </span>
-                    <% end %>
-                    <%= if @filters.application != :all do %>
-                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
-                        App: {@filters.application}
-                      </span>
-                    <% end %>
+              <!-- Filter Form -->
+              <form phx-change="filter_change">
+                <div class="flex flex-wrap items-center gap-4">
+                  <!-- Node Filter -->
+                  <div class="flex items-center space-x-2">
+                    <label class="text-green-400/70 font-mono text-sm">Node:</label>
+                    <select
+                      class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      name="node"
+                      disabled={@operation_in_progress}
+                    >
+                      <option value="all" selected={@filters.node == :all}>All Nodes</option>
+                      <%= for node <- get_unique_nodes(@processes) do %>
+                        <option value={node} selected={@filters.node == node}>{node}</option>
+                      <% end %>
+                    </select>
                   </div>
-                <% end %>
-              </div>
+                  
+      <!-- Type Filter -->
+                  <div class="flex items-center space-x-2">
+                    <label class="text-green-400/70 font-mono text-sm">Type:</label>
+                    <select
+                      class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      name="type"
+                      disabled={@operation_in_progress}
+                    >
+                      <option value="all" selected={@filters.type == :all}>All Types</option>
+                      <%= for type <- get_unique_types(@processes) do %>
+                        <option value={type} selected={@filters.type == type}>
+                          {format_process_type(type)}
+                        </option>
+                      <% end %>
+                    </select>
+                  </div>
+                  
+      <!-- Application Filter -->
+                  <div class="flex items-center space-x-2">
+                    <label class="text-green-400/70 font-mono text-sm">App:</label>
+                    <select
+                      class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      name="application"
+                      disabled={@operation_in_progress}
+                    >
+                      <option value="all" selected={@filters.application == :all}>All Apps</option>
+                      <%= for app <- get_unique_applications(@processes) do %>
+                        <option value={app} selected={@filters.application == app}>{app}</option>
+                      <% end %>
+                    </select>
+                  </div>
+                  
+      <!-- Clear Filters Button -->
+                  <%= if has_active_filters?(@filters) do %>
+                    <button
+                      type="button"
+                      class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      phx-click="clear_filters"
+                      disabled={@operation_in_progress}
+                    >
+                      <%= if @operation_in_progress do %>
+                        Processing...
+                      <% else %>
+                        Clear Filters
+                      <% end %>
+                    </button>
+                  <% end %>
+                </div>
+              </form>
+
+              <!-- Active Filter Indicators -->
+              <%= if has_active_filters?(@filters) do %>
+                <div class="flex items-center space-x-2 text-xs font-mono">
+                  <span class="text-green-400/70">Active:</span>
+                  <%= if @filters.node != :all do %>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                      Node: {@filters.node}
+                    </span>
+                  <% end %>
+                  <%= if @filters.type != :all do %>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                      Type: {format_process_type(@filters.type)}
+                    </span>
+                  <% end %>
+                  <%= if @filters.application != :all do %>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                      App: {@filters.application}
+                    </span>
+                  <% end %>
+                </div>
+              <% end %>
               
-    <!-- Search/Filter Results Counter -->
+              <!-- Search/Filter Results Counter -->
               <%= if @search_term != "" or has_active_filters?(@filters) do %>
                 <div class="mt-3 pt-3 border-t border-green-500/20">
                   <div class="text-green-400/70 font-mono text-sm">
@@ -665,6 +683,10 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   # Private functions
 
   defp assign_initial_state(socket) do
+    # Get configuration values
+    process_config = Application.get_env(:otp_supervisor, :process_listing, [])
+    per_page = Keyword.get(process_config, :per_page, 100)
+    
     socket
     |> assign(:processes, [])
     |> assign(:processes_by_node, %{})
@@ -677,7 +699,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     })
     |> assign(:search_term, "")
     |> assign(:current_page, 1)
-    |> assign(:per_page, 100)
+    |> assign(:per_page, per_page)
     |> assign(:loading, false)
     |> assign(:refreshing, false)
     |> assign(:operation_in_progress, false)
@@ -869,23 +891,19 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     filtered_processes = apply_filters(current_processes, current_filters)
     searched_processes = search_processes(filtered_processes, current_search)
 
-    # Calculate pagination efficiently
+    # Calculate pagination efficiently with fair node distribution
     total_filtered = length(searched_processes)
-    paginated_processes = paginate_processes(searched_processes, current_page, per_page)
-    processes_by_node = group_processes_by_node(paginated_processes)
+    processes_by_node = group_processes_by_node(searched_processes)
+    paginated_by_node = paginate_processes_fairly(processes_by_node, current_page, per_page)
 
     # Only update assigns that have changed to minimize re-rendering
     socket
-    |> maybe_assign(:processes_by_node, processes_by_node, socket.assigns.processes_by_node)
+    |> maybe_assign(:processes_by_node, paginated_by_node, socket.assigns.processes_by_node)
     |> maybe_assign(
       :filtered_process_count,
       total_filtered,
       socket.assigns.filtered_process_count
     )
-  end
-
-  defp apply_filters_and_update_display(socket) do
-    apply_filters_and_search_and_update_display(socket)
   end
 
   defp apply_filters(processes, filters) do
@@ -1020,14 +1038,6 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
   # Pagination functionality
 
-  defp paginate_processes(processes, current_page, per_page) do
-    start_index = (current_page - 1) * per_page
-
-    processes
-    |> Enum.drop(start_index)
-    |> Enum.take(per_page)
-  end
-
   defp calculate_max_page(total_count, per_page) when total_count > 0 and per_page > 0 do
     ceil(total_count / per_page)
   end
@@ -1075,6 +1085,56 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
   defp highlight_search_term(text, _search_term), do: text
 
+  # Reload process data with current filters applied
+  defp reload_process_data_with_filters(socket) do
+    filters = socket.assigns.filters
+    
+    # Build filter parameters for Arsenal operation
+    filter_params = %{}
+    |> maybe_add_filter_param(:node, filters.node)
+    |> maybe_add_filter_param(:type, filters.type)
+    |> maybe_add_filter_param(:application, filters.application)
+
+    case get_processes(filter_params) do
+      {:ok, arsenal_result} ->
+        formatted_result = format_processes(arsenal_result)
+
+        # Apply client-side search to the filtered results
+        search_term = socket.assigns.search_term
+        searched_processes = search_processes(formatted_result.processes, search_term)
+
+        # Apply pagination with fair node distribution
+        current_page = socket.assigns.current_page
+        per_page = socket.assigns.per_page
+        
+        # Group by node first, then paginate to ensure all nodes are represented
+        processes_by_node = group_processes_by_node(searched_processes)
+        paginated_by_node = paginate_processes_fairly(processes_by_node, current_page, per_page)
+        
+        socket
+        |> assign(:processes, formatted_result.processes)
+        |> assign(:processes_by_node, paginated_by_node)
+        |> assign(:total_processes, formatted_result.total_count)
+        |> assign(:filtered_process_count, length(searched_processes))
+        |> assign(:cluster_nodes, formatted_result.nodes_queried)
+        |> assign(:last_updated, formatted_result.last_updated)
+        |> assign(:operation_in_progress, false)
+        |> assign(:error_message, nil)
+        |> assign(:retry_count, 0)
+
+      {:error, error_message} ->
+        socket
+        |> assign(:operation_in_progress, false)
+        |> assign(:error_message, error_message)
+    end
+  end
+
+  defp maybe_add_filter_param(params, _key, :all), do: params
+  defp maybe_add_filter_param(params, key, value) when value != nil do
+    Map.put(params, key, value)
+  end
+  defp maybe_add_filter_param(params, _key, _value), do: params
+
   # Arsenal ProcessList operation integration
 
   defp get_processes(params \\ %{}) do
@@ -1091,9 +1151,13 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   end
 
   defp build_arsenal_params(params) do
+    # Get configuration values
+    process_config = Application.get_env(:otp_supervisor, :process_listing, [])
+    default_limit = Keyword.get(process_config, :default_limit, 1000)
+    
     %{
       "include_details" => true,
-      "limit" => Map.get(params, :limit, 1000)
+      "limit" => Map.get(params, :limit, default_limit)
     }
     |> maybe_add_node_filter(params)
     |> maybe_add_type_filter(params)
@@ -1181,14 +1245,23 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     case get_processes() do
       {:ok, arsenal_result} ->
         formatted_result = format_processes(arsenal_result)
+        
+        # Get all nodes and expand them by default
+        all_nodes = get_unique_nodes(formatted_result.processes)
+        expanded_nodes = MapSet.new(all_nodes)
+        
+        # Group by node first, then paginate fairly
+        processes_by_node = group_processes_by_node(formatted_result.processes)
+        paginated_by_node = paginate_processes_fairly(processes_by_node, 1, socket.assigns.per_page)
 
         socket
         |> assign(:processes, formatted_result.processes)
-        |> assign(:processes_by_node, group_processes_by_node(formatted_result.processes))
+        |> assign(:processes_by_node, paginated_by_node)
         |> assign(:total_processes, formatted_result.total_count)
         |> assign(:filtered_process_count, formatted_result.total_count)
         |> assign(:cluster_nodes, formatted_result.nodes_queried)
         |> assign(:last_updated, formatted_result.last_updated)
+        |> assign(:expanded_nodes, expanded_nodes)
         |> assign(:loading, false)
         |> assign(:operation_in_progress, false)
         |> assign(:retry_count, 0)
@@ -1214,6 +1287,47 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     processes
     |> Enum.group_by(& &1.node)
     |> Enum.into(%{})
+  end
+  
+  # Paginate processes fairly across nodes
+  defp paginate_processes_fairly(processes_by_node, current_page, per_page) do
+    nodes = Map.keys(processes_by_node) |> Enum.sort()
+    num_nodes = length(nodes)
+    
+    if num_nodes == 0 do
+      %{}
+    else
+      # Calculate how many processes to show per node on this page
+      processes_per_node = max(1, div(per_page, num_nodes))
+      # Add any remainder to ensure we fill the page
+      remainder = rem(per_page, num_nodes)
+      
+      # Calculate the offset for each node based on the current page
+      offset_per_node = (current_page - 1) * processes_per_node
+      
+      # Paginate each node's processes
+      nodes
+      |> Enum.with_index()
+      |> Enum.reduce(%{}, fn {node, index}, acc ->
+        node_processes = Map.get(processes_by_node, node, [])
+        
+        # Add extra process to first nodes if there's a remainder
+        extra = if index < remainder, do: 1, else: 0
+        node_limit = processes_per_node + extra
+        node_offset = offset_per_node + (if index < remainder, do: index, else: remainder)
+        
+        paginated = 
+          node_processes
+          |> Enum.drop(node_offset)
+          |> Enum.take(node_limit)
+        
+        if length(paginated) > 0 do
+          Map.put(acc, node, paginated)
+        else
+          acc
+        end
+      end)
+    end
   end
 
   defp format_process_info(process) do
@@ -1341,15 +1455,13 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
           filtered_processes = apply_filters(formatted_result.processes, current_filters)
           searched_processes = search_processes(filtered_processes, current_search)
 
-          # Apply pagination to the searched processes
-          paginated_processes =
-            paginate_processes(searched_processes, current_page, socket.assigns.per_page)
-
-          paginated_processes_by_node = group_processes_by_node(paginated_processes)
+          # Apply pagination with fair node distribution
+          processes_by_node = group_processes_by_node(searched_processes)
+          paginated_by_node = paginate_processes_fairly(processes_by_node, current_page, socket.assigns.per_page)
 
           socket
           |> assign(:processes, formatted_result.processes)
-          |> assign(:processes_by_node, paginated_processes_by_node)
+          |> assign(:processes_by_node, paginated_by_node)
           |> assign(:total_processes, formatted_result.total_count)
           |> assign(:filtered_process_count, length(searched_processes))
           |> assign(:cluster_nodes, formatted_result.nodes_queried)

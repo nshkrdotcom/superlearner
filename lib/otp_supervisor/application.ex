@@ -7,6 +7,9 @@ defmodule OtpSupervisor.Application do
 
   @impl true
   def start(_type, _args) do
+    # Install custom alarm handler to filter snap mount warnings
+    install_alarm_filter()
+    
     children = [
       OtpSupervisorWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:otp_supervisor, :dns_cluster_query) || :ignore},
@@ -88,5 +91,13 @@ defmodule OtpSupervisor.Application do
     # Check if distributed testing configuration is present
     config = Application.get_env(:otp_supervisor, :distributed_testing)
     is_list(config) && Keyword.get(config, :auto_cluster, false)
+  end
+
+  defp install_alarm_filter do
+    # Add logger filter to suppress snap mount disk alarms
+    :logger.add_primary_filter(
+      :snap_alarm_filter,
+      {&OtpSupervisor.Core.SnapAlarmFilter.filter/2, []}
+    )
   end
 end

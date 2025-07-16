@@ -191,8 +191,7 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
         true
 
       _ ->
-        link.key == current_page || link.path == current_page ||
-          String.contains?(current_page, link.key)
+        link.key == current_page || link.path == current_page
     end
   end
 

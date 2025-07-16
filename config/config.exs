@@ -58,6 +58,20 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+# Handle logger errors gracefully
+config :logger,
+  handle_otp_reports: true,
+  handle_sasl_reports: false,
+  compile_time_purge_matching: [
+    [level_lower_than: :info]
+  ]
+
+# Configure OS_Mon to disable disk monitoring and adjust memory threshold
+# (to avoid snap mount and memory warnings)
+config :os_mon,
+  start_disksup: false,
+  system_memory_high_watermark: 0.90
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
@@ -71,6 +85,15 @@ config :otp_supervisor, :distributed_tooling,
   health_check_interval: 5_000,
   # Performance monitoring settings
   performance_monitoring: true
+
+# Process listing configuration
+config :otp_supervisor, :process_listing,
+  # Default limit for process queries
+  default_limit: 1000,
+  # Maximum allowed limit for process queries
+  max_limit: 10000,
+  # Per-page limit for UI display
+  per_page: 100
 
 # LibCluster configuration (will be overridden in env-specific configs)
 config :libcluster,

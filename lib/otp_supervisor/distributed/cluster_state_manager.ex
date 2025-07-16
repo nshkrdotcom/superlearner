@@ -541,11 +541,17 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
   end
 
   defp get_remote_cpu_usage(node) do
-    case :rpc.call(node, :cpu_sup, :util, [], 5000) do
-      {:badrpc, _} -> 0.0
-      {:error, _} -> 0.0
-      usage when is_number(usage) -> usage
-      _ -> 0.0
+    # First ensure os_mon is started on the remote node
+    case :rpc.call(node, Application, :ensure_all_started, [:os_mon], 5000) do
+      {:ok, _} ->
+        case :rpc.call(node, :cpu_sup, :util, [], 5000) do
+          {:badrpc, _} -> 0.0
+          {:error, _} -> 0.0
+          usage when is_number(usage) -> usage
+          _ -> 0.0
+        end
+      _ ->
+        0.0
     end
   end
 
