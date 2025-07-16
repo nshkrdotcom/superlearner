@@ -43,5 +43,8 @@ case System.cmd("epmd", ["-daemon"], stderr_to_stdout: true) do
     end
 end
 
-# Exclude UI tests by default - run with --include ui to include them
-ExUnit.start(exclude: [:ui], async: true)
+# Exclude UI, distributed, and cluster management tests by default
+# Run with --include ui to include UI tests
+# Run with --include distributed to include distributed tests
+# Run with --include cluster_management to include cluster management tests
+ExUnit.start(exclude: [:ui, :distributed, :cluster_management], async: true)

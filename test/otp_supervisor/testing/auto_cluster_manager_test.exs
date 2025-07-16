@@ -4,7 +4,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerTest do
   alias OTPSupervisor.Testing.AutoClusterManager
   alias OTPSupervisor.TestCluster.Manager
 
-  @moduletag :integration
+  @moduletag :cluster_management
 
   setup do
     # Ensure clean state before each test

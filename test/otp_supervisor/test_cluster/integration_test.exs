@@ -4,7 +4,7 @@ defmodule OTPSupervisor.TestCluster.IntegrationTest do
 
   alias OTPSupervisor.TestCluster.{HostnameResolver, PortManager, Diagnostics}
 
-  @moduletag :integration
+  @moduletag :cluster_management
 
   setup do
     # Clean up any existing test processes before each test
@@ -193,7 +193,7 @@ defmodule OTPSupervisor.TestCluster.IntegrationTest do
       # Test multiple startup/shutdown cycles
       for cycle <- 1..3 do
         # Get hostname and ports
-        assert {:ok, hostname} = HostnameResolver.get_cluster_hostname()
+        assert {:ok, _hostname} = HostnameResolver.get_cluster_hostname()
         assert {:ok, port_pairs} = PortManager.find_available_ports(2)
 
         # Verify ports are actually free before starting

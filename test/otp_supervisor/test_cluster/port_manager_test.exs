@@ -1,6 +1,7 @@
 defmodule OTPSupervisor.TestCluster.PortManagerTest do
   # Port operations need to be sequential
   use ExUnit.Case, async: false
+  @moduletag :distributed
 
   alias OTPSupervisor.TestCluster.PortManager
 

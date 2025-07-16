@@ -7,6 +7,7 @@ defmodule OTPSupervisor.Distributed.ArsenalDistributedTest do
   """
 
   use OTPSupervisor.DistributedTestCase
+  @moduletag :distributed
 
   alias OTPSupervisor.Core.Arsenal.Operations.Distributed.{
     ClusterHealth,

@@ -118,7 +118,7 @@ defmodule OTPSupervisor.Testing.Config do
   """
   def detect_environment(config \\ %{}) do
     ci_mode = detect_ci_environment(config)
-    env = Application.get_env(:mix, :env)
+    env = get_runtime_env()
 
     config
     |> Map.put(:ci_mode, ci_mode)
@@ -288,6 +288,31 @@ defmodule OTPSupervisor.Testing.Config do
 
       explicit_value ->
         explicit_value
+    end
+  end
+
+  defp get_runtime_env do
+    # First try environment variable
+    case System.get_env("MIX_ENV") do
+      "test" ->
+        :test
+
+      "dev" ->
+        :dev
+
+      "prod" ->
+        :prod
+
+      nil ->
+        # Fallback to application environment or detect from process name
+        cond do
+          Process.whereis(:ex_unit) != nil -> :test
+          Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) -> Mix.env()
+          true -> Application.get_env(:otp_supervisor, :environment, :prod)
+        end
+
+      env ->
+        String.to_atom(env)
     end
   end
 

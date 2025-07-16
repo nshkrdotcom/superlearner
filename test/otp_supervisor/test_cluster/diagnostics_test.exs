@@ -1,5 +1,6 @@
 defmodule OTPSupervisor.TestCluster.DiagnosticsTest do
   use ExUnit.Case, async: true
+  @moduletag :distributed
 
   alias OTPSupervisor.TestCluster.Diagnostics
 

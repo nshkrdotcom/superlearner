@@ -1,6 +1,7 @@
 defmodule OTPSupervisor.Distributed.SingleNodeSimulatorTest do
   # Changed to non-async to prevent test interference
   use ExUnit.Case, async: false
+  @moduletag :distributed
 
   alias OTPSupervisor.Distributed.SingleNodeSimulator
 

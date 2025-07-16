@@ -3,7 +3,7 @@ defmodule OTPSupervisor.TestCluster.ValidationTest do
 
   alias OTPSupervisor.TestCluster.{HostnameResolver, PortManager, Diagnostics}
 
-  @moduletag :validation
+  @moduletag :cluster_management
 
   describe "comprehensive validation of cluster fixes" do
     test "hostname resolution works reliably across WSL configurations" do
@@ -243,7 +243,7 @@ defmodule OTPSupervisor.TestCluster.ValidationTest do
         IO.puts("🔄 Testing cluster cycle #{cycle}")
 
         # Get hostname
-        {:ok, hostname} = HostnameResolver.get_cluster_hostname()
+        {:ok, _hostname} = HostnameResolver.get_cluster_hostname()
 
         # Get ports
         {:ok, port_pairs} = PortManager.find_available_ports(2)

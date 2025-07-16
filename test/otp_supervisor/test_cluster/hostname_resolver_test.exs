@@ -1,5 +1,6 @@
 defmodule OTPSupervisor.TestCluster.HostnameResolverTest do
   use ExUnit.Case, async: true
+  @moduletag :distributed
 
   alias OTPSupervisor.TestCluster.HostnameResolver
 

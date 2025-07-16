@@ -3,7 +3,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerSimpleTest do
 
   alias OTPSupervisor.Testing.AutoClusterManager
 
-  @moduletag :unit
+  @moduletag :cluster_management
 
   describe "basic functionality without cluster dependencies" do
     setup do

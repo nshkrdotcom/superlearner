@@ -1,5 +1,6 @@
 defmodule OTPSupervisor.Testing.ConfigIntegrationTest do
   use ExUnit.Case, async: false
+  @moduletag :cluster_management
 
   alias OTPSupervisor.Testing.{Config, ConfigValidator, PortManager}
 

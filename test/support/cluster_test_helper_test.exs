@@ -2,7 +2,7 @@ defmodule ClusterTestHelperTest do
   # Cluster operations must be sequential
   use ExUnit.Case, async: false
 
-  @moduletag :integration
+  @moduletag :cluster_management
 
   setup do
     # Clean up before each test

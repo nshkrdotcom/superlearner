@@ -141,9 +141,10 @@ defmodule OTPSupervisor.ClusterDiscovery do
 
   defp get_cluster_size_from_config do
     # Try various configuration sources
-    System.get_env("CLUSTER_SIZE", "2") |> String.to_integer() ||
-      Application.get_env(:otp_supervisor, :cluster_size, 2) ||
-      2
+    case System.get_env("CLUSTER_SIZE") do
+      nil -> Application.get_env(:otp_supervisor, :cluster_size, 2)
+      size_str -> String.to_integer(size_str)
+    end
   end
 
   defp wait_for_nodes(expected_count, deadline) do

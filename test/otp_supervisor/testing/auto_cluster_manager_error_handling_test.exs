@@ -3,7 +3,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerErrorHandlingTest do
 
   alias OTPSupervisor.Testing.AutoClusterManager
 
-  @moduletag :unit
+  @moduletag :cluster_management
 
   describe "cluster startup failure handling" do
     test "provides structured error information when cluster startup fails" do

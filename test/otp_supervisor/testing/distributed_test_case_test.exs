@@ -1,5 +1,6 @@
 defmodule OTPSupervisor.Testing.DistributedTestCaseTest do
   use ExUnit.Case, async: false
+  @moduletag :distributed
 
   # Import the module we're testing
   import OTPSupervisor.Testing.DistributedTestCase

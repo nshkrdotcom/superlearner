@@ -66,7 +66,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     socket =
       socket
       |> assign(:filters, updated_filters)
-      |> assign(:current_page, 1)  # Reset to first page when filtering
+      # Reset to first page when filtering
+      |> assign(:current_page, 1)
       |> apply_filters_and_update_display()
 
     {:noreply, socket}
@@ -84,18 +85,26 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       socket
       |> assign(:filters, default_filters)
       |> assign(:search_term, "")
-      |> assign(:current_page, 1)  # Reset to first page when clearing filters
+      # Reset to first page when clearing filters
+      |> assign(:current_page, 1)
       |> apply_filters_and_search_and_update_display()
 
     {:noreply, socket}
   end
 
   def handle_event("search_change", %{"search" => search_term}, socket) do
+    # Cancel existing debounce timer if any
+    if socket.assigns.search_debounce_timer do
+      Process.cancel_timer(socket.assigns.search_debounce_timer)
+    end
+
+    # Set up debounced search
+    timer_ref = Process.send_after(self(), {:debounced_search, search_term}, 300)
+
     socket =
       socket
       |> assign(:search_term, search_term)
-      |> assign(:current_page, 1)  # Reset to first page when searching
-      |> apply_filters_and_search_and_update_display()
+      |> assign(:search_debounce_timer, timer_ref)
 
     {:noreply, socket}
   end
@@ -103,7 +112,9 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   def handle_event("page_change", %{"page" => page_string}, socket) do
     case Integer.parse(page_string) do
       {page, ""} when page > 0 ->
-        max_page = calculate_max_page(socket.assigns.filtered_process_count, socket.assigns.per_page)
+        max_page =
+          calculate_max_page(socket.assigns.filtered_process_count, socket.assigns.per_page)
+
         valid_page = min(page, max_page)
 
         socket =
@@ -118,6 +129,17 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     end
   end
 
+  def handle_event("retry_operation", _params, socket) do
+    # Retry the last failed operation
+    socket =
+      socket
+      |> assign(:operation_in_progress, true)
+      |> assign(:error_message, nil)
+      |> retry_load_process_data()
+
+    {:noreply, socket}
+  end
+
   # Handle real-time updates
 
   def handle_info(%{type: :cluster_state_change} = _event, socket) do
@@ -127,13 +149,47 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   end
 
   def handle_info(:refresh_processes, socket) do
-    # Periodic refresh timer
-    socket = update_process_data(socket)
+    # Periodic refresh timer - only refresh if not already loading
+    socket =
+      if not socket.assigns.operation_in_progress do
+        update_process_data(socket)
+      else
+        socket
+      end
 
     # Schedule next refresh
     Process.send_after(self(), :refresh_processes, 5_000)
 
     {:noreply, socket}
+  end
+
+  def handle_info({:debounced_search, search_term}, socket) do
+    # Handle debounced search
+    socket =
+      socket
+      |> assign(:search_term, search_term)
+      # Reset to first page when searching
+      |> assign(:current_page, 1)
+      |> assign(:search_debounce_timer, nil)
+      |> apply_filters_and_search_and_update_display()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:retry_operation, operation}, socket) do
+    # Handle retry operations with exponential backoff
+    case operation do
+      :load_process_data ->
+        socket = retry_load_process_data(socket)
+        {:noreply, socket}
+
+      :update_process_data ->
+        socket = retry_update_process_data(socket)
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_info(_msg, socket) do
@@ -152,15 +208,56 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
         metrics={status_bar_metrics(assigns)}
         navigation_links={TerminalNavigationLinks.page_navigation_links("cluster-processes", %{})}
       />
-
-      <!-- Main Content Area -->
+      
+    <!-- Main Content Area -->
       <div class="flex-1 p-4 overflow-hidden">
         <div class="h-full bg-gray-800 rounded border border-green-500/30 p-4 overflow-y-auto">
           <%= if @loading do %>
             <div class="text-center text-green-400/70 font-mono py-8">
               <div class="animate-pulse">Loading cluster processes...</div>
+              <%= if @error_message do %>
+                <div class="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded">
+                  <div class="text-red-400 font-mono text-sm">
+                    Error: {@error_message}
+                  </div>
+                  <%= if @retry_count > 0 do %>
+                    <div class="text-red-400/70 font-mono text-xs mt-1">
+                      Retry attempt {@retry_count}/3
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
             </div>
           <% else %>
+            <!-- Refreshing Indicator -->
+            <%= if @refreshing do %>
+              <div class="mb-2 p-2 bg-blue-900/20 border border-blue-500/30 rounded">
+                <div class="text-blue-400 font-mono text-sm flex items-center">
+                  <div class="animate-spin mr-2">⟳</div>
+                  Refreshing process data...
+                </div>
+              </div>
+            <% end %>
+            
+    <!-- Error Message Display -->
+            <%= if @error_message do %>
+              <div class="mb-4 p-3 bg-red-900/20 border border-red-500/30 rounded">
+                <div class="text-red-400 font-mono text-sm">
+                  {@error_message}
+                </div>
+                <button
+                  class="mt-2 bg-red-700 hover:bg-red-600 border border-red-500/30 hover:border-red-500/50 text-red-200 font-mono text-sm px-3 py-1 rounded transition-colors"
+                  phx-click="retry_operation"
+                  disabled={@operation_in_progress}
+                >
+                  <%= if @operation_in_progress do %>
+                    Retrying...
+                  <% else %>
+                    Retry
+                  <% end %>
+                </button>
+              </div>
+            <% end %>
             <!-- Filter Controls -->
             <div class="mb-4 p-3 bg-gray-900/50 rounded border border-green-500/20">
               <!-- Search Input -->
@@ -181,7 +278,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                       class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-2 py-2 rounded transition-colors"
                       phx-click="search_change"
                       phx-value-search=""
-                      title="Clear search">
+                      title="Clear search"
+                    >
                       ✕
                     </button>
                   <% end %>
@@ -193,75 +291,95 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                 <div class="flex items-center space-x-2">
                   <label class="text-green-400/70 font-mono text-sm">Node:</label>
                   <select
-                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:outline-none"
+                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     phx-change="filter_change"
-                    phx-value-filter_type="node">
+                    phx-value-filter_type="node"
+                    disabled={@operation_in_progress}
+                  >
                     <option value="all" selected={@filters.node == :all}>All Nodes</option>
                     <%= for node <- get_unique_nodes(@processes) do %>
-                      <option value={node} selected={@filters.node == node}><%= node %></option>
+                      <option value={node} selected={@filters.node == node}>{node}</option>
                     <% end %>
                   </select>
                 </div>
-
-                <!-- Type Filter -->
+                
+    <!-- Type Filter -->
                 <div class="flex items-center space-x-2">
                   <label class="text-green-400/70 font-mono text-sm">Type:</label>
                   <select
-                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:outline-none"
+                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     phx-change="filter_change"
-                    phx-value-filter_type="type">
+                    phx-value-filter_type="type"
+                    disabled={@operation_in_progress}
+                  >
                     <option value="all" selected={@filters.type == :all}>All Types</option>
                     <%= for type <- get_unique_types(@processes) do %>
-                      <option value={type} selected={@filters.type == type}><%= format_process_type(type) %></option>
+                      <option value={type} selected={@filters.type == type}>
+                        {format_process_type(type)}
+                      </option>
                     <% end %>
                   </select>
                 </div>
-
-                <!-- Application Filter -->
+                
+    <!-- Application Filter -->
                 <div class="flex items-center space-x-2">
                   <label class="text-green-400/70 font-mono text-sm">App:</label>
                   <select
-                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:outline-none"
+                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     phx-change="filter_change"
-                    phx-value-filter_type="application">
+                    phx-value-filter_type="application"
+                    disabled={@operation_in_progress}
+                  >
                     <option value="all" selected={@filters.application == :all}>All Apps</option>
                     <%= for app <- get_unique_applications(@processes) do %>
-                      <option value={app} selected={@filters.application == app}><%= app %></option>
+                      <option value={app} selected={@filters.application == app}>{app}</option>
                     <% end %>
                   </select>
                 </div>
-
-                <!-- Clear Filters Button -->
+                
+    <!-- Clear Filters Button -->
                 <%= if has_active_filters?(@filters) do %>
                   <button
-                    class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors"
-                    phx-click="clear_filters">
-                    Clear Filters
+                    class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    phx-click="clear_filters"
+                    disabled={@operation_in_progress}
+                  >
+                    <%= if @operation_in_progress do %>
+                      Processing...
+                    <% else %>
+                      Clear Filters
+                    <% end %>
                   </button>
                 <% end %>
-
-                <!-- Active Filter Indicators -->
+                
+    <!-- Active Filter Indicators -->
                 <%= if has_active_filters?(@filters) do %>
                   <div class="flex items-center space-x-2 text-xs font-mono">
                     <span class="text-green-400/70">Active:</span>
                     <%= if @filters.node != :all do %>
-                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">Node: <%= @filters.node %></span>
+                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        Node: {@filters.node}
+                      </span>
                     <% end %>
                     <%= if @filters.type != :all do %>
-                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">Type: <%= format_process_type(@filters.type) %></span>
+                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        Type: {format_process_type(@filters.type)}
+                      </span>
                     <% end %>
                     <%= if @filters.application != :all do %>
-                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">App: <%= @filters.application %></span>
+                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        App: {@filters.application}
+                      </span>
                     <% end %>
                   </div>
                 <% end %>
               </div>
-
-              <!-- Search/Filter Results Counter -->
+              
+    <!-- Search/Filter Results Counter -->
               <%= if @search_term != "" or has_active_filters?(@filters) do %>
                 <div class="mt-3 pt-3 border-t border-green-500/20">
                   <div class="text-green-400/70 font-mono text-sm">
-                    Showing <%= @filtered_process_count %> of <%= @total_processes %> processes
+                    Showing {@filtered_process_count} of {@total_processes} processes
                     <%= if @search_term != "" do %>
                       matching "<span class="text-green-300"><%= @search_term %></span>"
                     <% end %>
@@ -278,9 +396,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                 <%= for {node, processes} <- Enum.sort(@processes_by_node) do %>
                   <div class="border border-green-500/30 rounded bg-gray-900/50">
                     <!-- Node Header -->
-                    <div class="p-3 border-b border-green-500/20 cursor-pointer hover:bg-gray-700/30 transition-colors"
-                         phx-click="toggle_node"
-                         phx-value-node={node}>
+                    <div
+                      class="p-3 border-b border-green-500/20 cursor-pointer hover:bg-gray-700/30 transition-colors"
+                      phx-click="toggle_node"
+                      phx-value-node={node}
+                    >
                       <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-3">
                           <span class="text-green-400 font-mono text-sm">
@@ -291,16 +411,16 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                             <% end %>
                           </span>
                           <span class="text-green-300 font-mono font-semibold">
-                            <%= node %>
+                            {node}
                           </span>
                         </div>
                         <div class="text-green-400/70 font-mono text-sm">
-                          <%= length(processes) %> processes
+                          {length(processes)} processes
                         </div>
                       </div>
                     </div>
-
-                    <!-- Node Content (Expandable) -->
+                    
+    <!-- Node Content (Expandable) -->
                     <%= if node_expanded?(assigns, node) do %>
                       <div class="p-3">
                         <%= if length(processes) == 0 do %>
@@ -317,40 +437,69 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                                   <div class="space-y-1">
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">PID:</span>
-                                      <span><%= raw(highlight_search_term(formatted.pid_display, @search_term)) %></span>
+                                      <span>
+                                        {raw(
+                                          highlight_search_term(formatted.pid_display, @search_term)
+                                        )}
+                                      </span>
                                     </div>
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">Name:</span>
-                                      <span><%= raw(highlight_search_term(formatted.name_display, @search_term)) %></span>
+                                      <span>
+                                        {raw(
+                                          highlight_search_term(formatted.name_display, @search_term)
+                                        )}
+                                      </span>
                                     </div>
                                     <div class="text-green-300">
-                                      <span class="text-green-400/70">Type:</span> <%= formatted.type_display %>
+                                      <span class="text-green-400/70">Type:</span> {formatted.type_display}
                                     </div>
                                   </div>
-
-                                  <!-- Process Details -->
+                                  
+    <!-- Process Details -->
                                   <div class="space-y-1">
                                     <div class="text-green-300">
-                                      <span class="text-green-400/70">Memory:</span> <%= formatted.memory_display %>
+                                      <span class="text-green-400/70">Memory:</span> {formatted.memory_display}
                                     </div>
                                     <div class="text-green-300">
-                                      <span class="text-green-400/70">Queue:</span> <%= formatted.message_queue_display %>
+                                      <span class="text-green-400/70">Queue:</span> {formatted.message_queue_display}
                                     </div>
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">App:</span>
-                                      <span><%= raw(highlight_search_term(formatted.application_display, @search_term)) %></span>
+                                      <span>
+                                        {raw(
+                                          highlight_search_term(
+                                            formatted.application_display,
+                                            @search_term
+                                          )
+                                        )}
+                                      </span>
                                     </div>
                                   </div>
-
-                                  <!-- Function Information -->
+                                  
+    <!-- Function Information -->
                                   <div class="space-y-1 md:col-span-2 lg:col-span-1">
                                     <div class="text-green-300 text-xs">
                                       <span class="text-green-400/70">Initial:</span>
-                                      <div class="break-all"><%= raw(highlight_search_term(formatted.initial_call_display, @search_term)) %></div>
+                                      <div class="break-all">
+                                        {raw(
+                                          highlight_search_term(
+                                            formatted.initial_call_display,
+                                            @search_term
+                                          )
+                                        )}
+                                      </div>
                                     </div>
                                     <div class="text-green-300 text-xs">
                                       <span class="text-green-400/70">Current:</span>
-                                      <div class="break-all"><%= raw(highlight_search_term(formatted.current_function_display, @search_term)) %></div>
+                                      <div class="break-all">
+                                        {raw(
+                                          highlight_search_term(
+                                            formatted.current_function_display,
+                                            @search_term
+                                          )
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -363,8 +512,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                   </div>
                 <% end %>
               </div>
-
-              <!-- Pagination Controls -->
+              
+    <!-- Pagination Controls -->
               <%= if @filtered_process_count > @per_page do %>
                 <div class="mt-6 p-3 bg-gray-900/50 rounded border border-green-500/20">
                   <% max_page = calculate_max_page(@filtered_process_count, @per_page) %>
@@ -374,98 +523,109 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                   <div class="flex items-center justify-between">
                     <!-- Page Info -->
                     <div class="text-green-400/70 font-mono text-sm">
-                      Showing <%= start_item %>-<%= end_item %> of <%= @filtered_process_count %> processes
-                      (Page <%= @current_page %> of <%= max_page %>)
+                      Showing {start_item}-{end_item} of {@filtered_process_count} processes
+                      (Page {@current_page} of {max_page})
                     </div>
-
-                    <!-- Pagination Buttons -->
+                    
+    <!-- Pagination Buttons -->
                     <div class="flex items-center space-x-2">
                       <!-- First Page -->
-                      <%= if @current_page > 1 do %>
+                      <%= if @current_page > 1 and not @operation_in_progress do %>
                         <button
                           class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors"
                           phx-click="page_change"
                           phx-value-page="1"
-                          title="First page">
+                          title="First page"
+                        >
                           ««
                         </button>
                       <% else %>
                         <button
                           class="bg-gray-800 border border-green-500/10 text-green-400/30 font-mono text-sm px-3 py-1 rounded cursor-not-allowed"
                           disabled
-                          title="First page">
+                          title="First page"
+                        >
                           ««
                         </button>
                       <% end %>
-
-                      <!-- Previous Page -->
-                      <%= if @current_page > 1 do %>
+                      
+    <!-- Previous Page -->
+                      <%= if @current_page > 1 and not @operation_in_progress do %>
                         <button
                           class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors"
                           phx-click="page_change"
                           phx-value-page={@current_page - 1}
-                          title="Previous page">
+                          title="Previous page"
+                        >
                           ‹
                         </button>
                       <% else %>
                         <button
                           class="bg-gray-800 border border-green-500/10 text-green-400/30 font-mono text-sm px-3 py-1 rounded cursor-not-allowed"
                           disabled
-                          title="Previous page">
+                          title="Previous page"
+                        >
                           ‹
                         </button>
                       <% end %>
-
-                      <!-- Page Numbers -->
+                      
+    <!-- Page Numbers -->
                       <%= for page_num <- pagination_range(@current_page, max_page) do %>
                         <%= if page_num == @current_page do %>
                           <button
                             class="bg-green-500/20 border border-green-500/50 text-green-300 font-mono text-sm px-3 py-1 rounded font-semibold"
-                            disabled>
-                            <%= page_num %>
+                            disabled
+                          >
+                            {page_num}
                           </button>
                         <% else %>
                           <button
-                            class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors"
+                            class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             phx-click="page_change"
-                            phx-value-page={page_num}>
-                            <%= page_num %>
+                            phx-value-page={page_num}
+                            disabled={@operation_in_progress}
+                          >
+                            {page_num}
                           </button>
                         <% end %>
                       <% end %>
-
-                      <!-- Next Page -->
-                      <%= if @current_page < max_page do %>
+                      
+    <!-- Next Page -->
+                      <%= if @current_page < max_page and not @operation_in_progress do %>
                         <button
                           class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors"
                           phx-click="page_change"
                           phx-value-page={@current_page + 1}
-                          title="Next page">
+                          title="Next page"
+                        >
                           ›
                         </button>
                       <% else %>
                         <button
                           class="bg-gray-800 border border-green-500/10 text-green-400/30 font-mono text-sm px-3 py-1 rounded cursor-not-allowed"
                           disabled
-                          title="Next page">
+                          title="Next page"
+                        >
                           ›
                         </button>
                       <% end %>
-
-                      <!-- Last Page -->
-                      <%= if @current_page < max_page do %>
+                      
+    <!-- Last Page -->
+                      <%= if @current_page < max_page and not @operation_in_progress do %>
                         <button
                           class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors"
                           phx-click="page_change"
                           phx-value-page={max_page}
-                          title="Last page">
+                          title="Last page"
+                        >
                           »»
                         </button>
                       <% else %>
                         <button
                           class="bg-gray-800 border border-green-500/10 text-green-400/30 font-mono text-sm px-3 py-1 rounded cursor-not-allowed"
                           disabled
-                          title="Last page">
+                          title="Last page"
+                        >
                           »»
                         </button>
                       <% end %>
@@ -498,9 +658,14 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     |> assign(:current_page, 1)
     |> assign(:per_page, 100)
     |> assign(:loading, false)
+    |> assign(:refreshing, false)
+    |> assign(:operation_in_progress, false)
+    |> assign(:error_message, nil)
+    |> assign(:retry_count, 0)
     |> assign(:cluster_nodes, [])
     |> assign(:last_updated, nil)
     |> assign(:expanded_nodes, MapSet.new())
+    |> assign(:search_debounce_timer, nil)
   end
 
   defp handle_url_params(socket, params) do
@@ -597,6 +762,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
   defp parse_filter_value(""), do: :all
   defp parse_filter_value("all"), do: :all
+
   defp parse_filter_value(value) when is_binary(value) do
     try do
       String.to_existing_atom(value)
@@ -604,19 +770,34 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       ArgumentError -> String.to_atom(value)
     end
   end
+
   defp parse_filter_value(value), do: value
 
   defp apply_filters_and_search_and_update_display(socket) do
-    filtered_processes = apply_filters(socket.assigns.processes, socket.assigns.filters)
-    searched_processes = search_processes(filtered_processes, socket.assigns.search_term)
+    # Optimize by only updating what's necessary
+    current_processes = socket.assigns.processes
+    current_filters = socket.assigns.filters
+    current_search = socket.assigns.search_term
+    current_page = socket.assigns.current_page
+    per_page = socket.assigns.per_page
 
-    # Apply pagination to the searched processes
-    paginated_processes = paginate_processes(searched_processes, socket.assigns.current_page, socket.assigns.per_page)
-    paginated_processes_by_node = group_processes_by_node(paginated_processes)
+    # Apply filters and search efficiently
+    filtered_processes = apply_filters(current_processes, current_filters)
+    searched_processes = search_processes(filtered_processes, current_search)
 
+    # Calculate pagination efficiently
+    total_filtered = length(searched_processes)
+    paginated_processes = paginate_processes(searched_processes, current_page, per_page)
+    processes_by_node = group_processes_by_node(paginated_processes)
+
+    # Only update assigns that have changed to minimize re-rendering
     socket
-    |> assign(:processes_by_node, paginated_processes_by_node)
-    |> assign(:filtered_process_count, length(searched_processes))
+    |> maybe_assign(:processes_by_node, processes_by_node, socket.assigns.processes_by_node)
+    |> maybe_assign(
+      :filtered_process_count,
+      total_filtered,
+      socket.assigns.filtered_process_count
+    )
   end
 
   defp apply_filters_and_update_display(socket) do
@@ -631,15 +812,19 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   end
 
   defp filter_by_node(processes, :all), do: processes
+
   defp filter_by_node(processes, node) when is_atom(node) do
     Enum.filter(processes, fn process -> process.node == node end)
   end
 
   defp filter_by_type(processes, :all), do: processes
+
   defp filter_by_type(processes, type) when is_atom(type) do
     type_string = Atom.to_string(type)
+
     Enum.filter(processes, fn process ->
       process_type = process.type
+
       cond do
         is_atom(process_type) -> process_type == type
         is_binary(process_type) -> String.downcase(process_type) == String.downcase(type_string)
@@ -649,24 +834,19 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   end
 
   defp filter_by_application(processes, :all), do: processes
+
   defp filter_by_application(processes, application) when is_atom(application) do
     app_string = Atom.to_string(application)
+
     Enum.filter(processes, fn process ->
       process_app = process.application
+
       cond do
         is_atom(process_app) -> process_app == application
         is_binary(process_app) -> String.downcase(process_app) == String.downcase(app_string)
         true -> false
       end
     end)
-  end
-
-  defp get_available_filter_options(processes) do
-    %{
-      nodes: get_unique_nodes(processes),
-      types: get_unique_types(processes),
-      applications: get_unique_applications(processes)
-    }
   end
 
   defp get_unique_nodes(processes) do
@@ -711,6 +891,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   # Search functionality
 
   defp search_processes(processes, ""), do: processes
+
   defp search_processes(processes, search_term) when is_binary(search_term) do
     normalized_search = String.downcase(String.trim(search_term))
 
@@ -744,17 +925,20 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   defp extract_module_from_initial_call({module, _function, _arity}) when is_atom(module) do
     Atom.to_string(module)
   end
+
   defp extract_module_from_initial_call(_), do: ""
 
   defp extract_module_from_current_function({module, _function, _arity}) when is_atom(module) do
     Atom.to_string(module)
   end
+
   defp extract_module_from_current_function(_), do: ""
 
   # Pagination functionality
 
   defp paginate_processes(processes, current_page, per_page) do
     start_index = (current_page - 1) * per_page
+
     processes
     |> Enum.drop(start_index)
     |> Enum.take(per_page)
@@ -763,6 +947,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   defp calculate_max_page(total_count, per_page) when total_count > 0 and per_page > 0 do
     ceil(total_count / per_page)
   end
+
   defp calculate_max_page(_total_count, _per_page), do: 1
 
   defp pagination_range(current_page, max_page) do
@@ -788,6 +973,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   # Search highlighting functionality
 
   defp highlight_search_term(text, ""), do: text
+
   defp highlight_search_term(text, search_term) when is_binary(text) and is_binary(search_term) do
     normalized_search = String.downcase(String.trim(search_term))
 
@@ -796,11 +982,13 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     else
       # Case-insensitive highlighting
       regex = ~r/#{Regex.escape(normalized_search)}/i
+
       String.replace(text, regex, fn match ->
         "<span class=\"bg-yellow-400/30 text-yellow-200\">#{match}</span>"
       end)
     end
   end
+
   defp highlight_search_term(text, _search_term), do: text
 
   # Arsenal ProcessList operation integration
@@ -865,17 +1053,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
       {:process_list_error, message} ->
         "Process list operation failed: #{message}"
-
-      :timeout ->
-        "Operation timed out while fetching process data"
-
-      other ->
-        "Arsenal operation failed: #{inspect(other)}"
     end
   end
 
   defp format_processes(arsenal_result) do
-    processes = arsenal_result.processes || []
+    processes = arsenal_result.processes
 
     formatted_processes =
       processes
@@ -906,7 +1088,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   end
 
   defp load_process_data(socket) do
-    socket = assign(socket, :loading, true)
+    socket =
+      socket
+      |> assign(:loading, true)
+      |> assign(:operation_in_progress, true)
+      |> assign(:error_message, nil)
 
     case get_processes() do
       {:ok, arsenal_result} ->
@@ -920,9 +1106,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
         |> assign(:cluster_nodes, formatted_result.nodes_queried)
         |> assign(:last_updated, formatted_result.last_updated)
         |> assign(:loading, false)
+        |> assign(:operation_in_progress, false)
+        |> assign(:retry_count, 0)
 
       {:error, error_message} ->
-        # Log error and set empty state
+        # Log error and set error state
         require Logger
         Logger.error("Failed to load process data: #{error_message}")
 
@@ -933,6 +1121,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
         |> assign(:cluster_nodes, [])
         |> assign(:last_updated, nil)
         |> assign(:loading, false)
+        |> assign(:operation_in_progress, false)
+        |> assign(:error_message, error_message)
     end
   end
 
@@ -940,40 +1130,6 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     processes
     |> Enum.group_by(& &1.node)
     |> Enum.into(%{})
-  end
-
-  defp calculate_process_stats(processes_by_node) do
-    total_processes =
-      processes_by_node
-      |> Map.values()
-      |> List.flatten()
-      |> length()
-
-    node_stats =
-      processes_by_node
-      |> Enum.map(fn {node, processes} ->
-        %{
-          node: node,
-          process_count: length(processes),
-          memory_total: Enum.sum(Enum.map(processes, & &1.memory)),
-          avg_message_queue:
-            case length(processes) do
-              0 -> 0
-              count ->
-                processes
-                |> Enum.map(& &1.message_queue_len)
-                |> Enum.sum()
-                |> div(count)
-            end
-        }
-      end)
-      |> Enum.sort_by(& &1.node)
-
-    %{
-      total_processes: total_processes,
-      total_nodes: map_size(processes_by_node),
-      node_stats: node_stats
-    }
   end
 
   defp format_process_info(process) do
@@ -993,6 +1149,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   defp format_pid(pid) when is_pid(pid) do
     pid |> :erlang.pid_to_list() |> to_string()
   end
+
   defp format_pid(pid) when is_binary(pid), do: pid
   defp format_pid(_), do: "unknown"
 
@@ -1005,14 +1162,18 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     end
   end
 
-  defp format_initial_call({module, function, arity}) when is_atom(module) and is_atom(function) do
+  defp format_initial_call({module, function, arity})
+       when is_atom(module) and is_atom(function) do
     "#{module}.#{function}/#{arity}"
   end
+
   defp format_initial_call(_), do: "unknown"
 
-  defp format_current_function({module, function, arity}) when is_atom(module) and is_atom(function) do
+  defp format_current_function({module, function, arity})
+       when is_atom(module) and is_atom(function) do
     "#{module}.#{function}/#{arity}"
   end
+
   defp format_current_function(_), do: "unknown"
 
   defp format_memory(memory) when is_integer(memory) and memory > 0 do
@@ -1022,6 +1183,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       true -> "#{memory} B"
     end
   end
+
   defp format_memory(_), do: "0 B"
 
   defp format_message_queue(queue_len) when is_integer(queue_len) do
@@ -1031,6 +1193,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       true -> "#{queue_len} messages"
     end
   end
+
   defp format_message_queue(_), do: "unknown"
 
   defp format_process_type(type) when is_atom(type) do
@@ -1043,17 +1206,21 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       _ -> String.capitalize(Atom.to_string(type))
     end
   end
+
   defp format_process_type(type) when is_binary(type) do
     String.capitalize(type)
   end
+
   defp format_process_type(_), do: "Process"
 
   defp format_application(app) when is_atom(app) do
     Atom.to_string(app)
   end
+
   defp format_application(app) when is_binary(app) do
     app
   end
+
   defp format_application(_), do: "unknown"
 
   defp format_process_status(process) do
@@ -1067,46 +1234,155 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   # Real-time update functions
 
   defp update_process_data(socket) do
-    # Preserve current UI state (filters, search, pagination, expanded nodes)
-    current_filters = socket.assigns.filters
-    current_search = socket.assigns.search_term
-    current_page = socket.assigns.current_page
-    expanded_nodes = socket.assigns.expanded_nodes
+    # Don't update if already in progress
+    if socket.assigns.operation_in_progress do
+      socket
+    else
+      # Preserve current UI state (filters, search, pagination, expanded nodes)
+      current_filters = socket.assigns.filters
+      current_search = socket.assigns.search_term
+      current_page = socket.assigns.current_page
+      expanded_nodes = socket.assigns.expanded_nodes
 
-    case get_processes() do
-      {:ok, arsenal_result} ->
-        formatted_result = format_processes(arsenal_result)
-
-        # Apply current filters and search to new data
-        filtered_processes = apply_filters(formatted_result.processes, current_filters)
-        searched_processes = search_processes(filtered_processes, current_search)
-
-        # Apply pagination to the searched processes
-        paginated_processes = paginate_processes(searched_processes, current_page, socket.assigns.per_page)
-        paginated_processes_by_node = group_processes_by_node(paginated_processes)
-
+      socket =
         socket
-        |> assign(:processes, formatted_result.processes)
-        |> assign(:processes_by_node, paginated_processes_by_node)
-        |> assign(:total_processes, formatted_result.total_count)
-        |> assign(:filtered_process_count, length(searched_processes))
-        |> assign(:cluster_nodes, formatted_result.nodes_queried)
-        |> assign(:last_updated, formatted_result.last_updated)
-        |> assign(:expanded_nodes, expanded_nodes)  # Preserve expanded state
-        |> assign(:loading, false)
+        |> assign(:refreshing, true)
+        |> assign(:operation_in_progress, true)
 
-      {:error, error_message} ->
-        # Log error but don't disrupt the UI - keep existing data
-        require Logger
-        Logger.error("Failed to update process data: #{error_message}")
+      case get_processes() do
+        {:ok, arsenal_result} ->
+          formatted_result = format_processes(arsenal_result)
 
-        # Just update the last_updated timestamp to show we tried
-        assign(socket, :loading, false)
+          # Apply current filters and search to new data
+          filtered_processes = apply_filters(formatted_result.processes, current_filters)
+          searched_processes = search_processes(filtered_processes, current_search)
+
+          # Apply pagination to the searched processes
+          paginated_processes =
+            paginate_processes(searched_processes, current_page, socket.assigns.per_page)
+
+          paginated_processes_by_node = group_processes_by_node(paginated_processes)
+
+          socket
+          |> assign(:processes, formatted_result.processes)
+          |> assign(:processes_by_node, paginated_processes_by_node)
+          |> assign(:total_processes, formatted_result.total_count)
+          |> assign(:filtered_process_count, length(searched_processes))
+          |> assign(:cluster_nodes, formatted_result.nodes_queried)
+          |> assign(:last_updated, formatted_result.last_updated)
+          # Preserve expanded state
+          |> assign(:expanded_nodes, expanded_nodes)
+          |> assign(:refreshing, false)
+          |> assign(:operation_in_progress, false)
+          |> assign(:error_message, nil)
+          |> assign(:retry_count, 0)
+
+        {:error, error_message} ->
+          # Log error but don't disrupt the UI - keep existing data
+          require Logger
+          Logger.error("Failed to update process data: #{error_message}")
+
+          socket
+          |> assign(:refreshing, false)
+          |> assign(:operation_in_progress, false)
+          |> assign(:error_message, error_message)
+      end
     end
   end
 
+  # Retry functions with exponential backoff
+  defp retry_load_process_data(socket) do
+    retry_count = socket.assigns.retry_count + 1
+    error_type = categorize_error(socket.assigns.error_message || "")
+
+    if should_retry_operation?(retry_count, error_type) do
+      # Calculate exponential backoff delay (300ms, 600ms, 1200ms)
+      delay = (300 * :math.pow(2, retry_count - 1)) |> round()
+
+      # Schedule retry after delay
+      Process.send_after(self(), {:retry_operation, :load_process_data}, delay)
+
+      socket
+      |> assign(:retry_count, retry_count)
+      |> assign(:operation_in_progress, true)
+    else
+      # Max retries reached
+      socket
+      |> assign(:operation_in_progress, false)
+      |> assign(
+        :error_message,
+        "Failed to load process data after #{retry_count} attempts. Please try again manually."
+      )
+    end
+  end
+
+  defp retry_update_process_data(socket) do
+    retry_count = socket.assigns.retry_count + 1
+    error_type = categorize_error(socket.assigns.error_message || "")
+
+    if should_retry_operation?(retry_count, error_type) do
+      # Calculate exponential backoff delay
+      delay = (300 * :math.pow(2, retry_count - 1)) |> round()
+
+      # Schedule retry after delay
+      Process.send_after(self(), {:retry_operation, :update_process_data}, delay)
+
+      socket
+      |> assign(:retry_count, retry_count)
+      |> assign(:operation_in_progress, true)
+    else
+      # Max retries reached - keep existing data
+      socket
+      |> assign(:operation_in_progress, false)
+      |> assign(
+        :error_message,
+        "Failed to update process data after #{retry_count} attempts. Retrying in next refresh cycle."
+      )
+    end
+  end
+
+  # Performance optimization functions
+
+  # Helper function to only assign if value has changed (performance optimization)
+  defp maybe_assign(socket, key, new_value, current_value) do
+    if new_value != current_value do
+      assign(socket, key, new_value)
+    else
+      socket
+    end
+  end
+
+  # Enhanced error handling with circuit breaker pattern
+  defp should_retry_operation?(retry_count, error_type) do
+    case error_type do
+      # Fewer retries for timeouts
+      :timeout -> retry_count < 2
+      # More retries for network issues
+      :network_error -> retry_count < 3
+      # Don't retry for permanent errors
+      :node_not_found -> false
+      _ -> retry_count < 3
+    end
+  end
+
+  defp categorize_error(error_message) when is_binary(error_message) do
+    cond do
+      String.contains?(error_message, "timeout") -> :timeout
+      String.contains?(error_message, "network") -> :network_error
+      String.contains?(error_message, "not found") -> :node_not_found
+      true -> :generic_error
+    end
+  end
+
+  defp categorize_error(_), do: :generic_error
+
   # Cleanup function for proper resource management
-  def terminate(_reason, _socket) do
+  def terminate(_reason, socket) do
+    # Cancel any pending debounce timers
+    if socket.assigns[:search_debounce_timer] do
+      Process.cancel_timer(socket.assigns.search_debounce_timer)
+    end
+
     # PubSub subscriptions are automatically cleaned up when the process terminates
     # Timers are also automatically cancelled when the process terminates
     :ok

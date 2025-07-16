@@ -109,39 +109,29 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       assert map_size(process_dist) == 4
 
       # Test Arsenal operations with simulation (use proper parameter validation)
-      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{}) do
-        {:ok, validated_params} ->
-          {:ok, health_data} =
-            OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(
-              validated_params
-            )
+      {:ok, validated_params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{})
 
-          # 3 simulated + 1 real node
-          assert health_data.nodes_total == 4
-          assert health_data.overall_status == :healthy
+      {:ok, health_data} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(validated_params)
 
-        {:error, _} ->
-          flunk("Parameter validation failed")
-      end
+      # 3 simulated + 1 real node
+      assert health_data.nodes_total == 4
+      assert health_data.overall_status == :healthy
 
       # Test node failure simulation
       [first_node | _] = simulated_nodes
       :ok = simulator.simulate_node_failure(first_node)
 
       # Verify failure is detected (use proper parameter validation)
-      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{}) do
-        {:ok, validated_params} ->
-          {:ok, updated_health} =
-            OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(
-              validated_params
-            )
+      {:ok, validated_params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{})
 
-          failed_status = updated_health.node_statuses[first_node]
-          assert failed_status.status == :down
+      {:ok, updated_health} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(validated_params)
 
-        {:error, _} ->
-          flunk("Parameter validation failed")
-      end
+      failed_status = updated_health.node_statuses[first_node]
+      assert failed_status.status == :down
 
       # Cleanup
       simulator.disable_simulation()
@@ -154,25 +144,20 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       {:ok, _nodes} = simulator.enable_simulation(2)
 
       # Test cluster health (use proper parameter validation)
-      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
-             "include_metrics" => true,
-             "include_history" => false
-           }) do
-        {:ok, validated_params} ->
-          {:ok, health_data} =
-            OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(
-              validated_params
-            )
+      {:ok, validated_params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.validate_params(%{
+          "include_metrics" => true,
+          "include_history" => false
+        })
 
-          # 2 simulated + 1 real node
-          assert health_data.nodes_total == 3
-          assert health_data.nodes_healthy == 3
-          assert health_data.overall_status == :healthy
-          assert Map.has_key?(health_data, :performance_metrics)
+      {:ok, health_data} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterHealth.execute(validated_params)
 
-        {:error, _} ->
-          flunk("Parameter validation failed")
-      end
+      # 2 simulated + 1 real node
+      assert health_data.nodes_total == 3
+      assert health_data.nodes_healthy == 3
+      assert health_data.overall_status == :healthy
+      assert Map.has_key?(health_data, :performance_metrics)
 
       simulator.disable_simulation()
     end
@@ -210,44 +195,34 @@ defmodule OTPSupervisor.Distributed.MultiNodeTest do
       {:ok, nodes} = simulator.enable_simulation(2)
 
       # Test process list (use proper parameter validation)
-      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.validate_params(%{
-             "limit" => 20,
-             "include_details" => true
-           }) do
-        {:ok, validated_params} ->
-          {:ok, process_data} =
-            OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(
-              validated_params
-            )
+      {:ok, validated_params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.validate_params(%{
+          "limit" => 20,
+          "include_details" => true
+        })
 
-          assert length(process_data.processes) > 0
-          assert process_data.total_count > 0
-          # 2 simulated + 1 real node
-          assert length(process_data.nodes_queried) == 3
+      {:ok, process_data} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(validated_params)
 
-        {:error, _} ->
-          flunk("Parameter validation failed")
-      end
+      assert length(process_data.processes) > 0
+      assert process_data.total_count > 0
+      # 2 simulated + 1 real node
+      assert length(process_data.nodes_queried) == 3
 
       # Test filtering by node
       [first_node | _] = nodes
 
-      case OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.validate_params(%{
-             "node" => Atom.to_string(first_node),
-             "limit" => 10
-           }) do
-        {:ok, validated_params} ->
-          {:ok, filtered_data} =
-            OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(
-              validated_params
-            )
+      {:ok, validated_params} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.validate_params(%{
+          "node" => Atom.to_string(first_node),
+          "limit" => 10
+        })
 
-          assert length(filtered_data.nodes_queried) == 1
-          assert first_node in filtered_data.nodes_queried
+      {:ok, filtered_data} =
+        OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList.execute(validated_params)
 
-        {:error, _} ->
-          flunk("Parameter validation failed")
-      end
+      assert length(filtered_data.nodes_queried) == 1
+      assert first_node in filtered_data.nodes_queried
 
       simulator.disable_simulation()
     end

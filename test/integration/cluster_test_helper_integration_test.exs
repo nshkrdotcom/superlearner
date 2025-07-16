@@ -7,6 +7,7 @@ defmodule ClusterTestHelperIntegrationTest do
   """
 
   use ExUnit.Case, async: false
+  @moduletag :distributed
 
   alias OTPSupervisor.Testing.AutoClusterManager
 
@@ -59,7 +60,7 @@ defmodule ClusterTestHelperIntegrationTest do
         {:error, reason} ->
           # Skip test if cluster startup fails (e.g., in CI environments)
           Logger.warning("Skipping test due to cluster startup failure: #{inspect(reason)}")
-          ExUnit.skip("Cluster startup failed: #{inspect(reason)}")
+          flunk("Test skipped: cluster startup failed - #{inspect(reason)}")
       end
     end
 
@@ -83,7 +84,7 @@ defmodule ClusterTestHelperIntegrationTest do
 
         {:error, reason} ->
           Logger.warning("Skipping test due to cluster startup failure: #{inspect(reason)}")
-          ExUnit.skip("Cluster startup failed: #{inspect(reason)}")
+          flunk("Test skipped: cluster startup failed - #{inspect(reason)}")
       end
     end
   end
@@ -113,7 +114,7 @@ defmodule ClusterTestHelperIntegrationTest do
 
         {:error, reason} ->
           Logger.warning("Skipping test due to cluster startup failure: #{inspect(reason)}")
-          ExUnit.skip("Cluster startup failed: #{inspect(reason)}")
+          flunk("Test skipped: cluster startup failed - #{inspect(reason)}")
       end
     end
 
@@ -138,12 +139,12 @@ defmodule ClusterTestHelperIntegrationTest do
             {:error, reason} ->
               # Manual cluster creation might fail in constrained environments
               Logger.warning("Manual cluster creation failed: #{inspect(reason)}")
-              ExUnit.skip("Manual cluster creation failed: #{inspect(reason)}")
+              flunk("Test skipped: manual cluster creation failed - #{inspect(reason)}")
           end
 
         {:error, reason} ->
           Logger.warning("Skipping test due to auto cluster startup failure: #{inspect(reason)}")
-          ExUnit.skip("Auto cluster startup failed: #{inspect(reason)}")
+          flunk("Test skipped: auto cluster startup failed - #{inspect(reason)}")
       end
     end
   end
@@ -164,7 +165,7 @@ defmodule ClusterTestHelperIntegrationTest do
 
         {:error, reason} ->
           Logger.warning("Manual cluster test failed: #{inspect(reason)}")
-          ExUnit.skip("Manual cluster creation failed: #{inspect(reason)}")
+          flunk("Test skipped: manual cluster test failed - #{inspect(reason)}")
       end
     end
 

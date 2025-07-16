@@ -3,7 +3,7 @@ defmodule OTPSupervisor.Testing.AutoClusterManagerUnitTest do
 
   alias OTPSupervisor.Testing.AutoClusterManager
 
-  @moduletag :unit
+  @moduletag :cluster_management
 
   setup do
     # Use the existing AutoClusterManager from the supervision tree

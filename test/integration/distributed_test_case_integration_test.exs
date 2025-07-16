@@ -70,7 +70,7 @@ defmodule DistributedTestCaseIntegrationTest do
 
   @tag :distributed
   test "with_cluster_size works with sufficient nodes" do
-    current_size = cluster_size()
+    _current_size = cluster_size()
 
     # This should work since we have at least 2 nodes
     result =
