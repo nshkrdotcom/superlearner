@@ -307,7 +307,6 @@ defmodule OTPSupervisor.Testing.Config do
         # Fallback to application environment or detect from process name
         cond do
           Process.whereis(:ex_unit) != nil -> :test
-          Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) -> Mix.env()
           true -> Application.get_env(:otp_supervisor, :environment, :prod)
         end
 
