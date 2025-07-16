@@ -85,6 +85,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
         key: "cluster"
       },
       %{
+        label: "Processes",
+        path: "/cluster-processes",
+        icon: "⚙️",
+        key: "cluster-processes"
+      },
+      %{
         label: "Arsenal",
         path: "/arsenal",
         icon: "⚡",
@@ -173,6 +179,9 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
         true
 
       {"cluster", "cluster"} ->
+        true
+
+      {"cluster-processes", "cluster-processes"} ->
         true
 
       {"docs", "docs"} ->

@@ -718,13 +718,42 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   defp parse_filter_param(_value, default), do: default
 
   defp status_bar_metrics(assigns) do
-    [
-      %{label: "Total Processes", value: "#{assigns.total_processes}"},
-      %{label: "Cluster Nodes", value: "#{length(assigns.cluster_nodes)}"},
-      %{label: "Filtered", value: filtered_count_display(assigns)},
-      %{label: "Page", value: page_display(assigns)},
-      %{label: "Last Updated", value: last_updated_display(assigns.last_updated)}
+    cluster_health = get_cluster_health_status()
+
+    base_metrics = [
+      %{
+        label: "Total Processes",
+        value: format_number(assigns.total_processes)
+      },
+      %{
+        label: "Filtered",
+        value: filtered_count_display(assigns)
+      },
+      %{
+        label: "Cluster Nodes",
+        value: format_number(length(assigns.cluster_nodes))
+      }
     ]
+
+    # Add cluster health indicator
+    health_metric = %{
+      label: "Health",
+      value: format_cluster_health(cluster_health)
+    }
+
+    # Add loading/refresh status
+    status_metric = %{
+      label: "Status",
+      value: get_status_indicator(assigns)
+    }
+
+    # Add last updated timestamp
+    updated_metric = %{
+      label: "Updated",
+      value: format_last_updated_enhanced(assigns.last_updated)
+    }
+
+    base_metrics ++ [health_metric, status_metric, updated_metric]
   end
 
   defp filtered_count_display(assigns) do
@@ -736,23 +765,57 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     end
   end
 
-  defp page_display(assigns) do
-    if assigns.filtered_process_count > assigns.per_page do
-      max_page = calculate_max_page(assigns.filtered_process_count, assigns.per_page)
-      "#{assigns.current_page}/#{max_page}"
-    else
-      "1/1"
+  # Enhanced status bar helper functions
+
+  defp get_cluster_health_status do
+    try do
+      ClusterStateManager.get_partition_status()
+    rescue
+      _ -> :unknown
+    catch
+      :exit, _ -> :unknown
     end
   end
 
-  defp last_updated_display(nil), do: "Never"
+  defp format_cluster_health(:healthy), do: "✓ Healthy"
+  defp format_cluster_health(:partitioned), do: "⚠ Partitioned"
+  defp format_cluster_health(:minority_partition), do: "⚠ Minority"
+  defp format_cluster_health(:partial_partition), do: "⚠ Partial"
+  defp format_cluster_health(:unknown), do: "? Unknown"
+  defp format_cluster_health(_), do: "? Unknown"
 
-  defp last_updated_display(datetime) do
-    datetime
-    |> DateTime.to_time()
-    |> Time.to_string()
-    |> String.slice(0, 8)
+  defp get_status_indicator(assigns) do
+    cond do
+      assigns.loading -> "⟳ Loading..."
+      assigns.refreshing -> "⟳ Refreshing"
+      assigns.operation_in_progress -> "⟳ Processing"
+      assigns.error_message -> "✗ Error"
+      true -> "✓ Ready"
+    end
   end
+
+  defp format_last_updated_enhanced(nil), do: "Never"
+
+  defp format_last_updated_enhanced(datetime) do
+    now = DateTime.utc_now()
+    diff_seconds = DateTime.diff(now, datetime, :second)
+
+    cond do
+      diff_seconds < 60 -> "#{diff_seconds}s ago"
+      diff_seconds < 3600 -> "#{div(diff_seconds, 60)}m ago"
+      true -> "#{div(diff_seconds, 3600)}h ago"
+    end
+  end
+
+  defp format_number(num) when is_integer(num) do
+    num
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
+
+  defp format_number(_), do: "0"
 
   defp node_expanded?(assigns, node) do
     MapSet.member?(assigns.expanded_nodes, node)

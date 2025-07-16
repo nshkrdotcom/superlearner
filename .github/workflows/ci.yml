@@ -40,6 +40,9 @@ jobs:
     - name: Compile application
       run: mix compile
     
+    - name: Compile test files
+      run: MIX_ENV=test mix compile
+    
     - name: Check formatting
       run: mix format --check-formatted
     
