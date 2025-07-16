@@ -631,13 +631,6 @@ defmodule OTPSupervisor.TestCluster.Manager do
     end
   end
 
-  defp get_node_http_port(_node) do
-    # Since we're using dynamic configuration, we can't easily extract the port
-    # from a static configuration. This function is used for status reporting.
-    # For now, return nil - in a full implementation, we'd store this info in state
-    nil
-  end
-
   defp get_node_logs(nodes, target_node) do
     if target_node do
       # Get logs from specific node

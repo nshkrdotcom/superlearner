@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Cluster.Test do
+  use Mix.Task
+
   @moduledoc """
   Distributed test cluster management tool.
 
@@ -35,8 +37,6 @@ defmodule Mix.Tasks.Cluster.Test do
       mix cluster.test clean
   """
 
-  use Mix.Task
-
   @shortdoc "Manage distributed test clusters"
 
   alias OTPSupervisor.TestCluster.Manager
@@ -49,14 +49,14 @@ defmodule Mix.Tasks.Cluster.Test do
       nil ->
         case Manager.start_link() do
           {:ok, _pid} ->
-            Mix.shell().info("Started TestCluster.Manager")
+            IO.puts("Started TestCluster.Manager")
             :ok
 
           {:error, {:already_started, _pid}} ->
             :ok
 
           {:error, reason} ->
-            Mix.shell().error("Failed to start TestCluster.Manager: #{inspect(reason)}")
+            IO.puts("Failed to start TestCluster.Manager: #{inspect(reason)}")
             {:error, reason}
         end
 
@@ -67,7 +67,7 @@ defmodule Mix.Tasks.Cluster.Test do
 
   def run(args) do
     # Ensure the application is started for our GenServers
-    Mix.Task.run("app.start")
+    Application.ensure_all_started(:otp_supervisor)
 
     case args do
       [] -> show_help()
@@ -86,7 +86,7 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp start_cluster do
-    Mix.shell().info("🚀 Starting distributed test cluster...")
+    IO.puts("🚀 Starting distributed test cluster...")
 
     # Run prerequisite check first
     case Diagnostics.check_prerequisites() do
@@ -94,7 +94,7 @@ defmodule Mix.Tasks.Cluster.Test do
         start_cluster_after_checks()
 
       {:error, failed_checks} ->
-        Mix.shell().error("❌ Prerequisites failed:")
+        IO.puts("❌ Prerequisites failed:")
         display_prerequisite_failures(failed_checks)
         System.halt(1)
     end
@@ -103,8 +103,8 @@ defmodule Mix.Tasks.Cluster.Test do
   defp start_cluster_after_checks do
     with :ok <- ensure_manager_started(),
          {:ok, nodes} <- Manager.start_cluster() do
-      Mix.shell().info("✅ Test cluster started successfully!")
-      Mix.shell().info("📍 Nodes: #{inspect(nodes)}")
+      IO.puts("✅ Test cluster started successfully!")
+      IO.puts("📍 Nodes: #{inspect(nodes)}")
       show_cluster_info(nodes)
     else
       {:error, reason} ->
@@ -115,13 +115,13 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp stop_cluster do
-    Mix.shell().info("🛑 Stopping distributed test cluster...")
+    IO.puts("🛑 Stopping distributed test cluster...")
 
     # Check if there are actually running processes first
     real_status = check_real_cluster_status()
 
     if real_status.overall_status == :running do
-      Mix.shell().info("🔍 Detected running cluster processes - performing force cleanup...")
+      IO.puts("🔍 Detected running cluster processes - performing force cleanup...")
       force_stop_cluster()
 
       # Verify cleanup worked
@@ -130,41 +130,41 @@ defmodule Mix.Tasks.Cluster.Test do
       final_status = check_real_cluster_status()
 
       if final_status.overall_status == :stopped do
-        Mix.shell().info("✅ Test cluster stopped successfully!")
+        IO.puts("✅ Test cluster stopped successfully!")
       else
-        Mix.shell().error("❌ Some processes may still be running")
-        Mix.shell().info("💡 Try: mix cluster.test clean")
+        IO.puts("❌ Some processes may still be running")
+        IO.puts("💡 Try: mix cluster.test clean")
       end
     else
       # No running processes detected
-      Mix.shell().info("ℹ️  No cluster processes detected - cluster is already stopped")
+      IO.puts("ℹ️  No cluster processes detected - cluster is already stopped")
 
       # Try Manager cleanup for completeness, but don't claim success if nothing was running
       case ensure_manager_started() do
         :ok ->
           case Manager.stop_cluster() do
             :ok ->
-              Mix.shell().info("ℹ️  Manager cleanup completed (no active nodes)")
+              IO.puts("ℹ️  Manager cleanup completed (no active nodes)")
 
             {:error, reason} ->
-              Mix.shell().info(
+              IO.puts(
                 "ℹ️  Manager cleanup failed: #{inspect(reason)} (cluster was already stopped)"
               )
           end
 
         {:error, _} ->
-          Mix.shell().info("ℹ️  Manager not available (cluster was already stopped)")
+          IO.puts("ℹ️  Manager not available (cluster was already stopped)")
       end
     end
   end
 
   defp restart_cluster do
-    Mix.shell().info("🔄 Restarting distributed test cluster...")
+    IO.puts("🔄 Restarting distributed test cluster...")
 
     with :ok <- Manager.stop_cluster(),
          {:ok, nodes} <- Manager.start_cluster() do
-      Mix.shell().info("✅ Test cluster restarted successfully!")
-      Mix.shell().info("📍 Nodes: #{inspect(nodes)}")
+      IO.puts("✅ Test cluster restarted successfully!")
+      IO.puts("📍 Nodes: #{inspect(nodes)}")
     else
       {:error, reason} ->
         diagnosis = Diagnostics.diagnose_startup_failure(reason)
@@ -174,7 +174,7 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp show_status do
-    Mix.shell().info("📊 Checking actual cluster status...")
+    IO.puts("📊 Checking actual cluster status...")
 
     # Check for real running processes instead of relying on Manager state
     real_status = check_real_cluster_status()
@@ -185,50 +185,50 @@ defmodule Mix.Tasks.Cluster.Test do
       :ok ->
         case Manager.get_status() do
           {:ok, manager_status} ->
-            Mix.shell().info("")
-            Mix.shell().info("📋 Manager Status:")
+            IO.puts("")
+            IO.puts("📋 Manager Status:")
             display_status(manager_status)
 
           {:error, _} ->
-            Mix.shell().info("📋 Manager Status: Not available")
+            IO.puts("📋 Manager Status: Not available")
         end
 
       {:error, _} ->
-        Mix.shell().info("📋 Manager Status: Not running")
+        IO.puts("📋 Manager Status: Not running")
     end
   end
 
   defp clean_cluster do
-    Mix.shell().info("🧹 Cleaning up test cluster artifacts...")
+    IO.puts("🧹 Cleaning up test cluster artifacts...")
 
     # Perform comprehensive cleanup using multiple strategies
     cleanup_results = perform_comprehensive_cleanup()
 
     case cleanup_results do
       :ok ->
-        Mix.shell().info("✅ Cleanup completed successfully!")
+        IO.puts("✅ Cleanup completed successfully!")
 
       {:partial_success, issues} ->
-        Mix.shell().info("⚠️  Cleanup completed with some issues:")
+        IO.puts("⚠️  Cleanup completed with some issues:")
 
         Enum.each(issues, fn issue ->
-          Mix.shell().info("  • #{issue}")
+          IO.puts("  • #{issue}")
         end)
 
-        Mix.shell().info("✅ Core cleanup operations succeeded")
+        IO.puts("✅ Core cleanup operations succeeded")
 
       {:error, reason} ->
-        Mix.shell().error("❌ Cleanup failed: #{inspect(reason)}")
-        Mix.shell().info("💡 Try manual cleanup:")
-        Mix.shell().info("  • pkill -f test_node")
-        Mix.shell().info("  • epmd -kill")
-        Mix.shell().info("  • netstat -tulpn | grep 41[0-9][0-9]")
+        IO.puts("❌ Cleanup failed: #{inspect(reason)}")
+        IO.puts("💡 Try manual cleanup:")
+        IO.puts("  • pkill -f test_node")
+        IO.puts("  • epmd -kill")
+        IO.puts("  • netstat -tulpn | grep 41[0-9][0-9]")
         System.halt(1)
     end
   end
 
   defp run_full_cycle do
-    Mix.shell().info("🎯 Running full distributed test cycle...")
+    IO.puts("🎯 Running full distributed test cycle...")
 
     # Run prerequisite check first
     case Diagnostics.check_prerequisites() do
@@ -236,7 +236,7 @@ defmodule Mix.Tasks.Cluster.Test do
         run_full_cycle_after_checks()
 
       {:error, failed_checks} ->
-        Mix.shell().error("❌ Prerequisites failed:")
+        IO.puts("❌ Prerequisites failed:")
         display_prerequisite_failures(failed_checks)
         System.halt(1)
     end
@@ -247,7 +247,7 @@ defmodule Mix.Tasks.Cluster.Test do
          {:ok, _nodes} <- Manager.start_cluster(),
          :ok <- run_distributed_tests(),
          :ok <- Manager.stop_cluster() do
-      Mix.shell().info("✅ Full test cycle completed successfully!")
+      IO.puts("✅ Full test cycle completed successfully!")
     else
       {:error, reason} ->
         diagnosis = Diagnostics.diagnose_startup_failure(reason)
@@ -259,14 +259,14 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp health_check do
-    Mix.shell().info("🏥 Running comprehensive health check...")
+    IO.puts("🏥 Running comprehensive health check...")
 
     with :ok <- ensure_manager_started(),
          {:ok, results} <- Manager.health_check() do
       display_health_results(results)
     else
       {:error, reason} ->
-        Mix.shell().error("❌ Health check failed: #{inspect(reason)}")
+        IO.puts("❌ Health check failed: #{inspect(reason)}")
         System.halt(1)
     end
   end
@@ -277,27 +277,27 @@ defmodule Mix.Tasks.Cluster.Test do
       display_logs(logs, node)
     else
       {:error, reason} ->
-        Mix.shell().error("❌ Failed to get logs: #{inspect(reason)}")
+        IO.puts("❌ Failed to get logs: #{inspect(reason)}")
         System.halt(1)
     end
   end
 
   defp preflight_check do
-    Mix.shell().info("🔍 Running pre-flight environment checks...")
+    IO.puts("🔍 Running pre-flight environment checks...")
 
     # Use Diagnostics module for core checks
     case Diagnostics.check_prerequisites() do
       :ok ->
-        Mix.shell().info("✅ Core prerequisites passed!")
+        IO.puts("✅ Core prerequisites passed!")
         run_extended_preflight_checks()
 
       {:error, failed_checks} ->
-        Mix.shell().error("❌ Core prerequisites failed:")
+        IO.puts("❌ Core prerequisites failed:")
         display_prerequisite_failures(failed_checks)
 
         # Still run extended checks for complete picture
-        Mix.shell().info("")
-        Mix.shell().info("Running extended checks...")
+        IO.puts("")
+        IO.puts("Running extended checks...")
         run_extended_preflight_checks()
     end
   end
@@ -310,7 +310,7 @@ defmodule Mix.Tasks.Cluster.Test do
 
     results =
       Enum.map(checks, fn {name, check_fn} ->
-        Mix.shell().info("  Checking #{name}...")
+        IO.puts("  Checking #{name}...")
         result = check_fn.()
         {name, result}
       end)
@@ -321,23 +321,23 @@ defmodule Mix.Tasks.Cluster.Test do
   # Private helper functions
 
   defp run_distributed_tests do
-    Mix.shell().info("🧪 Running distributed tests...")
+    IO.puts("🧪 Running distributed tests...")
 
     # Ensure distributed Erlang is started before running tests
     unless Node.alive?() do
-      Mix.shell().info("Starting distributed Erlang for tests...")
+      IO.puts("Starting distributed Erlang for tests...")
 
       case Node.start(:"test_primary@127.0.0.1", :shortnames) do
         {:ok, _} ->
           Node.set_cookie(:test_cluster_cookie)
-          Mix.shell().info("✅ Distributed Erlang started: #{Node.self()}")
+          IO.puts("✅ Distributed Erlang started: #{Node.self()}")
 
         {:error, {:already_started, _}} ->
           Node.set_cookie(:test_cluster_cookie)
-          Mix.shell().info("✅ Using existing distributed node: #{Node.self()}")
+          IO.puts("✅ Using existing distributed node: #{Node.self()}")
 
         {:error, reason} ->
-          Mix.shell().error("❌ Failed to start distributed Erlang: #{inspect(reason)}")
+          IO.puts("❌ Failed to start distributed Erlang: #{inspect(reason)}")
           {:error, :distributed_startup_failed}
       end
     end
@@ -347,58 +347,58 @@ defmodule Mix.Tasks.Cluster.Test do
            stderr_to_stdout: true
          ) do
       {output, 0} ->
-        Mix.shell().info(output)
+        IO.puts(output)
         :ok
 
       {output, exit_code} ->
-        Mix.shell().error("Tests failed with exit code #{exit_code}")
-        Mix.shell().error(output)
+        IO.puts("Tests failed with exit code #{exit_code}")
+        IO.puts(output)
         {:error, :test_failure}
     end
   end
 
   defp show_cluster_info(servers) do
-    Mix.shell().info("")
-    Mix.shell().info("🌐 Cluster Information:")
-    Mix.shell().info("=" <> String.duplicate("=", 40))
+    IO.puts("")
+    IO.puts("🌐 Cluster Information:")
+    IO.puts("=" <> String.duplicate("=", 40))
 
     Enum.each(servers, fn {name, server_info} ->
-      Mix.shell().info("  • #{name}: #{server_info.url}")
+      IO.puts("  • #{name}: #{server_info.url}")
     end)
 
-    Mix.shell().info("")
-    Mix.shell().info("🔗 Test the servers:")
+    IO.puts("")
+    IO.puts("🔗 Test the servers:")
 
     Enum.each(servers, fn {_name, server_info} ->
-      Mix.shell().info("  curl #{server_info.url}")
+      IO.puts("  curl #{server_info.url}")
     end)
 
-    Mix.shell().info("")
-    Mix.shell().info("📊 Check status: mix cluster.test status")
-    Mix.shell().info("🏥 Health check: mix cluster.test health")
+    IO.puts("")
+    IO.puts("📊 Check status: mix cluster.test status")
+    IO.puts("🏥 Health check: mix cluster.test health")
 
-    Mix.shell().info("")
-    Mix.shell().info("💡 Next steps:")
-    Mix.shell().info("  mix test --only real_nodes    # Run distributed tests")
-    Mix.shell().info("  mix cluster.test health       # Check cluster health")
-    Mix.shell().info("  mix cluster.test stop          # Stop cluster")
+    IO.puts("")
+    IO.puts("💡 Next steps:")
+    IO.puts("  mix test --only real_nodes    # Run distributed tests")
+    IO.puts("  mix cluster.test health       # Check cluster health")
+    IO.puts("  mix cluster.test stop          # Stop cluster")
   end
 
   defp display_status(status) do
-    Mix.shell().info("📊 Cluster Status: #{status.overall}")
-    Mix.shell().info("")
+    IO.puts("📊 Cluster Status: #{status.overall}")
+    IO.puts("")
 
     Enum.each(status.nodes, fn {name, node_status} ->
       icon = if node_status.healthy, do: "✅", else: "❌"
-      Mix.shell().info("  #{icon} #{name}: #{node_status.status}")
+      IO.puts("  #{icon} #{name}: #{node_status.status}")
 
       if node_status.http_port do
-        Mix.shell().info("     HTTP: http://localhost:#{node_status.http_port}")
+        IO.puts("     HTTP: http://localhost:#{node_status.http_port}")
       end
 
       if not node_status.healthy and node_status.issues do
         Enum.each(node_status.issues, fn issue ->
-          Mix.shell().info("     ⚠️  #{issue}")
+          IO.puts("     ⚠️  #{issue}")
         end)
       end
     end)
@@ -406,78 +406,78 @@ defmodule Mix.Tasks.Cluster.Test do
 
   defp display_health_results(results) do
     overall = if results.all_passed, do: "✅ HEALTHY", else: "❌ UNHEALTHY"
-    Mix.shell().info("🏥 Overall Health: #{overall}")
-    Mix.shell().info("")
+    IO.puts("🏥 Overall Health: #{overall}")
+    IO.puts("")
 
     Enum.each(results.checks, fn {check_name, result} ->
       icon = if result.passed, do: "✅", else: "❌"
-      Mix.shell().info("  #{icon} #{check_name}: #{result.message}")
+      IO.puts("  #{icon} #{check_name}: #{result.message}")
 
       if not result.passed and Map.has_key?(result, :details) do
-        Mix.shell().info("     Details: #{result.details}")
+        IO.puts("     Details: #{result.details}")
       end
     end)
 
     if not results.all_passed do
-      Mix.shell().info("")
-      Mix.shell().info("💡 Troubleshooting suggestions:")
-      Enum.each(results.suggestions, &Mix.shell().info("  • #{&1}"))
+      IO.puts("")
+      IO.puts("💡 Troubleshooting suggestions:")
+      Enum.each(results.suggestions, &IO.puts("  • #{&1}"))
     end
   end
 
   defp display_logs(logs, node) do
     header = if node, do: "📋 Logs for #{node}:", else: "📋 Cluster Logs:"
-    Mix.shell().info(header)
-    Mix.shell().info(String.duplicate("=", String.length(header)))
-    Mix.shell().info("")
+    IO.puts(header)
+    IO.puts(String.duplicate("=", String.length(header)))
+    IO.puts("")
 
     case logs do
       %{} ->
         # Multiple nodes
         Enum.each(logs, fn {node_name, node_logs} ->
-          Mix.shell().info("--- #{node_name} ---")
-          Mix.shell().info(node_logs)
-          Mix.shell().info("")
+          IO.puts("--- #{node_name} ---")
+          IO.puts(node_logs)
+          IO.puts("")
         end)
 
       logs when is_binary(logs) ->
         # Single node
-        Mix.shell().info(logs)
+        IO.puts(logs)
     end
   end
 
   defp display_prerequisite_failures(failed_checks) do
-    Mix.shell().info("")
+    IO.puts("")
 
     Enum.each(failed_checks, fn {name, result} ->
       case result do
         {:error, message} ->
-          Mix.shell().info("  ❌ #{name}: #{message}")
+          IO.puts("  ❌ #{name}: #{message}")
 
         {:warning, message} ->
-          Mix.shell().info("  ⚠️  #{name}: #{message}")
+          IO.puts("  ⚠️  #{name}: #{message}")
       end
     end)
 
-    Mix.shell().info("")
-    Mix.shell().info("💡 Quick fixes:")
-    Mix.shell().info("  • Start EPMD: epmd -daemon")
-    Mix.shell().info("  • Clean up ports: mix cluster.test clean")
-    Mix.shell().info("  • Check network: ping localhost")
-    Mix.shell().info("  • Run full check: mix cluster.test preflight")
+    IO.puts("")
+    IO.puts("💡 Quick fixes:")
+    IO.puts("  • Start EPMD: epmd -daemon")
+    IO.puts("  • Clean up ports: mix cluster.test clean")
+    IO.puts("  • Check network: ping localhost")
+    IO.puts("  • Run full check: mix cluster.test preflight")
   end
 
   defp display_startup_failure(diagnosis) do
-    Mix.shell().error("❌ #{diagnosis.problem}")
-    Mix.shell().info("")
-    Mix.shell().info("💡 Try these solutions:")
-    Enum.each(diagnosis.solutions, &Mix.shell().info("  • #{&1}"))
-    Mix.shell().info("")
-    Mix.shell().info("🔍 For detailed diagnostics: mix cluster.test preflight")
+    IO.puts("❌ #{diagnosis.problem}")
+    IO.puts("")
+    IO.puts("💡 Try these solutions:")
+    Enum.each(diagnosis.solutions, &IO.puts("  • #{&1}"))
+    IO.puts("")
+    IO.puts("🔍 For detailed diagnostics: mix cluster.test preflight")
   end
 
   defp force_stop_cluster do
-    Mix.shell().info("🔧 Force stopping test cluster processes...")
+    IO.puts("🔧 Force stopping test cluster processes...")
 
     # Kill processes by pattern
     patterns = [
@@ -486,21 +486,19 @@ defmodule Mix.Tasks.Cluster.Test do
       "mix.*test_node"
     ]
 
-    killed_any = false
-
     killed_any =
-      Enum.reduce(patterns, killed_any, fn pattern, acc ->
+      Enum.reduce(patterns, false, fn pattern, acc ->
         case System.cmd("pkill", ["-f", pattern], stderr_to_stdout: true) do
           {_, 0} ->
-            Mix.shell().info("  ✅ Killed processes matching: #{pattern}")
+            IO.puts("  ✅ Killed processes matching: #{pattern}")
             true
 
           {_, 1} ->
-            Mix.shell().info("  ℹ️  No processes found for: #{pattern}")
+            IO.puts("  ℹ️  No processes found for: #{pattern}")
             acc
 
           {error, _} ->
-            Mix.shell().info("  ⚠️  Failed to kill #{pattern}: #{error}")
+            IO.puts("  ⚠️  Failed to kill #{pattern}: #{error}")
             acc
         end
       end)
@@ -509,34 +507,37 @@ defmodule Mix.Tasks.Cluster.Test do
     config = Application.get_env(:otp_supervisor, :distributed_testing, [])
     http_base = Keyword.get(config, :http_port_base, 4200)
 
-    Enum.each(http_base..(http_base + 5), fn port ->
-      case System.cmd("lsof", ["-ti:#{port}"], stderr_to_stdout: true) do
-        {pids_output, 0} ->
-          pids =
-            pids_output
-            |> String.trim()
-            |> String.split("\n")
-            |> Enum.reject(&(&1 == ""))
+    killed_any =
+      Enum.reduce(http_base..(http_base + 5), killed_any, fn port, acc ->
+        case System.cmd("lsof", ["-ti:#{port}"], stderr_to_stdout: true) do
+          {pids_output, 0} ->
+            pids =
+              pids_output
+              |> String.trim()
+              |> String.split("\n")
+              |> Enum.reject(&(&1 == ""))
 
-          if not Enum.empty?(pids) do
-            Enum.each(pids, fn pid ->
-              System.cmd("kill", ["-9", pid])
-            end)
+            if not Enum.empty?(pids) do
+              Enum.each(pids, fn pid ->
+                System.cmd("kill", ["-9", pid])
+              end)
 
-            Mix.shell().info("  ✅ Killed #{length(pids)} processes on port #{port}")
-            killed_any = true
-          end
+              IO.puts("  ✅ Killed #{length(pids)} processes on port #{port}")
+              true
+            else
+              acc
+            end
 
-        {_, _} ->
-          # No processes on this port, which is fine
-          :ok
-      end
-    end)
+          {_, _} ->
+            # No processes on this port, which is fine
+            acc
+        end
+      end)
 
     if killed_any do
-      Mix.shell().info("✅ Force stop completed - processes terminated")
+      IO.puts("✅ Force stop completed - processes terminated")
     else
-      Mix.shell().info("ℹ️  No test cluster processes found to stop")
+      IO.puts("ℹ️  No test cluster processes found to stop")
     end
   end
 
@@ -634,56 +635,56 @@ defmodule Mix.Tasks.Cluster.Test do
   defp display_real_status(status) do
     case status.overall_status do
       :running ->
-        Mix.shell().info("🟢 REAL STATUS: CLUSTER IS RUNNING")
+        IO.puts("🟢 REAL STATUS: CLUSTER IS RUNNING")
 
       :stopped ->
-        Mix.shell().info("🔴 REAL STATUS: NO CLUSTER DETECTED")
+        IO.puts("🔴 REAL STATUS: NO CLUSTER DETECTED")
     end
 
-    Mix.shell().info("")
-    Mix.shell().info("📊 Port Status:")
+    IO.puts("")
+    IO.puts("📊 Port Status:")
 
     Enum.each(status.ports, fn {port, port_status, pids, process_info} ->
       case port_status do
         :running ->
-          Mix.shell().info("  🟢 Port #{port}: OCCUPIED by #{length(pids)} process(es)")
+          IO.puts("  🟢 Port #{port}: OCCUPIED by #{length(pids)} process(es)")
 
           if process_info do
-            Mix.shell().info("     Process: #{process_info}")
+            IO.puts("     Process: #{process_info}")
           end
 
         :not_running ->
-          Mix.shell().info("  ⚪ Port #{port}: Available")
+          IO.puts("  ⚪ Port #{port}: Available")
       end
     end)
 
     if not Enum.empty?(status.test_processes) do
-      Mix.shell().info("")
-      Mix.shell().info("🔍 Test Node Processes:")
+      IO.puts("")
+      IO.puts("🔍 Test Node Processes:")
 
       Enum.each(status.test_processes, fn pid ->
         process_info = get_process_info(pid)
-        Mix.shell().info("  • PID #{pid}: #{process_info}")
+        IO.puts("  • PID #{pid}: #{process_info}")
       end)
     end
 
     if not Enum.empty?(status.epmd_nodes) do
-      Mix.shell().info("")
-      Mix.shell().info("📡 EPMD Registered Nodes:")
+      IO.puts("")
+      IO.puts("📡 EPMD Registered Nodes:")
 
       Enum.each(status.epmd_nodes, fn node ->
-        Mix.shell().info("  • #{node}")
+        IO.puts("  • #{node}")
       end)
     end
 
     if status.overall_status == :running do
-      Mix.shell().info("")
-      Mix.shell().info("💡 To stop the cluster: mix cluster.test stop")
+      IO.puts("")
+      IO.puts("💡 To stop the cluster: mix cluster.test stop")
     end
   end
 
   defp show_help do
-    Mix.shell().info(@moduledoc)
+    IO.puts(@moduledoc)
   end
 
   # Pre-flight check functions
@@ -709,47 +710,45 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp display_extended_preflight_results(results) do
-    Mix.shell().info("")
-    Mix.shell().info("🔍 Extended Pre-flight Check Results:")
-    Mix.shell().info("=" |> String.duplicate(40))
+    IO.puts("")
+    IO.puts("🔍 Extended Pre-flight Check Results:")
+    IO.puts("=" |> String.duplicate(40))
 
     all_passed =
       Enum.all?(results, fn {name, result} ->
         case result do
           {:ok, message} ->
-            Mix.shell().info("  ✅ #{name}: #{message}")
+            IO.puts("  ✅ #{name}: #{message}")
             true
 
           {:warning, message} ->
-            Mix.shell().info("  ⚠️  #{name}: #{message}")
+            IO.puts("  ⚠️  #{name}: #{message}")
             true
 
           {:error, message} ->
-            Mix.shell().info("  ❌ #{name}: #{message}")
+            IO.puts("  ❌ #{name}: #{message}")
             false
         end
       end)
 
-    Mix.shell().info("")
+    IO.puts("")
 
     if all_passed do
-      Mix.shell().info(
-        "✅ All extended checks passed! Environment is ready for distributed testing."
-      )
+      IO.puts("✅ All extended checks passed! Environment is ready for distributed testing.")
     else
-      Mix.shell().info("⚠️  Some extended checks failed, but core functionality may still work.")
-      Mix.shell().info("")
-      Mix.shell().info("💡 Additional solutions:")
-      Mix.shell().info("  • Ensure test modules are compiled: mix compile")
-      Mix.shell().info("  • Check dependencies: mix deps.get")
-      Mix.shell().info("  • Verify test environment setup")
+      IO.puts("⚠️  Some extended checks failed, but core functionality may still work.")
+      IO.puts("")
+      IO.puts("💡 Additional solutions:")
+      IO.puts("  • Ensure test modules are compiled: mix compile")
+      IO.puts("  • Check dependencies: mix deps.get")
+      IO.puts("  • Verify test environment setup")
     end
   end
 
   # Comprehensive cleanup implementation
 
   defp perform_comprehensive_cleanup do
-    Mix.shell().info("🔧 Starting comprehensive cleanup process...")
+    IO.puts("🔧 Starting comprehensive cleanup process...")
 
     cleanup_steps = [
       {"Manager cleanup", &cleanup_via_manager/0},
@@ -762,22 +761,22 @@ defmodule Mix.Tasks.Cluster.Test do
     {successful_steps, failed_steps} =
       cleanup_steps
       |> Enum.map(fn {step_name, cleanup_fn} ->
-        Mix.shell().info("  • #{step_name}...")
+        IO.puts("  • #{step_name}...")
 
         case cleanup_fn.() do
           :ok ->
-            Mix.shell().info("    ✅ #{step_name} completed")
+            IO.puts("    ✅ #{step_name} completed")
             {:success, step_name}
 
           {:error, reason} ->
-            Mix.shell().info("    ❌ #{step_name} failed: #{inspect(reason)}")
+            IO.puts("    ❌ #{step_name} failed: #{inspect(reason)}")
             {:failed, step_name, reason}
 
           {:partial_success, issues} ->
-            Mix.shell().info("    ⚠️  #{step_name} partially completed")
+            IO.puts("    ⚠️  #{step_name} partially completed")
 
             Enum.each(issues, fn issue ->
-              Mix.shell().info("      • #{issue}")
+              IO.puts("      • #{issue}")
             end)
 
             {:partial, step_name, issues}
@@ -816,13 +815,13 @@ defmodule Mix.Tasks.Cluster.Test do
 
       {:error, _reason} ->
         # Manager not available, continue with other cleanup methods
-        Mix.shell().info("    Manager not available, using direct cleanup methods")
+        IO.puts("    Manager not available, using direct cleanup methods")
         :ok
     end
   end
 
   defp cleanup_test_processes do
-    Mix.shell().info("    Killing test node processes...")
+    IO.puts("    Killing test node processes...")
 
     case PortManager.cleanup_test_processes() do
       :ok ->
@@ -847,7 +846,7 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp cleanup_test_ports do
-    Mix.shell().info("    Cleaning up test ports...")
+    IO.puts("    Cleaning up test ports...")
 
     # Define the typical port ranges used by test clusters
     # Get configured port ranges instead of hardcoded ones
@@ -879,7 +878,7 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp cleanup_epmd do
-    Mix.shell().info("    Cleaning up EPMD...")
+    IO.puts("    Cleaning up EPMD...")
 
     # Get list of registered nodes before cleanup
     case System.cmd("epmd", ["-names"], stderr_to_stdout: true) do
@@ -890,10 +889,10 @@ defmodule Mix.Tasks.Cluster.Test do
           |> Enum.filter(&String.contains?(&1, "test_node"))
 
         if Enum.empty?(test_nodes) do
-          Mix.shell().info("      No test nodes registered in EPMD")
+          IO.puts("      No test nodes registered in EPMD")
           :ok
         else
-          Mix.shell().info("      Found #{length(test_nodes)} test nodes in EPMD")
+          IO.puts("      Found #{length(test_nodes)} test nodes in EPMD")
           # Kill EPMD to force cleanup of registered nodes
           case System.cmd("epmd", ["-kill"], stderr_to_stdout: true) do
             {_, 0} ->
@@ -917,7 +916,7 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp cleanup_test_artifacts do
-    Mix.shell().info("    Cleaning up test artifacts...")
+    IO.puts("    Cleaning up test artifacts...")
 
     # Clean up common test artifacts
     artifact_cleanup_tasks = [

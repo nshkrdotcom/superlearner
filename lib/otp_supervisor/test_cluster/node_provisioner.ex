@@ -401,19 +401,6 @@ defmodule OTPSupervisor.TestCluster.NodeProvisioner do
         Logger.error("DIAGNOSIS: Peer module requires current node to be alive")
         Logger.error("SOLUTION: Start distributed Erlang before running tests")
 
-      {:ports_unavailable, ports} ->
-        Logger.error("DIAGNOSIS: Required ports are in use: #{inspect(ports)}")
-        Logger.error("SOLUTION: Stop processes using these ports or use different ports")
-        Logger.error("  Check with: netstat -an | grep #{Enum.join(ports, "\\|")}")
-
-      {:network_validation_failed, checks} ->
-        Logger.error("DIAGNOSIS: Network configuration issues: #{inspect(checks)}")
-        Logger.error("SOLUTION: Check network connectivity and hostname resolution")
-
-      :epmd_not_running ->
-        Logger.error("DIAGNOSIS: EPMD (Erlang Port Mapper Daemon) is not running")
-        Logger.error("SOLUTION: Start EPMD with: epmd -daemon")
-
       other ->
         Logger.error("DIAGNOSIS: Unexpected startup failure: #{inspect(other)}")
         Logger.error("SOLUTION: Check logs and network configuration")
@@ -445,9 +432,6 @@ defmodule OTPSupervisor.TestCluster.NodeProvisioner do
           {:ok, _} -> :ok
           {:error, reason} -> {:error, {:hostname_resolution, hostname, reason}}
         end
-
-      {:error, reason} ->
-        {:error, {:hostname_lookup, reason}}
     end
   end
 end

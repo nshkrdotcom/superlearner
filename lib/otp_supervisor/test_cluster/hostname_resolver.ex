@@ -88,10 +88,6 @@ defmodule OTPSupervisor.TestCluster.HostnameResolver do
           {:ok, hostname} -> {:ok, hostname}
           {:error, _} -> {:error, :hostname_not_resolvable}
         end
-
-      {:error, reason} ->
-        Logger.debug("Failed to get system hostname: #{inspect(reason)}")
-        {:error, reason}
     end
   end
 

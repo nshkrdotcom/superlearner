@@ -116,7 +116,7 @@ defmodule OTPSupervisor.Testing.Config do
   """
   def detect_environment(config \\ %{}) do
     ci_mode = detect_ci_environment(config)
-    env = Mix.env()
+    env = Application.get_env(:mix, :env)
 
     config
     |> Map.put(:ci_mode, ci_mode)

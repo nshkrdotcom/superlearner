@@ -297,11 +297,9 @@ defmodule OTPSupervisor.Testing.AutoClusterManager do
 
     # NO FALLBACK STRATEGIES - FAIL HARD FOR DISTRIBUTED TESTS
     %{
-      problem:
-        diagnosis.problem ||
-          "Cluster startup failed - distributed tests cannot run without a cluster",
+      problem: diagnosis.problem,
       reason: reason,
-      solutions: diagnosis.solutions || [],
+      solutions: diagnosis.solutions,
       # Always fail hard
       fallback_strategy: :fail_hard,
       # Never skip distributed tests

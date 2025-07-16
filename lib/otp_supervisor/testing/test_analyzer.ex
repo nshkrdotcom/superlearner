@@ -290,7 +290,6 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
 
     case analyze_test_files(test_patterns) do
       %{needs_cluster: needs_cluster} -> needs_cluster
-      _ -> false
     end
   end
 
@@ -300,7 +299,6 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
   def file_has_distributed_tests?(file_path) do
     case analyze_single_file(file_path) do
       %{requirements: %{needs_cluster: needs_cluster}} -> needs_cluster
-      _ -> false
     end
   end
 
@@ -310,7 +308,6 @@ defmodule OTPSupervisor.Testing.TestAnalyzer do
   def get_required_cluster_size(file_path) do
     case analyze_single_file(file_path) do
       %{requirements: %{min_cluster_size: size}} -> size
-      _ -> 0
     end
   end
 end

@@ -12,6 +12,9 @@ defmodule OtpSupervisor.MixProject do
       deps: deps(),
       preferred_cli_env: [
         "test.distributed": :test
+      ],
+      dialyzer: [
+        ignore_warnings: ".dialyzer_ignore.exs"
       ]
     ]
   end

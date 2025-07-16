@@ -201,7 +201,6 @@ defmodule OTPSupervisor.TestCluster.Diagnostics do
   defp get_system_hostname do
     case :inet.gethostname() do
       {:ok, hostname} -> List.to_string(hostname)
-      {:error, reason} -> {:error, reason}
     end
   end
 

@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Test.Distributed do
+  use Mix.Task
+
   @moduledoc """
   Enhanced Mix test task with automatic distributed cluster management.
 
@@ -47,8 +49,6 @@ defmodule Mix.Tasks.Test.Distributed do
       # Force cluster even for unit tests (useful for integration testing)
       mix test --force-cluster
   """
-
-  use Mix.Task
 
   @shortdoc "Run tests with automatic distributed cluster management"
 
@@ -135,10 +135,10 @@ defmodule Mix.Tasks.Test.Distributed do
   end
 
   defp run_with_cluster_management(distributed_opts, test_args) do
-    Mix.shell().info("🚀 Starting distributed test execution...")
+    IO.puts("🚀 Starting distributed test execution...")
 
     # Ensure the application and AutoClusterManager are started
-    Mix.Task.run("app.start")
+    Application.ensure_all_started(:otp_supervisor)
     ensure_auto_cluster_manager_started()
 
     # Build test requirements from options and analysis
@@ -148,13 +148,13 @@ defmodule Mix.Tasks.Test.Distributed do
     case AutoClusterManager.start_cluster_for_tests(requirements) do
       {:ok, cluster_info} ->
         if cluster_info.cluster_active do
-          Mix.shell().info("✅ Cluster ready with #{length(cluster_info.nodes)} nodes")
+          IO.puts("✅ Cluster ready with #{length(cluster_info.nodes)} nodes")
 
           if distributed_opts[:verbose_cluster] do
-            Mix.shell().info("   Nodes: #{inspect(cluster_info.nodes)}")
+            IO.puts("   Nodes: #{inspect(cluster_info.nodes)}")
           end
         else
-          Mix.shell().info("ℹ️  Running without cluster: #{cluster_info.reason}")
+          IO.puts("ℹ️  Running without cluster: #{cluster_info.reason}")
         end
 
         # Run the actual tests
@@ -237,21 +237,21 @@ defmodule Mix.Tasks.Test.Distributed do
     try do
       case AutoClusterManager.cleanup_if_managed() do
         :ok ->
-          Mix.shell().info("🧹 Cluster cleanup completed")
+          IO.puts("🧹 Cluster cleanup completed")
 
         {:warning, reason} ->
-          Mix.shell().info("⚠️  Cluster cleanup had issues: #{inspect(reason)}")
+          IO.puts("⚠️  Cluster cleanup had issues: #{inspect(reason)}")
       end
     catch
       :exit, _ ->
-        Mix.shell().info("⚠️  Cluster cleanup skipped (manager not available)")
+        IO.puts("⚠️  Cluster cleanup skipped (manager not available)")
     end
   end
 
   defp run_standard_tests(args) do
     # Run the standard Mix test task
     try do
-      Mix.Tasks.Test.run(args)
+      System.cmd("mix", ["test"] ++ args)
       # Success
       0
     catch
@@ -265,14 +265,14 @@ defmodule Mix.Tasks.Test.Distributed do
       nil ->
         case AutoClusterManager.start_link() do
           {:ok, _pid} ->
-            Mix.shell().info("Started AutoClusterManager")
+            IO.puts("Started AutoClusterManager")
             :ok
 
           {:error, {:already_started, _pid}} ->
             :ok
 
           {:error, reason} ->
-            Mix.shell().error("Failed to start AutoClusterManager: #{inspect(reason)}")
+            IO.puts("Failed to start AutoClusterManager: #{inspect(reason)}")
             {:error, reason}
         end
 
@@ -281,33 +281,32 @@ defmodule Mix.Tasks.Test.Distributed do
     end
   end
 
+  @spec handle_cluster_startup_failure(map(), keyword(), list()) :: no_return()
   defp handle_cluster_startup_failure(diagnosis, _opts, _test_args) do
-    Mix.shell().error("❌ Cluster startup failed: #{diagnosis.problem}")
+    IO.puts("❌ Cluster startup failed: #{diagnosis.problem}")
 
     # Show solutions
     if not Enum.empty?(diagnosis.solutions) do
-      Mix.shell().info("\n💡 Possible solutions:")
+      IO.puts("\n💡 Possible solutions:")
 
       Enum.each(diagnosis.solutions, fn solution ->
-        Mix.shell().info("   • #{solution}")
+        IO.puts("   • #{solution}")
       end)
     end
 
     # Show retry suggestions
     if not Enum.empty?(diagnosis.retry_suggestions) do
-      Mix.shell().info("\n🔄 Retry suggestions:")
+      IO.puts("\n🔄 Retry suggestions:")
 
       Enum.each(diagnosis.retry_suggestions, fn suggestion ->
-        Mix.shell().info("   • #{suggestion}")
+        IO.puts("   • #{suggestion}")
       end)
     end
 
     # NO FALLBACK STRATEGIES - FAIL HARD FOR DISTRIBUTED TESTS
-    Mix.shell().error(
-      "\n🛑 Distributed tests require a working cluster - cannot proceed without one"
-    )
+    IO.puts("\n🛑 Distributed tests require a working cluster - cannot proceed without one")
 
-    Mix.shell().error("🛑 Fix the cluster issues above and try again")
+    IO.puts("🛑 Fix the cluster issues above and try again")
     System.halt(1)
   end
 end
