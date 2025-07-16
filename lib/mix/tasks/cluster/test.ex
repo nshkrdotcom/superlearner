@@ -8,7 +8,7 @@ defmodule Mix.Tasks.Cluster.Test do
   ## Commands
 
       mix cluster.test start           # Start test cluster
-      mix cluster.test stop            # Stop test cluster  
+      mix cluster.test stop            # Stop test cluster
       mix cluster.test restart         # Restart test cluster
       mix cluster.test status          # Show cluster status
       mix cluster.test clean           # Clean up all test artifacts
@@ -21,16 +21,16 @@ defmodule Mix.Tasks.Cluster.Test do
 
       # Check if environment is ready for distributed testing
       mix cluster.test preflight
-      
+
       # Start a fresh test cluster
       mix cluster.test start
-      
+
       # Run distributed tests with automatic cluster management
       mix cluster.test run
-      
+
       # Check if cluster is healthy
       mix cluster.test health
-      
+
       # Clean up everything
       mix cluster.test clean
   """
@@ -117,14 +117,37 @@ defmodule Mix.Tasks.Cluster.Test do
   defp stop_cluster do
     Mix.shell().info("🛑 Stopping distributed test cluster...")
 
-    case Manager.stop_cluster() do
-      :ok ->
-        Mix.shell().info("✅ Test cluster stopped successfully!")
+    # Check if there are actually running processes first
+    real_status = check_real_cluster_status()
 
-      {:error, reason} ->
-        Mix.shell().error("❌ Failed to stop cluster: #{inspect(reason)}")
+    if real_status.overall_status == :running do
+      Mix.shell().info("🔍 Detected running cluster processes - performing force cleanup...")
+      force_stop_cluster()
+
+      # Verify cleanup worked
+      :timer.sleep(2000)  # Give processes time to die
+      final_status = check_real_cluster_status()
+
+      if final_status.overall_status == :stopped do
+        Mix.shell().info("✅ Test cluster stopped successfully!")
+      else
+        Mix.shell().error("❌ Some processes may still be running")
         Mix.shell().info("💡 Try: mix cluster.test clean")
-        System.halt(1)
+      end
+    else
+      # Try Manager cleanup for completeness
+      case ensure_manager_started() do
+        :ok ->
+          case Manager.stop_cluster() do
+            :ok ->
+              Mix.shell().info("✅ Test cluster stopped successfully!")
+            {:error, reason} ->
+              Mix.shell().info("ℹ️  Manager cleanup failed: #{inspect(reason)}")
+              Mix.shell().info("✅ No running processes detected anyway")
+          end
+        {:error, _} ->
+          Mix.shell().info("✅ No cluster processes detected")
+      end
     end
   end
 
@@ -144,13 +167,25 @@ defmodule Mix.Tasks.Cluster.Test do
   end
 
   defp show_status do
-    with :ok <- ensure_manager_started(),
-         {:ok, status} <- Manager.get_status() do
-      display_status(status)
-    else
-      {:error, reason} ->
-        Mix.shell().error("❌ Failed to get cluster status: #{inspect(reason)}")
-        System.halt(1)
+    Mix.shell().info("📊 Checking actual cluster status...")
+
+    # Check for real running processes instead of relying on Manager state
+    real_status = check_real_cluster_status()
+    display_real_status(real_status)
+
+    # Also try Manager status if available
+    case ensure_manager_started() do
+      :ok ->
+        case Manager.get_status() do
+          {:ok, manager_status} ->
+            Mix.shell().info("")
+            Mix.shell().info("📋 Manager Status:")
+            display_status(manager_status)
+          {:error, _} ->
+            Mix.shell().info("📋 Manager Status: Not available")
+        end
+      {:error, _} ->
+        Mix.shell().info("📋 Manager Status: Not running")
     end
   end
 
@@ -432,6 +467,196 @@ defmodule Mix.Tasks.Cluster.Test do
     Mix.shell().info("🔍 For detailed diagnostics: mix cluster.test preflight")
   end
 
+  defp force_stop_cluster do
+    Mix.shell().info("🔧 Force stopping test cluster processes...")
+
+    # Kill processes by pattern
+    patterns = [
+      "elixir.*test_node",
+      "beam.*test_node",
+      "mix.*test_node"
+    ]
+
+    killed_any = false
+
+    Enum.each(patterns, fn pattern ->
+      case System.cmd("pkill", ["-f", pattern], stderr_to_stdout: true) do
+        {_, 0} ->
+          Mix.shell().info("  ✅ Killed processes matching: #{pattern}")
+          killed_any = true
+        {_, 1} ->
+          Mix.shell().info("  ℹ️  No processes found for: #{pattern}")
+        {error, _} ->
+          Mix.shell().info("  ⚠️  Failed to kill #{pattern}: #{error}")
+      end
+    end)
+
+    # Kill processes on test ports
+    config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+    http_base = Keyword.get(config, :http_port_base, 4200)
+
+    Enum.each(http_base..(http_base + 5), fn port ->
+      case System.cmd("lsof", ["-ti:#{port}"], stderr_to_stdout: true) do
+        {pids_output, 0} ->
+          pids =
+            pids_output
+            |> String.trim()
+            |> String.split("\n")
+            |> Enum.reject(&(&1 == ""))
+
+          if not Enum.empty?(pids) do
+            Enum.each(pids, fn pid ->
+              System.cmd("kill", ["-9", pid])
+            end)
+            Mix.shell().info("  ✅ Killed #{length(pids)} processes on port #{port}")
+            killed_any = true
+          end
+
+        {_, _} ->
+          # No processes on this port, which is fine
+          :ok
+      end
+    end)
+
+    if killed_any do
+      Mix.shell().info("✅ Force stop completed - processes terminated")
+    else
+      Mix.shell().info("ℹ️  No test cluster processes found to stop")
+    end
+  end
+
+  defp check_real_cluster_status do
+    # Check for actual running processes and ports
+    config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+    http_base = Keyword.get(config, :http_port_base, 4200)
+
+    # Check ports 4200-4205 for running processes
+    port_status =
+      Enum.map(http_base..(http_base + 5), fn port ->
+        case System.cmd("lsof", ["-ti:#{port}"], stderr_to_stdout: true) do
+          {pids_output, 0} ->
+            pids =
+              pids_output
+              |> String.trim()
+              |> String.split("\n")
+              |> Enum.reject(&(&1 == ""))
+
+            if not Enum.empty?(pids) do
+              # Try to get process info
+              process_info = get_process_info(List.first(pids))
+              {port, :running, pids, process_info}
+            else
+              {port, :not_running, [], nil}
+            end
+
+          {_, _} ->
+            {port, :not_running, [], nil}
+        end
+      end)
+
+    # Check for test_node processes
+    test_node_processes =
+      case System.cmd("pgrep", ["-f", "test_node"], stderr_to_stdout: true) do
+        {pids_output, 0} ->
+          pids_output
+          |> String.trim()
+          |> String.split("\n")
+          |> Enum.reject(&(&1 == ""))
+        {_, _} ->
+          []
+      end
+
+    # Check EPMD for registered test nodes
+    epmd_nodes =
+      case System.cmd("epmd", ["-names"], stderr_to_stdout: true) do
+        {output, 0} ->
+          output
+          |> String.split("\n")
+          |> Enum.filter(&String.contains?(&1, "test_node"))
+          |> Enum.map(&String.trim/1)
+        {_, _} ->
+          []
+      end
+
+    %{
+      ports: port_status,
+      test_processes: test_node_processes,
+      epmd_nodes: epmd_nodes,
+      overall_status: determine_overall_status(port_status, test_node_processes, epmd_nodes)
+    }
+  end
+
+  defp get_process_info(pid) do
+    case System.cmd("ps", ["-p", pid, "-o", "pid,ppid,cmd"], stderr_to_stdout: true) do
+      {output, 0} ->
+        lines = String.split(output, "\n")
+        if length(lines) > 1 do
+          Enum.at(lines, 1) |> String.trim()
+        else
+          "Unknown process"
+        end
+      {_, _} ->
+        "Process info unavailable"
+    end
+  end
+
+  defp determine_overall_status(port_status, test_processes, epmd_nodes) do
+    running_ports = Enum.count(port_status, fn {_, status, _, _} -> status == :running end)
+
+    cond do
+      running_ports > 0 or not Enum.empty?(test_processes) or not Enum.empty?(epmd_nodes) ->
+        :running
+      true ->
+        :stopped
+    end
+  end
+
+  defp display_real_status(status) do
+    case status.overall_status do
+      :running ->
+        Mix.shell().info("🟢 REAL STATUS: CLUSTER IS RUNNING")
+      :stopped ->
+        Mix.shell().info("🔴 REAL STATUS: NO CLUSTER DETECTED")
+    end
+
+    Mix.shell().info("")
+    Mix.shell().info("📊 Port Status:")
+
+    Enum.each(status.ports, fn {port, port_status, pids, process_info} ->
+      case port_status do
+        :running ->
+          Mix.shell().info("  🟢 Port #{port}: OCCUPIED by #{length(pids)} process(es)")
+          if process_info do
+            Mix.shell().info("     Process: #{process_info}")
+          end
+        :not_running ->
+          Mix.shell().info("  ⚪ Port #{port}: Available")
+      end
+    end)
+
+    if not Enum.empty?(status.test_processes) do
+      Mix.shell().info("")
+      Mix.shell().info("🔍 Test Node Processes:")
+      Enum.each(status.test_processes, fn pid ->
+        process_info = get_process_info(pid)
+        Mix.shell().info("  • PID #{pid}: #{process_info}")
+      end)
+    end
+
+    if not Enum.empty?(status.epmd_nodes) do
+      Mix.shell().info("")
+      Mix.shell().info("📡 EPMD Registered Nodes:")
+      Enum.each(status.epmd_nodes, fn node ->
+        Mix.shell().info("  • #{node}")
+      end)
+    end
+
+    if status.overall_status == :running do
+      Mix.shell().info("")
+      Mix.shell().info("💡 To stop the cluster: mix cluster.test stop")
+    end
+  end
+
   defp show_help do
     Mix.shell().info(@moduledoc)
   end
@@ -600,11 +825,16 @@ defmodule Mix.Tasks.Cluster.Test do
     Mix.shell().info("    Cleaning up test ports...")
 
     # Define the typical port ranges used by test clusters
+    # Get configured port ranges instead of hardcoded ones
+    config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+    http_base = Keyword.get(config, :http_port_base, 4200)
+    dist_base = Keyword.get(config, :dist_port_base, 9200)
+
     test_port_ranges = [
-      # HTTP ports
-      {4100, 4110},
-      # Distribution ports
-      {9100, 9110}
+      # HTTP ports - use configured range
+      {http_base, http_base + 10},
+      # Distribution ports - use configured range
+      {dist_base, dist_base + 10}
     ]
 
     port_cleanup_results =

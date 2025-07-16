@@ -23,7 +23,7 @@ defmodule OTPSupervisor.TestCluster.HostnameResolver do
 
       iex> OTPSupervisor.TestCluster.HostnameResolver.get_cluster_hostname()
       {:ok, "localhost"}
-      
+
       iex> OTPSupervisor.TestCluster.HostnameResolver.get_cluster_hostname()
       {:ok, "my-hostname"}
   """
@@ -31,10 +31,11 @@ defmodule OTPSupervisor.TestCluster.HostnameResolver do
     Logger.debug("Starting hostname resolution for cluster")
 
     # Try strategies in order until one works
+    # For distributed Erlang with longnames, prefer IP addresses and localhost
     strategies = [
-      &try_system_hostname/0,
-      &try_localhost/0,
-      &try_ip_address/0
+      &try_ip_address/0,      # 127.0.0.1 - best for distributed Erlang longnames
+      &try_localhost/0,       # localhost - good fallback
+      &try_system_hostname/0  # system hostname - last resort (may not work with longnames)
     ]
 
     Enum.reduce_while(strategies, {:error, :no_hostname}, fn strategy, _acc ->

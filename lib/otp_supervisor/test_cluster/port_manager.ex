@@ -14,8 +14,10 @@ defmodule OTPSupervisor.TestCluster.PortManager do
   Returns port pairs (HTTP port, distribution port) for each node.
   """
   def find_available_ports(node_count) when is_integer(node_count) and node_count > 0 do
-    http_base = 4100
-    dist_base = 9100
+    # Get port configuration from the distributed testing config
+    config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+    http_base = Keyword.get(config, :http_port_base, 4200)  # Use configured ports, default 4200
+    dist_base = Keyword.get(config, :dist_port_base, 9200)  # Use configured ports, default 9200
 
     Logger.debug(
       "Finding #{node_count} port pairs starting from HTTP:#{http_base}, Dist:#{dist_base}"

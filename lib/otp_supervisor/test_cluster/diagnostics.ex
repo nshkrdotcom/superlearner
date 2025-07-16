@@ -148,7 +148,23 @@ defmodule OTPSupervisor.TestCluster.Diagnostics do
   end
 
   defp check_basic_ports do
-    test_ports = [4100, 4101, 9100, 9101]
+    # Use the configured port ranges instead of hardcoded ports
+    config = OTPSupervisor.Testing.Config.load_config()
+
+    # Check a few sample ports from each configured range
+    http_samples = [
+      config.http_port_base,
+      config.http_port_base + 1,
+      config.http_port_base + 2
+    ]
+
+    dist_samples = [
+      config.dist_port_base,
+      config.dist_port_base + 1,
+      config.dist_port_base + 2
+    ]
+
+    test_ports = http_samples ++ dist_samples
 
     case check_ports_available(test_ports) do
       [] ->
@@ -221,7 +237,10 @@ defmodule OTPSupervisor.TestCluster.Diagnostics do
   end
 
   defp get_port_info do
-    test_ports = 4100..4110 |> Enum.to_list()
+    # Use configured port ranges instead of hardcoded ones
+    config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+    http_base = Keyword.get(config, :http_port_base, 4200)
+    test_ports = http_base..(http_base + 10) |> Enum.to_list()
 
     %{
       test_range: test_ports,

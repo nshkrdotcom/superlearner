@@ -163,27 +163,57 @@ defmodule OTPSupervisor.TestCluster.Manager do
   defp start_phoenix_server(config) do
     Logger.info("Starting cluster node #{config.name} on #{config.hostname}:#{config.http_port}")
 
+    # CRITICAL: Ensure cookie synchronization
+    current_cookie = Node.get_cookie()
+    Logger.debug("Parent node cookie: #{current_cookie}")
+    Logger.debug("Child node will use cookie: #{config.cookie}")
+
+    # Only try to set cookie if we're in distributed mode
+    if Node.alive?() do
+      if current_cookie != config.cookie do
+        Logger.info("Synchronizing parent node cookie from #{current_cookie} to #{config.cookie}")
+        Node.set_cookie(config.cookie)
+      end
+    else
+      Logger.warning("Parent node not in distributed mode - cookie sync skipped")
+      Logger.info("Child nodes will use cookie: #{config.cookie}")
+    end
+
     # Start a REAL Elixir node - a separate OS process running the full application
     env = [
       {"PHX_PORT", Integer.to_string(config.http_port)},
       {"PORT", Integer.to_string(config.http_port)},
-      {"MIX_ENV", "dev"},
+      {"MIX_ENV", "test"},  # Use test environment, not dev
       {"NODE_NAME", Atom.to_string(config.name)},
-      {"PHX_SERVER", "true"}
+      {"PHX_SERVER", "true"},
+      # CRITICAL: Pass cookie via environment to ensure it's set early
+      {"ERLANG_COOKIE", Atom.to_string(config.cookie)},
+      # CRITICAL: Override the test config port to use our dynamic port
+      {"TEST_HTTP_PORT", Integer.to_string(config.http_port)}
     ]
 
-    # Use elixir command to start a named node with the full application
+    # Use elixir command with proper distributed Erlang flags, then run mix
+    # This is the correct way to start a distributed Mix application
     cmd_args = [
-      "--name",
-      Atom.to_string(config.name),
-      "--cookie",
-      Atom.to_string(config.cookie),
-      "-S",
-      "mix",
-      "phx.server"
+      "--name", Atom.to_string(config.name),
+      "--cookie", Atom.to_string(config.cookie),
+      "-S", "mix", "run", "--no-halt",
+      "--eval",
+      """
+      IO.puts("Node started: \#{Node.self()}");
+      IO.puts("Cookie: \#{Node.get_cookie()}");
+      Application.put_env(:otp_supervisor, OtpSupervisorWeb.Endpoint, [
+        http: [ip: {127, 0, 0, 1}, port: #{config.http_port}],
+        server: true
+      ]);
+      {:ok, _} = Application.ensure_all_started(:otp_supervisor);
+      IO.puts("Phoenix started on port #{config.http_port}");
+      :timer.sleep(:infinity)
+      """
     ]
 
     # Start the node as a separate OS process using Task.async
+    # Use elixir executable instead of mix to properly handle distributed flags
     task =
       Task.async(fn ->
         System.cmd("elixir", cmd_args,
@@ -193,12 +223,12 @@ defmodule OTPSupervisor.TestCluster.Manager do
         )
       end)
 
-    # Give the node time to start
-    :timer.sleep(8000)
+    # Wait for node to actually be ready instead of fixed sleep
+    Logger.debug("Waiting for node #{config.name} to start and register...")
 
-    # Test if we can connect to the node
-    case Node.ping(config.name) do
-      :pong ->
+    # Test connection with retry logic - this replaces the fixed sleep
+    case wait_for_node_connection(config.name, 30, 1000) do
+      :ok ->
         server_info = %{
           name: config.name,
           http_port: config.http_port,
@@ -211,8 +241,8 @@ defmodule OTPSupervisor.TestCluster.Manager do
         Logger.info("✅ Cluster node #{config.name} started successfully")
         {:ok, server_info}
 
-      :pang ->
-        Logger.error("Failed to connect to cluster node #{config.name}")
+      {:error, reason} ->
+        Logger.error("Failed to connect to cluster node #{config.name} after retries: #{reason}")
         Task.shutdown(task, :brutal_kill)
         {:error, {:node_connection_failed, config.name}}
     end
@@ -250,13 +280,30 @@ defmodule OTPSupervisor.TestCluster.Manager do
   end
 
   defp ensure_primary_node_alive do
-    # For Phoenix servers, we don't need distributed Erlang nodes
-    # Just ensure we have a cookie set for any future distributed operations
+    # CRITICAL: We DO need distributed Erlang for cluster communication
     if Node.alive?() do
       Logger.info("Using current node as primary: #{Node.self()}")
       Node.set_cookie(:test_cluster_cookie)
     else
-      Logger.info("Running in non-distributed mode - Phoenix servers will be standalone")
+      Logger.info("Starting distributed Erlang for cluster management...")
+
+      # Start distributed Erlang with a unique name
+      node_name = :"cluster_manager_#{System.system_time(:millisecond)}@127.0.0.1"
+
+      case Node.start(node_name, :longnames) do
+        {:ok, _} ->
+          Node.set_cookie(:test_cluster_cookie)
+          Logger.info("Started distributed Erlang: #{Node.self()}")
+          Logger.info("Cookie set to: #{Node.get_cookie()}")
+
+        {:error, {:already_started, _}} ->
+          Node.set_cookie(:test_cluster_cookie)
+          Logger.info("Distributed Erlang already started: #{Node.self()}")
+
+        {:error, reason} ->
+          Logger.error("Failed to start distributed Erlang: #{inspect(reason)}")
+          {:error, {:distributed_erlang_failed, reason}}
+      end
     end
 
     :ok
@@ -329,41 +376,71 @@ defmodule OTPSupervisor.TestCluster.Manager do
     end)
   end
 
-  defp wait_for_cluster_formation(nodes, timeout \\ 10_000) do
+  defp wait_for_cluster_formation(nodes, timeout \\ 60_000) do
     Logger.info("Waiting for servers to be ready...")
 
     # For Phoenix servers, just wait for them to respond to HTTP requests
+    # Increased timeout to account for compilation time
     start_time = System.monotonic_time(:millisecond)
     wait_for_servers_ready(nodes, start_time, timeout)
   end
 
   defp wait_for_servers_ready(nodes, start_time, timeout) do
     current_time = System.monotonic_time(:millisecond)
+    elapsed = current_time - start_time
 
-    if current_time - start_time > timeout do
+    if elapsed > timeout do
+      Logger.error("Server readiness timeout after #{elapsed}ms")
       {:error, :server_ready_timeout}
     else
-      if all_servers_ready?(nodes) do
-        Logger.info("All servers are ready and responding")
-        :ok
-      else
-        :timer.sleep(1000)
-        wait_for_servers_ready(nodes, start_time, timeout)
+      case check_servers_readiness(nodes) do
+        {:all_ready, ready_count} ->
+          Logger.info("All #{ready_count} servers are ready and responding (took #{elapsed}ms)")
+          :ok
+
+        {:partial_ready, ready_count, total_count} ->
+          Logger.debug("#{ready_count}/#{total_count} servers ready, waiting...")
+          # Use shorter sleep for more responsive checking
+          :timer.sleep(500)
+          wait_for_servers_ready(nodes, start_time, timeout)
+
+        {:none_ready, total_count} ->
+          Logger.debug("0/#{total_count} servers ready, waiting...")
+          :timer.sleep(1000)
+          wait_for_servers_ready(nodes, start_time, timeout)
       end
     end
   end
 
-  defp all_servers_ready?(nodes) do
-    Enum.all?(nodes, fn {_name, server_info} ->
-      hostname = Map.get(server_info, :hostname, "127.0.0.1")
-      url = ~c"http://#{hostname}:#{server_info.http_port}/"
+  defp check_servers_readiness(nodes) do
+    total_count = map_size(nodes)
 
-      case :httpc.request(:get, {url, []}, [], []) do
-        {:ok, _} -> true
-        {:error, _} -> false
-      end
-    end)
+    ready_servers =
+      nodes
+      |> Enum.map(fn {name, server_info} ->
+        hostname = Map.get(server_info, :hostname, "127.0.0.1")
+        url = ~c"http://#{hostname}:#{server_info.http_port}/"
+
+        case :httpc.request(:get, {url, []}, [{:timeout, 2000}], []) do
+          {:ok, _} ->
+            Logger.debug("Server #{name} is ready on #{hostname}:#{server_info.http_port}")
+            {name, :ready}
+          {:error, reason} ->
+            Logger.debug("Server #{name} not ready: #{inspect(reason)}")
+            {name, :not_ready}
+        end
+      end)
+
+    ready_count = ready_servers |> Enum.count(fn {_, status} -> status == :ready end)
+
+    cond do
+      ready_count == total_count -> {:all_ready, ready_count}
+      ready_count > 0 -> {:partial_ready, ready_count, total_count}
+      true -> {:none_ready, total_count}
+    end
   end
+
+
 
   defp sync_code_to_cluster(_nodes) do
     Logger.info("Code synchronization not needed for Phoenix servers")
@@ -417,17 +494,44 @@ defmodule OTPSupervisor.TestCluster.Manager do
 
   defp stop_node(server_info) do
     try do
+      Logger.info("Stopping node #{server_info.name} on port #{server_info.http_port}")
+
       # Stop the Task that's running the Elixir node
       if Map.has_key?(server_info, :task) do
         Task.shutdown(server_info.task, :brutal_kill)
       end
 
-      # Give it time to shut down
-      :timer.sleep(1000)
+      # Also kill any processes using the HTTP port directly
+      case System.cmd("lsof", ["-ti:#{server_info.http_port}"], stderr_to_stdout: true) do
+        {pids_output, 0} ->
+          pids =
+            pids_output
+            |> String.trim()
+            |> String.split("\n")
+            |> Enum.reject(&(&1 == ""))
+
+          Enum.each(pids, fn pid ->
+            Logger.debug("Killing process #{pid} on port #{server_info.http_port}")
+            System.cmd("kill", ["-9", pid])
+          end)
+
+        {_, _} ->
+          Logger.debug("No processes found on port #{server_info.http_port} or lsof failed")
+      end
+
+      # Kill any elixir processes with the node name
+      node_name = Map.get(server_info, :name, "unknown")
+      case System.cmd("pkill", ["-f", "#{node_name}"], stderr_to_stdout: true) do
+        {_, 0} -> Logger.debug("Killed processes matching #{node_name}")
+        {_, 1} -> Logger.debug("No processes found matching #{node_name}")
+        {_, _} -> Logger.debug("pkill failed for #{node_name}")
+      end
+
       :ok
     rescue
-      # Server might already be down
-      _ -> :ok
+      error ->
+        Logger.warning("Error stopping node: #{inspect(error)}")
+        :ok
     end
   end
 
@@ -534,6 +638,31 @@ defmodule OTPSupervisor.TestCluster.Manager do
       "Running"
     else
       "Stopped"
+    end
+  end
+
+  # Cookie synchronization helper functions
+
+  defp wait_for_node_connection(node_name, max_retries, retry_interval) do
+    wait_for_node_connection(node_name, max_retries, retry_interval, 1)
+  end
+
+  defp wait_for_node_connection(node_name, max_retries, retry_interval, attempt) do
+    Logger.debug("Attempting to connect to #{node_name} (attempt #{attempt}/#{max_retries})")
+
+    case Node.ping(node_name) do
+      :pong ->
+        Logger.debug("Successfully connected to #{node_name} on attempt #{attempt}")
+        :ok
+
+      :pang when attempt < max_retries ->
+        Logger.debug("Connection failed, retrying in #{retry_interval}ms...")
+        :timer.sleep(retry_interval)
+        wait_for_node_connection(node_name, max_retries, retry_interval, attempt + 1)
+
+      :pang ->
+        Logger.error("Failed to connect to #{node_name} after #{max_retries} attempts")
+        {:error, :connection_timeout}
     end
   end
 end

@@ -581,8 +581,15 @@ defmodule ClusterTestHelper do
     # For test nodes, we can make educated guesses about port ranges
     # This is a best-effort cleanup
     if String.contains?(node_string, "test_") do
-      # Clean up common test port ranges
-      test_ports = [4100, 4101, 4102, 4103, 9100, 9101, 9102, 9103]
+      # Clean up configured test port ranges instead of hardcoded ones
+      config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+      http_base = Keyword.get(config, :http_port_base, 4200)
+      dist_base = Keyword.get(config, :dist_port_base, 9200)
+
+      test_ports = [
+        http_base, http_base + 1, http_base + 2, http_base + 3,
+        dist_base, dist_base + 1, dist_base + 2, dist_base + 3
+      ]
 
       Enum.each(test_ports, fn port ->
         case PortManager.get_port_info(port) do
