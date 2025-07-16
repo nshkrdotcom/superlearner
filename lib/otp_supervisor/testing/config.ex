@@ -271,10 +271,14 @@ defmodule OTPSupervisor.Testing.Config do
   defp detect_ci_environment(config) do
     case Map.get(config, :ci_mode) do
       nil ->
-        # Auto-detect CI environment
-        ci_indicators = [
+        # Auto-detect CI environment - be more conservative
+        # Only consider it CI if we have strong indicators
+        primary_ci_indicators = [
           System.get_env("CI"),
-          System.get_env("CONTINUOUS_INTEGRATION"),
+          System.get_env("CONTINUOUS_INTEGRATION")
+        ]
+        
+        secondary_ci_indicators = [
           System.get_env("GITHUB_ACTIONS"),
           System.get_env("GITLAB_CI"),
           System.get_env("JENKINS_URL"),
@@ -282,9 +286,16 @@ defmodule OTPSupervisor.Testing.Config do
           System.get_env("CIRCLECI")
         ]
 
-        Enum.any?(ci_indicators, fn indicator ->
+        # Must have a primary indicator OR multiple secondary indicators
+        has_primary = Enum.any?(primary_ci_indicators, fn indicator ->
           indicator != nil and indicator != "" and indicator != "false"
         end)
+        
+        secondary_count = Enum.count(secondary_ci_indicators, fn indicator ->
+          indicator != nil and indicator != "" and indicator != "false"
+        end)
+
+        has_primary or secondary_count >= 2
 
       explicit_value ->
         explicit_value

@@ -5,44 +5,24 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
   describe "load_config/1" do
     test "loads default configuration" do
-      # Clear CI environment for this test
-      original_ci = System.get_env("CI")
-      System.delete_env("CI")
+      # Explicitly disable CI mode for this test
+      config = Config.load_config(ci_mode: false)
 
-      try do
-        config = Config.load_config()
-
-        assert config.auto_cluster == true
-        assert config.default_cluster_size == 2
-        assert config.cluster_startup_timeout == 30_000
-        assert config.http_port_base == 4200
-        assert config.dist_port_base == 9200
-      after
-        case original_ci do
-          nil -> :ok
-          value -> System.put_env("CI", value)
-        end
-      end
+      assert config.auto_cluster == true
+      assert config.default_cluster_size == 2
+      assert config.cluster_startup_timeout == 30_000
+      assert config.http_port_base == 4200
+      assert config.dist_port_base == 9200
     end
 
     test "merges runtime options" do
-      # Clear CI environment for this test
-      original_ci = System.get_env("CI")
-      System.delete_env("CI")
+      # Explicitly disable CI mode and test runtime options
+      config = Config.load_config(default_cluster_size: 4, auto_cluster: false, ci_mode: false)
 
-      try do
-        config = Config.load_config(default_cluster_size: 4, auto_cluster: false)
-
-        assert config.default_cluster_size == 4
-        assert config.auto_cluster == false
-        # Other defaults should remain
-        assert config.cluster_startup_timeout == 30_000
-      after
-        case original_ci do
-          nil -> :ok
-          value -> System.put_env("CI", value)
-        end
-      end
+      assert config.default_cluster_size == 4
+      assert config.auto_cluster == false
+      # Other defaults should remain
+      assert config.cluster_startup_timeout == 30_000
     end
 
     test "detects CI environment" do
@@ -127,23 +107,12 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
   describe "environment detection" do
     test "detects test environment" do
-      # Ensure no CI environment variables
-      original_ci = System.get_env("CI")
-      System.delete_env("CI")
+      # Explicitly disable CI mode for this test
+      config = Config.detect_environment(%{ci_mode: false})
 
-      try do
-        config = Config.detect_environment()
-
-        assert config.ci_mode == false
-        # In test environment, it should detect :test
-        assert config.detected_environment == :test
-      after
-        # Restore original environment
-        case original_ci do
-          nil -> :ok
-          value -> System.put_env("CI", value)
-        end
-      end
+      assert config.ci_mode == false
+      # In test environment, it should detect :test
+      assert config.detected_environment == :test
     end
 
     test "detects CI environment in actual CI" do
@@ -156,50 +125,59 @@ defmodule OTPSupervisor.Testing.ConfigTest do
     end
 
     test "detects CI environment from various indicators" do
-      ci_vars = ["CI", "CONTINUOUS_INTEGRATION", "GITHUB_ACTIONS", "GITLAB_CI"]
+      # Test primary indicators (should work individually)
+      primary_vars = ["CI", "CONTINUOUS_INTEGRATION"]
 
-      Enum.each(ci_vars, fn var ->
+      Enum.each(primary_vars, fn var ->
         # Clear all CI vars first
-        Enum.each(ci_vars, &System.delete_env/1)
+        all_vars = ["CI", "CONTINUOUS_INTEGRATION", "GITHUB_ACTIONS", "GITLAB_CI"]
+        Enum.each(all_vars, &System.delete_env/1)
 
         # Set the specific CI var
         System.put_env(var, "true")
 
         config = Config.detect_environment()
 
-        assert config.ci_mode == true, "Failed to detect CI from #{var}"
+        assert config.ci_mode == true, "Failed to detect CI from primary indicator #{var}"
         assert config.detected_environment == :ci
 
         # Clean up
         System.delete_env(var)
       end)
+
+      # Test secondary indicators (need multiple)
+      all_vars = ["CI", "CONTINUOUS_INTEGRATION", "GITHUB_ACTIONS", "GITLAB_CI"]
+      Enum.each(all_vars, &System.delete_env/1)
+      
+      # Set multiple secondary indicators
+      System.put_env("GITHUB_ACTIONS", "true")
+      System.put_env("GITLAB_CI", "true")
+
+      config = Config.detect_environment()
+      assert config.ci_mode == true, "Failed to detect CI from multiple secondary indicators"
+      assert config.detected_environment == :ci
+
+      # Clean up
+      System.delete_env("GITHUB_ACTIONS")
+      System.delete_env("GITLAB_CI")
     end
   end
 
   describe "get_cluster_config/1" do
     test "returns environment-adjusted cluster configuration" do
-      # Clear CI environment for this test
-      original_ci = System.get_env("CI")
-      System.delete_env("CI")
+      # Explicitly disable CI mode for this test
+      config =
+        Config.load_config(
+          default_cluster_size: 3,
+          cluster_startup_timeout: 20_000,
+          ci_mode: false
+        )
 
-      try do
-        config =
-          Config.load_config(
-            default_cluster_size: 3,
-            cluster_startup_timeout: 20_000
-          )
+      cluster_config = Config.get_cluster_config(config)
 
-        cluster_config = Config.get_cluster_config(config)
-
-        assert cluster_config.cluster_size == 3
-        assert cluster_config.startup_timeout == 20_000
-        assert is_map(cluster_config.port_ranges)
-      after
-        case original_ci do
-          nil -> :ok
-          value -> System.put_env("CI", value)
-        end
-      end
+      assert cluster_config.cluster_size == 3
+      assert cluster_config.startup_timeout == 20_000
+      assert is_map(cluster_config.port_ranges)
     end
 
     test "adjusts configuration for CI environment" do
@@ -338,19 +316,9 @@ defmodule OTPSupervisor.Testing.ConfigTest do
 
       # Cluster size too large for most systems
       assert_raise ArgumentError, ~r/max_cluster_size must be >= default_cluster_size/, fn ->
-        # Clear CI environment to avoid interference
-        original_ci = System.get_env("CI")
-        System.delete_env("CI")
-
-        try do
-          Config.load_config(default_cluster_size: 50, max_cluster_size: 10)
-          |> Config.validate_config()
-        after
-          case original_ci do
-            nil -> :ok
-            value -> System.put_env("CI", value)
-          end
-        end
+        # Explicitly disable CI mode and don't let environment adjustments interfere
+        Config.load_config(default_cluster_size: 50, max_cluster_size: 10, ci_mode: false)
+        |> Config.validate_config()
       end
     end
 
