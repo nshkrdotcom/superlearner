@@ -5,6 +5,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
   alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
   alias OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList
+  alias OTPSupervisor.Distributed.ClusterStateManager
 
   @moduledoc """
   Cluster Processes page for comprehensive process distribution analysis across BEAM clusters.
@@ -20,6 +21,15 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       |> assign(:current_page, "cluster-processes")
       |> assign_initial_state()
       |> load_process_data()
+
+    # Set up real-time updates when connected
+    if connected?(socket) do
+      # Subscribe to cluster state changes
+      ClusterStateManager.subscribe_to_changes()
+
+      # Set up periodic refresh timer (5 seconds)
+      Process.send_after(self(), :refresh_processes, 5_000)
+    end
 
     {:ok, socket}
   end
@@ -106,6 +116,29 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       _ ->
         {:noreply, socket}
     end
+  end
+
+  # Handle real-time updates
+
+  def handle_info(%{type: :cluster_state_change} = _event, socket) do
+    # Cluster topology changed, refresh process data
+    socket = update_process_data(socket)
+    {:noreply, socket}
+  end
+
+  def handle_info(:refresh_processes, socket) do
+    # Periodic refresh timer
+    socket = update_process_data(socket)
+
+    # Schedule next refresh
+    Process.send_after(self(), :refresh_processes, 5_000)
+
+    {:noreply, socket}
+  end
+
+  def handle_info(_msg, socket) do
+    # Handle any other messages gracefully
+    {:noreply, socket}
   end
 
   def render(assigns) do
@@ -1029,5 +1062,53 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     else
       "terminated"
     end
+  end
+
+  # Real-time update functions
+
+  defp update_process_data(socket) do
+    # Preserve current UI state (filters, search, pagination, expanded nodes)
+    current_filters = socket.assigns.filters
+    current_search = socket.assigns.search_term
+    current_page = socket.assigns.current_page
+    expanded_nodes = socket.assigns.expanded_nodes
+
+    case get_processes() do
+      {:ok, arsenal_result} ->
+        formatted_result = format_processes(arsenal_result)
+
+        # Apply current filters and search to new data
+        filtered_processes = apply_filters(formatted_result.processes, current_filters)
+        searched_processes = search_processes(filtered_processes, current_search)
+
+        # Apply pagination to the searched processes
+        paginated_processes = paginate_processes(searched_processes, current_page, socket.assigns.per_page)
+        paginated_processes_by_node = group_processes_by_node(paginated_processes)
+
+        socket
+        |> assign(:processes, formatted_result.processes)
+        |> assign(:processes_by_node, paginated_processes_by_node)
+        |> assign(:total_processes, formatted_result.total_count)
+        |> assign(:filtered_process_count, length(searched_processes))
+        |> assign(:cluster_nodes, formatted_result.nodes_queried)
+        |> assign(:last_updated, formatted_result.last_updated)
+        |> assign(:expanded_nodes, expanded_nodes)  # Preserve expanded state
+        |> assign(:loading, false)
+
+      {:error, error_message} ->
+        # Log error but don't disrupt the UI - keep existing data
+        require Logger
+        Logger.error("Failed to update process data: #{error_message}")
+
+        # Just update the last_updated timestamp to show we tried
+        assign(socket, :loading, false)
+    end
+  end
+
+  # Cleanup function for proper resource management
+  def terminate(_reason, _socket) do
+    # PubSub subscriptions are automatically cleaned up when the process terminates
+    # Timers are also automatically cancelled when the process terminates
+    :ok
   end
 end

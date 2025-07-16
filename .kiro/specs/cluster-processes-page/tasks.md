@@ -84,7 +84,9 @@
   - Ensure pagination works with filters and search
   - _Requirements: 3.5_
 
-- [-] 7. Implement real-time updates with PubSub
+- [x] 7. Implement real-time updates with PubSub
+
+
 
 
 
