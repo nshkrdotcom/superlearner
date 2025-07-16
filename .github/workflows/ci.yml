@@ -49,7 +49,7 @@ jobs:
     - name: Run tests
       run: |
         epmd -daemon
-        MIX_ENV=test mix test --max-cases 1 || MIX_ENV=test mix test --max-cases 1
+        MIX_ENV=test elixir --sname test@localhost --cookie test_cluster_cookie -S mix test --max-cases 1 || MIX_ENV=test elixir --sname test@localhost --cookie test_cluster_cookie -S mix test --max-cases 1
     
     - name: Run dialyzer
       run: mix dialyzer
