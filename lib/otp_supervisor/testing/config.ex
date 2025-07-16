@@ -293,7 +293,9 @@ defmodule OTPSupervisor.Testing.Config do
 
   defp get_runtime_env do
     # First try environment variable
-    case System.get_env("MIX_ENV") do
+    mix_env = System.get_env("MIX_ENV")
+
+    case mix_env do
       "test" ->
         :test
 
@@ -307,6 +309,8 @@ defmodule OTPSupervisor.Testing.Config do
         # Fallback to application environment or detect from process name
         cond do
           Process.whereis(:ex_unit) != nil -> :test
+          Process.whereis(ExUnit.Server) != nil -> :test
+          Code.ensure_loaded?(ExUnit) -> :test
           true -> Application.get_env(:otp_supervisor, :environment, :prod)
         end
 
