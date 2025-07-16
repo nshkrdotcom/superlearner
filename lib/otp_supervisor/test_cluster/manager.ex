@@ -121,8 +121,10 @@ defmodule OTPSupervisor.TestCluster.Manager do
 
   @impl true
   def handle_call(:get_status, _from, state) do
-    status = build_cluster_status(state)
-    {:reply, {:ok, status}, state}
+    # Check for existing cluster processes and update state if needed
+    updated_state = discover_existing_cluster(state)
+    status = build_cluster_status(updated_state)
+    {:reply, {:ok, status}, updated_state}
   end
 
   @impl true
@@ -576,14 +578,45 @@ defmodule OTPSupervisor.TestCluster.Manager do
     |> Enum.into(%{})
   end
 
-  defp get_node_status(node) do
+  defp get_node_status(node_info) when is_map(node_info) do
+    # Handle discovered nodes (which are maps with full info)
+    if Map.has_key?(node_info, :discovered) and node_info.discovered do
+      # This is a discovered node, try to ping it
+      case Node.ping(node_info.name) do
+        :pong ->
+          %{
+            healthy: true,
+            status: :running,
+            http_port: node_info.http_port,
+            discovered: true
+          }
+        :pang ->
+          %{
+            healthy: false,
+            status: :unreachable,
+            http_port: node_info.http_port,
+            discovered: true
+          }
+      end
+    else
+      # This is a regular node started by this Manager
+      get_node_status_by_name(node_info.name)
+    end
+  end
+
+  defp get_node_status(node_name) when is_atom(node_name) do
+    # Handle node names directly
+    get_node_status_by_name(node_name)
+  end
+
+  defp get_node_status_by_name(node_name) do
     try do
-      case :rpc.call(node, Node, :self, [], 2000) do
+      case :rpc.call(node_name, Node, :self, [], 2000) do
         {:badrpc, reason} ->
           %{healthy: false, status: :unreachable, error: reason}
 
-        ^node ->
-          %{healthy: true, status: :running, http_port: get_node_http_port(node)}
+        ^node_name ->
+          %{healthy: true, status: :running, http_port: nil}
       end
     rescue
       _ ->
@@ -638,6 +671,125 @@ defmodule OTPSupervisor.TestCluster.Manager do
       "Running"
     else
       "Stopped"
+    end
+  end
+
+  # Cluster discovery functions
+
+  defp discover_existing_cluster(state) do
+    Logger.debug("Discovering existing cluster processes...")
+
+    # Ensure we're in distributed mode to ping nodes
+    ensure_distributed_mode()
+
+    # Get configuration for port ranges
+    config = Application.get_env(:otp_supervisor, :distributed_testing, [])
+    http_base = Keyword.get(config, :http_port_base, 4200)
+
+    # Check for running processes on test ports
+    discovered_nodes =
+      (http_base..(http_base + 5))
+      |> Enum.with_index()
+      |> Enum.reduce(%{}, fn {port, index}, acc ->
+        case discover_node_on_port(port, index + 1) do
+          {:ok, node_info} ->
+            node_key = :"node#{index + 1}"
+            Map.put(acc, node_key, node_info)
+          :not_found ->
+            acc
+        end
+      end)
+
+    # Update state if we found running nodes
+    if map_size(discovered_nodes) > 0 do
+      Logger.info("Discovered #{map_size(discovered_nodes)} existing cluster nodes")
+      %{state | nodes: discovered_nodes, status: :running}
+    else
+      Logger.debug("No existing cluster nodes found")
+      state
+    end
+  end
+
+  defp discover_node_on_port(port, node_index) do
+    # Check if port is occupied
+    case System.cmd("lsof", ["-ti:#{port}"], stderr_to_stdout: true) do
+      {pids_output, 0} ->
+        pids =
+          pids_output
+          |> String.trim()
+          |> String.split("\n")
+          |> Enum.reject(&(&1 == ""))
+
+        if not Enum.empty?(pids) do
+          # Try to determine if this is a test node
+          pid = List.first(pids)
+          case get_process_command(pid) do
+            {:ok, cmd} ->
+              if String.contains?(cmd, "test_node#{node_index}@127.0.0.1") do
+                # This looks like our test node
+                node_name = :"test_node#{node_index}@127.0.0.1"
+
+                # Try to ping the node to confirm it's alive
+                case Node.ping(node_name) do
+                  :pong ->
+                    Logger.debug("Discovered active test node: #{node_name} on port #{port}")
+                    {:ok, %{
+                      name: node_name,
+                      http_port: port,
+                      status: :running,
+                      url: "http://127.0.0.1:#{port}",
+                      hostname: "127.0.0.1",
+                      discovered: true  # Mark as discovered, not started by this Manager
+                    }}
+                  :pang ->
+                    Logger.debug("Found process on port #{port} but node #{node_name} not responding")
+                    :not_found
+                end
+              else
+                Logger.debug("Process on port #{port} is not a test node")
+                :not_found
+              end
+            {:error, _} ->
+              Logger.debug("Could not get command for process on port #{port}")
+              :not_found
+          end
+        else
+          :not_found
+        end
+
+      {_, _} ->
+        :not_found
+    end
+  end
+
+  defp get_process_command(pid) do
+    case System.cmd("ps", ["-p", pid, "-o", "cmd", "--no-headers"], stderr_to_stdout: true) do
+      {output, 0} ->
+        cmd = String.trim(output)
+        {:ok, cmd}
+      {_, _} ->
+        {:error, :process_not_found}
+    end
+  end
+
+  defp ensure_distributed_mode do
+    unless Node.alive?() do
+      Logger.debug("Starting distributed Erlang for node discovery...")
+      node_name = :"discovery_#{System.system_time(:millisecond)}@127.0.0.1"
+
+      case Node.start(node_name, :longnames) do
+        {:ok, _} ->
+          Node.set_cookie(:test_cluster_cookie)
+          Logger.debug("Started distributed Erlang for discovery: #{Node.self()}")
+        {:error, {:already_started, _}} ->
+          Node.set_cookie(:test_cluster_cookie)
+          Logger.debug("Using existing distributed node: #{Node.self()}")
+        {:error, reason} ->
+          Logger.warning("Failed to start distributed Erlang for discovery: #{inspect(reason)}")
+      end
+    else
+      # Ensure we have the right cookie
+      Node.set_cookie(:test_cluster_cookie)
     end
   end
 
