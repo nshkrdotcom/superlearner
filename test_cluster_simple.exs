@@ -29,16 +29,16 @@ IO.puts("Testing cluster manager...")
 case GenServer.start_link(OTPSupervisor.TestCluster.Manager, []) do
   {:ok, pid} ->
     IO.puts("✅ TestCluster.Manager started: #{inspect(pid)}")
-    
+
     # Try a simple status call
     case GenServer.call(pid, :get_status) do
       {:ok, status} ->
         IO.puts("✅ Status call succeeded: #{inspect(status)}")
-        
+
       {:error, reason} ->
         IO.puts("⚠️  Status call failed: #{inspect(reason)}")
     end
-    
+
   {:error, reason} ->
     IO.puts("❌ Failed to start TestCluster.Manager: #{inspect(reason)}")
     System.halt(1)

@@ -17,13 +17,13 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLiveTest do
     test "handles search debouncing", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/cluster-processes")
 
-      # Simulate rapid search input changes using the correct event
+      # Simulate rapid search input changes using the correct form selector
       view
-      |> element("input[phx-change='search_change']")
+      |> element("form[phx-change='search_change']")
       |> render_change(%{search: "test"})
 
       view
-      |> element("input[phx-change='search_change']")
+      |> element("form[phx-change='search_change']")
       |> render_change(%{search: "test123"})
 
       # Should not crash and should handle debouncing
@@ -43,10 +43,10 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLiveTest do
     test "handles filter changes efficiently", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/cluster-processes")
 
-      # Test filter changes don't cause crashes
+      # Test filter changes don't cause crashes - use the correct form selector
       view
-      |> element("select[phx-change='filter_change'][phx-value-filter_type='node']")
-      |> render_change(%{filter_type: "node", value: "all"})
+      |> element("form[phx-change='filter_change']")
+      |> render_change(%{node: "all"})
 
       assert render(view) =~ "Cluster Processes"
     end

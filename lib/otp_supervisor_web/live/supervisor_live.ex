@@ -9,7 +9,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
 
   @moduledoc """
   OTP supervisor monitoring and control interface with cluster-wide view.
-  
+
   Displays supervisors from all nodes in the cluster with filtering capabilities.
   """
 
@@ -77,7 +77,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
         navigation_links={TerminalNavigationLinks.page_navigation_links("supervisor", %{})}
       />
       
-      <!-- Main Content Area -->
+    <!-- Main Content Area -->
       <div class="flex-1 p-4 overflow-hidden">
         <div class="h-full bg-gray-800 rounded border border-green-500/30 p-4 overflow-y-auto">
           <%= if @loading do %>
@@ -111,8 +111,8 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                   <% end %>
                 </div>
               </form>
-
-              <!-- Filter Form -->
+              
+    <!-- Filter Form -->
               <form phx-change="filter_change">
                 <div class="flex flex-wrap items-center gap-4">
                   <!-- Node Filter -->
@@ -130,7 +130,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                     </select>
                   </div>
                   
-                  <!-- Application Filter -->
+    <!-- Application Filter -->
                   <div class="flex items-center space-x-2">
                     <label class="text-green-400/70 font-mono text-sm">App:</label>
                     <select
@@ -145,7 +145,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                     </select>
                   </div>
                   
-                  <!-- Clear Filters Button -->
+    <!-- Clear Filters Button -->
                   <%= if has_active_filters?(@filters) do %>
                     <button
                       type="button"
@@ -158,8 +158,8 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                   <% end %>
                 </div>
               </form>
-
-              <!-- Active Filter Indicators -->
+              
+    <!-- Active Filter Indicators -->
               <%= if has_active_filters?(@filters) or @search_term != "" do %>
                 <div class="mt-3 pt-3 border-t border-green-500/20">
                   <div class="flex items-center space-x-2 text-xs font-mono">
@@ -180,14 +180,14 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                       </span>
                     <% end %>
                   </div>
-                  
+
                   <div class="text-green-400/70 font-mono text-sm mt-2">
                     Showing {count_filtered_supervisors(@filtered_supervisors_by_node)} of {@total_supervisors} supervisors
                   </div>
                 </div>
               <% end %>
             </div>
-            
+
             <%= if map_size(@filtered_supervisors_by_node) == 0 do %>
               <div class="text-center text-green-400/70 font-mono py-8">
                 No supervisors found
@@ -221,7 +221,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                       </div>
                     </div>
                     
-                    <!-- Node Content (Expandable) -->
+    <!-- Node Content (Expandable) -->
                     <%= if node_expanded?(assigns, node) do %>
                       <div class="p-3 animate-in slide-in-from-top-2 duration-300 ease-out">
                         <% supervisors = Map.get(node_data, :supervisors, []) %>
@@ -237,14 +237,28 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                                   <div class="space-y-1">
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">Name:</span>
-                                      <span class="font-semibold">{raw(highlight_search_term(to_string(supervisor.name), @search_term))}</span>
+                                      <span class="font-semibold">
+                                        {raw(
+                                          highlight_search_term(
+                                            to_string(supervisor.name),
+                                            @search_term
+                                          )
+                                        )}
+                                      </span>
                                     </div>
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">PID:</span>
-                                      <span>{raw(highlight_search_term(format_pid(supervisor.pid), @search_term))}</span>
+                                      <span>
+                                        {raw(
+                                          highlight_search_term(
+                                            format_pid(supervisor.pid),
+                                            @search_term
+                                          )
+                                        )}
+                                      </span>
                                     </div>
                                   </div>
-                                  
+
                                   <div class="space-y-1">
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">Strategy:</span>
@@ -255,7 +269,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
                                       <span>{supervisor.child_count}</span>
                                     </div>
                                   </div>
-                                  
+
                                   <div class="space-y-1">
                                     <div class="text-green-300">
                                       <span class="text-green-400/70">App:</span>
@@ -321,7 +335,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
       node: :all,
       application: :all
     }
-    
+
     # Get all nodes to expand them
     all_nodes = get_unique_nodes(socket.assigns.supervisors_by_node)
     expanded_nodes = MapSet.new(all_nodes)
@@ -397,7 +411,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
       {:ok, result} ->
         all_nodes = Map.keys(result.supervision_trees) |> Enum.sort()
         expanded_nodes = MapSet.new(all_nodes)
-        
+
         socket
         |> assign(:supervisors, flatten_supervisors(result.supervision_trees))
         |> assign(:supervisors_by_node, result.supervision_trees)
@@ -464,18 +478,19 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
     filters = socket.assigns.filters
     search_term = socket.assigns.search_term
     supervisors_by_node = socket.assigns.supervisors_by_node
-    
-    filtered_by_node = 
+
+    filtered_by_node =
       supervisors_by_node
       |> filter_by_node(filters.node)
       |> filter_by_application(filters.application)
       |> filter_by_search(search_term)
-    
+
     socket
     |> assign(:filtered_supervisors_by_node, filtered_by_node)
   end
 
   defp filter_by_node(supervisors_by_node, :all), do: supervisors_by_node
+
   defp filter_by_node(supervisors_by_node, node) do
     case Map.get(supervisors_by_node, node) do
       nil -> %{}
@@ -484,47 +499,49 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   end
 
   defp filter_by_application(supervisors_by_node, :all), do: supervisors_by_node
+
   defp filter_by_application(supervisors_by_node, app) do
     supervisors_by_node
     |> Enum.map(fn {node, node_data} ->
-      filtered_supervisors = 
+      filtered_supervisors =
         Enum.filter(node_data.supervisors, fn supervisor ->
           supervisor.application == app
         end)
-      
-      updated_node_data = 
+
+      updated_node_data =
         node_data
         |> Map.put(:supervisors, filtered_supervisors)
         |> Map.put(:total_supervisors, length(filtered_supervisors))
-      
+
       {node, updated_node_data}
     end)
-    |> Enum.filter(fn {_node, node_data} -> 
-      length(node_data.supervisors) > 0 
+    |> Enum.filter(fn {_node, node_data} ->
+      length(node_data.supervisors) > 0
     end)
     |> Enum.into(%{})
   end
 
   defp filter_by_search(supervisors_by_node, ""), do: supervisors_by_node
+
   defp filter_by_search(supervisors_by_node, search_term) do
     normalized_search = String.downcase(String.trim(search_term))
-    
+
     supervisors_by_node
     |> Enum.map(fn {node, node_data} ->
-      filtered_supervisors = 
+      filtered_supervisors =
         Enum.filter(node_data.supervisors, fn supervisor ->
           supervisor_matches_search?(supervisor, normalized_search)
         end)
-      
-      updated_node_data = 
+
+      updated_node_data =
         node_data
         |> Map.put(:supervisors, filtered_supervisors)
         |> Map.put(:total_supervisors, length(filtered_supervisors))
-      
+
       {node, updated_node_data}
     end)
-    |> Enum.filter(fn {_node, node_data} -> 
-      length(node_data.supervisors) > 0 
+    |> Enum.filter(fn {_node, node_data} ->
+      length(node_data.supervisors) > 0
     end)
     |> Enum.into(%{})
   end
@@ -534,7 +551,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
       to_string(supervisor.name),
       format_pid(supervisor.pid)
     ]
-    
+
     Enum.any?(searchable_fields, fn field ->
       field
       |> String.downcase()
@@ -562,12 +579,12 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   defp format_number(_), do: "0"
 
   defp filtered_count_display(assigns) do
-    filtered_count = 
+    filtered_count =
       assigns.filtered_supervisors_by_node
       |> Enum.reduce(0, fn {_node, node_data}, acc ->
         acc + node_data.total_supervisors
       end)
-    
+
     if has_active_filters?(assigns.filters) do
       "#{filtered_count}"
     else
@@ -631,6 +648,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   defp format_pid(pid) when is_pid(pid) do
     pid |> :erlang.pid_to_list() |> to_string()
   end
+
   defp format_pid(pid) when is_binary(pid), do: pid
   defp format_pid(_), do: "unknown"
 
@@ -643,6 +661,7 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
       _ -> Atom.to_string(strategy)
     end
   end
+
   defp format_strategy(_), do: "Unknown"
 
   defp get_status_color_class(true), do: "text-green-400"
@@ -650,20 +669,22 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   defp get_status_color_class(_), do: "text-gray-400"
 
   defp highlight_search_term(text, ""), do: text
+
   defp highlight_search_term(text, search_term) when is_binary(text) and is_binary(search_term) do
     normalized_search = String.downcase(String.trim(search_term))
-    
+
     if String.length(normalized_search) == 0 do
       text
     else
       # Case-insensitive highlighting
       regex = ~r/#{Regex.escape(normalized_search)}/i
-      
+
       String.replace(text, regex, fn match ->
         "<span class=\"bg-yellow-400/30 text-yellow-200\">#{match}</span>"
       end)
     end
   end
+
   defp highlight_search_term(text, _search_term), do: text
 
   # Data fetching functions
@@ -688,6 +709,63 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
   end
 
   defp format_error(reason) when is_binary(reason), do: reason
-  defp format_error(reason), do: inspect(reason)
 
+  def format_bytes(bytes) when is_integer(bytes) and bytes >= 0 do
+    cond do
+      bytes >= 1_073_741_824 ->
+        "#{Float.round(bytes / 1_073_741_824, 1)} GB"
+
+      bytes >= 1_048_576 ->
+        "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+      bytes >= 1024 ->
+        "#{Float.round(bytes / 1024, 1)} KB"
+
+      true ->
+        "#{bytes} B"
+    end
+  end
+
+  def format_bytes(bytes) when is_integer(bytes) and bytes < 0 do
+    "#{bytes} B"
+  end
+
+  def format_bytes(_), do: "N/A"
+
+  def format_key(key) when is_atom(key) do
+    key
+    |> Atom.to_string()
+    |> String.split("_")
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(" ")
+  end
+
+  def format_value({module, function, arity})
+      when is_atom(module) and is_atom(function) and is_integer(arity) do
+    "#{module}.#{function}/#{arity}"
+  end
+
+  def format_value(value) when is_atom(value) do
+    ":#{value}"
+  end
+
+  def format_value(value) when is_binary(value) do
+    "\"#{value}\""
+  end
+
+  def format_value(value) when is_integer(value) do
+    "#{value}"
+  end
+
+  def format_value(value) when is_list(value) do
+    inspect(value)
+  end
+
+  def format_value(value) when is_map(value) do
+    inspect(value)
+  end
+
+  def format_value(value) do
+    inspect(value)
+  end
 end

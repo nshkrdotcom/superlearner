@@ -165,7 +165,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
     process_config = Application.get_env(:otp_supervisor, :process_listing, [])
     default_limit = Keyword.get(process_config, :default_limit, 1000)
     max_limit = Keyword.get(process_config, :max_limit, 10000)
-    
+
     case params["limit"] do
       # Default limit
       nil ->
@@ -204,7 +204,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
   defp collect_processes_from_nodes(nodes, params) do
     include_details = params["include_details"]
     limit = params["limit"] || get_default_limit()
-    
+
     # When collecting from multiple nodes, apply a per-node limit
     # to ensure we get a fair distribution of processes from each node
     per_node_limit = if length(nodes) > 1, do: div(limit, length(nodes)) + 100, else: limit
@@ -216,7 +216,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList do
       Enum.take(processes, per_node_limit)
     end)
   end
-  
+
   defp get_default_limit do
     process_config = Application.get_env(:otp_supervisor, :process_listing, [])
     Keyword.get(process_config, :default_limit, 1000)

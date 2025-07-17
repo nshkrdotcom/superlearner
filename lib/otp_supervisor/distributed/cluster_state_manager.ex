@@ -550,6 +550,7 @@ defmodule OTPSupervisor.Distributed.ClusterStateManager do
           usage when is_number(usage) -> usage
           _ -> 0.0
         end
+
       _ ->
         0.0
     end

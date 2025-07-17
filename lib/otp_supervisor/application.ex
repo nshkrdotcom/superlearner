@@ -9,7 +9,7 @@ defmodule OtpSupervisor.Application do
   def start(_type, _args) do
     # Install custom alarm handler to filter snap mount warnings
     install_alarm_filter()
-    
+
     children = [
       OtpSupervisorWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:otp_supervisor, :dns_cluster_query) || :ignore},

@@ -17,7 +17,8 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
       method: :get,
       path: "/api/v1/cluster/supervision-trees",
       summary: "Get supervision trees across all cluster nodes",
-      description: "Retrieves supervision tree hierarchies from all nodes in the cluster with detailed supervisor and children information",
+      description:
+        "Retrieves supervision tree hierarchies from all nodes in the cluster with detailed supervisor and children information",
       parameters: [
         %{
           name: :include_children,
@@ -101,22 +102,23 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
     try do
       # Get all visible cluster nodes
       cluster_nodes = get_cluster_nodes()
-      
+
       # Query supervision trees from all nodes
       {supervision_trees, errors} = query_all_nodes_supervision_trees(cluster_nodes, params)
-      
+
       # Calculate summary statistics
       summary = build_summary(supervision_trees, cluster_nodes, errors)
-      
+
       # Build metadata
       operation_duration = System.monotonic_time(:millisecond) - start_time
       metadata = build_metadata(operation_duration)
 
-      {:ok, %{
-        supervision_trees: supervision_trees,
-        summary: summary,
-        metadata: metadata
-      }}
+      {:ok,
+       %{
+         supervision_trees: supervision_trees,
+         summary: summary,
+         metadata: metadata
+       }}
     rescue
       error ->
         {:error, "Failed to retrieve cluster supervision trees: #{inspect(error)}"}
@@ -137,14 +139,20 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
 
   defp validate_max_depth(params) do
     case Map.get(params, "max_depth") do
-      nil -> params
+      nil ->
+        params
+
       value when is_binary(value) ->
         case Integer.parse(value) do
           {depth, ""} when depth > 0 -> Map.put(params, "max_depth", depth)
           _ -> Map.delete(params, "max_depth")
         end
-      value when is_integer(value) and value > 0 -> params
-      _ -> Map.delete(params, "max_depth")
+
+      value when is_integer(value) and value > 0 ->
+        params
+
+      _ ->
+        Map.delete(params, "max_depth")
     end
   end
 
@@ -161,34 +169,36 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
 
   defp query_all_nodes_supervision_trees(nodes, params) do
     # Query supervision trees from all nodes in parallel
-    tasks = 
+    tasks =
       nodes
       |> Enum.map(fn node ->
-        Task.async(fn -> 
-          query_node_supervision_trees(node, params) 
+        Task.async(fn ->
+          query_node_supervision_trees(node, params)
         end)
       end)
 
     # Collect results with timeout
-    results = 
+    results =
       tasks
-      |> Enum.map(fn task -> 
+      |> Enum.map(fn task ->
         try do
-          Task.await(task, 10_000)  # 10 second timeout per node
+          # 10 second timeout per node
+          Task.await(task, 10_000)
         catch
           :exit, {:timeout, _} -> {:error, :timeout}
         end
       end)
 
     # Separate successful results from errors
-    {supervision_trees, errors} = 
+    {supervision_trees, errors} =
       nodes
       |> Enum.zip(results)
       |> Enum.reduce({%{}, []}, fn {node, result}, {trees_acc, errors_acc} ->
         case result do
-          {:ok, node_trees} -> 
+          {:ok, node_trees} ->
             {Map.put(trees_acc, node, node_trees), errors_acc}
-          {:error, reason} -> 
+
+          {:error, reason} ->
             error = %{node: node, reason: reason}
             {trees_acc, [error | errors_acc]}
         end
@@ -218,47 +228,48 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
     try do
       # Get all supervisors on this node
       supervisors = Control.list_supervisors()
-      
+
       # Enrich supervisor data with application and strategy
       enriched_supervisors = Enum.map(supervisors, &enrich_supervisor_info/1)
-      
+
       # Filter by application if specified
       filtered_supervisors = filter_supervisors_by_application(enriched_supervisors, params)
-      
+
       # Build supervision trees for each supervisor
-      supervision_trees = 
+      supervision_trees =
         filtered_supervisors
         |> Enum.map(fn supervisor ->
           build_supervision_tree(supervisor, params)
         end)
         |> Enum.filter(&(&1 != nil))
 
-      {:ok, %{
-        supervisors: supervision_trees,
-        node: Node.self(),
-        total_supervisors: length(supervision_trees),
-        applications: get_unique_applications(supervision_trees)
-      }}
+      {:ok,
+       %{
+         supervisors: supervision_trees,
+         node: Node.self(),
+         total_supervisors: length(supervision_trees),
+         applications: get_unique_applications(supervision_trees)
+       }}
     rescue
       error -> {:error, {:local_query_failed, error}}
     end
   end
-  
+
   defp enrich_supervisor_info(supervisor) do
     # Get application from supervisor name
     application = guess_application_from_name(supervisor.name)
-    
+
     # Try to get strategy from supervisor state
     strategy = get_supervisor_strategy(supervisor)
-    
+
     supervisor
     |> Map.put(:application, application)
     |> Map.put(:strategy, strategy)
   end
-  
+
   defp guess_application_from_name(name) when is_atom(name) do
     name_str = Atom.to_string(name)
-    
+
     cond do
       String.contains?(name_str, "OTPSupervisor") -> :otp_supervisor
       String.contains?(name_str, "Phoenix") -> :phoenix
@@ -267,21 +278,27 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
       true -> :unknown
     end
   end
-  
+
   defp get_supervisor_strategy(supervisor) do
     case supervisor.pid do
-      "nil" -> :unknown
+      "nil" ->
+        :unknown
+
       pid_str ->
         # Try to convert string PID back to actual PID
         try do
           case Control.to_pid(pid_str) do
             {:ok, pid} when is_pid(pid) ->
               case :sys.get_state(pid, 100) do
-                state when is_map(state) -> 
+                state when is_map(state) ->
                   Map.get(state, :strategy, :one_for_one)
-                _ -> :one_for_one
+
+                _ ->
+                  :one_for_one
               end
-            _ -> :one_for_one
+
+            _ ->
+              :one_for_one
           end
         rescue
           _ -> :one_for_one
@@ -291,15 +308,22 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
 
   defp filter_supervisors_by_application(supervisors, params) do
     case Map.get(params, "filter_application") do
-      nil -> supervisors
-      "" -> supervisors
+      nil ->
+        supervisors
+
+      "" ->
+        supervisors
+
       app_filter when is_binary(app_filter) ->
         app_atom = String.to_atom(app_filter)
+
         Enum.filter(supervisors, fn supervisor ->
-          supervisor.application == app_atom or 
-          supervisor.application == app_filter
+          supervisor.application == app_atom or
+            supervisor.application == app_filter
         end)
-      _ -> supervisors
+
+      _ ->
+        supervisors
     end
   end
 
@@ -330,7 +354,12 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
     end
   end
 
-  defp get_supervisor_children(_supervisor_pid, _include_process_details, max_depth, current_depth) 
+  defp get_supervisor_children(
+         _supervisor_pid,
+         _include_process_details,
+         max_depth,
+         current_depth
+       )
        when is_integer(max_depth) and current_depth >= max_depth do
     []
   end
@@ -350,7 +379,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
               alive: child.alive
             }
 
-            enhanced_child = 
+            enhanced_child =
               if include_process_details do
                 add_process_details(base_child)
               else
@@ -359,19 +388,22 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
 
             # Recursively get children if this child is a supervisor
             if child.type == :supervisor and child.alive do
-              children = get_supervisor_children(
-                child.pid, 
-                include_process_details, 
-                max_depth, 
-                current_depth + 1
-              )
+              children =
+                get_supervisor_children(
+                  child.pid,
+                  include_process_details,
+                  max_depth,
+                  current_depth + 1
+                )
+
               Map.put(enhanced_child, :children, children)
             else
               enhanced_child
             end
           end)
 
-        {:error, _} -> []
+        {:error, _} ->
+          []
       end
     rescue
       _ -> []
@@ -382,7 +414,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
     try do
       if Process.alive?(child.pid) do
         info = Process.info(child.pid, [:memory, :message_queue_len, :registered_name])
-        
+
         child
         |> Map.put(:memory, info[:memory] || 0)
         |> Map.put(:message_queue_len, info[:message_queue_len] || 0)
@@ -403,7 +435,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
   end
 
   defp build_summary(supervision_trees, cluster_nodes, errors) do
-    total_supervisors = 
+    total_supervisors =
       supervision_trees
       |> Enum.reduce(0, fn {_node, node_data}, acc ->
         acc + node_data.total_supervisors
@@ -421,7 +453,7 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
 
   defp build_metadata(operation_duration) do
     cluster_health = get_cluster_health_status()
-    
+
     %{
       timestamp: DateTime.utc_now(),
       cluster_health: cluster_health,

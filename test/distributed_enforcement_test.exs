@@ -16,7 +16,7 @@ defmodule DistributedEnforcementTest do
 
   describe "cluster enforcement without active cluster" do
     test "cluster_nodes/0 raises when no cluster is active" do
-      # Ensure no cluster is running by stopping AutoClusterManager if it exists
+      # Ensure no cluster is running by cleaning up all clusters
       try do
         OTPSupervisor.Testing.AutoClusterManager.force_cleanup_all()
       catch
@@ -26,7 +26,7 @@ defmodule DistributedEnforcementTest do
 
       # Now test that cluster_nodes/0 fails hard
       assert_raise RuntimeError,
-                   ~r/cluster_nodes\/0 called but AutoClusterManager is not running/,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
                    fn ->
                      OTPSupervisor.Testing.DistributedTestCase.cluster_nodes()
                    end
@@ -42,7 +42,7 @@ defmodule DistributedEnforcementTest do
 
       # cluster_size/0 should fail because it calls cluster_nodes/0
       assert_raise RuntimeError,
-                   ~r/cluster_nodes\/0 called but AutoClusterManager is not running/,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
                    fn ->
                      OTPSupervisor.Testing.DistributedTestCase.cluster_size()
                    end
@@ -58,7 +58,7 @@ defmodule DistributedEnforcementTest do
 
       # cluster_healthy?/0 should fail because it calls cluster_nodes/0
       assert_raise RuntimeError,
-                   ~r/cluster_nodes\/0 called but AutoClusterManager is not running/,
+                   ~r/cluster_nodes\/0 called but no active cluster is available/,
                    fn ->
                      OTPSupervisor.Testing.DistributedTestCase.cluster_healthy?()
                    end

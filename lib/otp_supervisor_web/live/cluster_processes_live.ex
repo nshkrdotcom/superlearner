@@ -302,8 +302,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                   <% end %>
                 </div>
               </form>
-
-              <!-- Filter Form -->
+              
+    <!-- Filter Form -->
               <form phx-change="filter_change">
                 <div class="flex flex-wrap items-center gap-4">
                   <!-- Node Filter -->
@@ -321,7 +321,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     </select>
                   </div>
                   
-      <!-- Type Filter -->
+    <!-- Type Filter -->
                   <div class="flex items-center space-x-2">
                     <label class="text-green-400/70 font-mono text-sm">Type:</label>
                     <select
@@ -338,7 +338,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     </select>
                   </div>
                   
-      <!-- Application Filter -->
+    <!-- Application Filter -->
                   <div class="flex items-center space-x-2">
                     <label class="text-green-400/70 font-mono text-sm">App:</label>
                     <select
@@ -353,7 +353,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                     </select>
                   </div>
                   
-      <!-- Clear Filters Button -->
+    <!-- Clear Filters Button -->
                   <%= if has_active_filters?(@filters) do %>
                     <button
                       type="button"
@@ -370,8 +370,8 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                   <% end %>
                 </div>
               </form>
-
-              <!-- Active Filter Indicators -->
+              
+    <!-- Active Filter Indicators -->
               <%= if has_active_filters?(@filters) do %>
                 <div class="flex items-center space-x-2 text-xs font-mono">
                   <span class="text-green-400/70">Active:</span>
@@ -393,7 +393,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
                 </div>
               <% end %>
               
-              <!-- Search/Filter Results Counter -->
+    <!-- Search/Filter Results Counter -->
               <%= if @search_term != "" or has_active_filters?(@filters) do %>
                 <div class="mt-3 pt-3 border-t border-green-500/20">
                   <div class="text-green-400/70 font-mono text-sm">
@@ -686,7 +686,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     # Get configuration values
     process_config = Application.get_env(:otp_supervisor, :process_listing, [])
     per_page = Keyword.get(process_config, :per_page, 100)
-    
+
     socket
     |> assign(:processes, [])
     |> assign(:processes_by_node, %{})
@@ -1088,12 +1088,13 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   # Reload process data with current filters applied
   defp reload_process_data_with_filters(socket) do
     filters = socket.assigns.filters
-    
+
     # Build filter parameters for Arsenal operation
-    filter_params = %{}
-    |> maybe_add_filter_param(:node, filters.node)
-    |> maybe_add_filter_param(:type, filters.type)
-    |> maybe_add_filter_param(:application, filters.application)
+    filter_params =
+      %{}
+      |> maybe_add_filter_param(:node, filters.node)
+      |> maybe_add_filter_param(:type, filters.type)
+      |> maybe_add_filter_param(:application, filters.application)
 
     case get_processes(filter_params) do
       {:ok, arsenal_result} ->
@@ -1106,11 +1107,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
         # Apply pagination with fair node distribution
         current_page = socket.assigns.current_page
         per_page = socket.assigns.per_page
-        
+
         # Group by node first, then paginate to ensure all nodes are represented
         processes_by_node = group_processes_by_node(searched_processes)
         paginated_by_node = paginate_processes_fairly(processes_by_node, current_page, per_page)
-        
+
         socket
         |> assign(:processes, formatted_result.processes)
         |> assign(:processes_by_node, paginated_by_node)
@@ -1130,9 +1131,11 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
   end
 
   defp maybe_add_filter_param(params, _key, :all), do: params
+
   defp maybe_add_filter_param(params, key, value) when value != nil do
     Map.put(params, key, value)
   end
+
   defp maybe_add_filter_param(params, _key, _value), do: params
 
   # Arsenal ProcessList operation integration
@@ -1154,7 +1157,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     # Get configuration values
     process_config = Application.get_env(:otp_supervisor, :process_listing, [])
     default_limit = Keyword.get(process_config, :default_limit, 1000)
-    
+
     %{
       "include_details" => true,
       "limit" => Map.get(params, :limit, default_limit)
@@ -1215,7 +1218,7 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     %{
       processes: formatted_processes,
       total_count: length(formatted_processes),
-      nodes_queried: arsenal_result.nodes_queried || [],
+      nodes_queried: arsenal_result.nodes_queried,
       last_updated: DateTime.utc_now()
     }
   end
@@ -1245,14 +1248,16 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     case get_processes() do
       {:ok, arsenal_result} ->
         formatted_result = format_processes(arsenal_result)
-        
+
         # Get all nodes and expand them by default
         all_nodes = get_unique_nodes(formatted_result.processes)
         expanded_nodes = MapSet.new(all_nodes)
-        
+
         # Group by node first, then paginate fairly
         processes_by_node = group_processes_by_node(formatted_result.processes)
-        paginated_by_node = paginate_processes_fairly(processes_by_node, 1, socket.assigns.per_page)
+
+        paginated_by_node =
+          paginate_processes_fairly(processes_by_node, 1, socket.assigns.per_page)
 
         socket
         |> assign(:processes, formatted_result.processes)
@@ -1288,12 +1293,12 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
     |> Enum.group_by(& &1.node)
     |> Enum.into(%{})
   end
-  
+
   # Paginate processes fairly across nodes
   defp paginate_processes_fairly(processes_by_node, current_page, per_page) do
     nodes = Map.keys(processes_by_node) |> Enum.sort()
     num_nodes = length(nodes)
-    
+
     if num_nodes == 0 do
       %{}
     else
@@ -1301,26 +1306,26 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
       processes_per_node = max(1, div(per_page, num_nodes))
       # Add any remainder to ensure we fill the page
       remainder = rem(per_page, num_nodes)
-      
+
       # Calculate the offset for each node based on the current page
       offset_per_node = (current_page - 1) * processes_per_node
-      
+
       # Paginate each node's processes
       nodes
       |> Enum.with_index()
       |> Enum.reduce(%{}, fn {node, index}, acc ->
         node_processes = Map.get(processes_by_node, node, [])
-        
+
         # Add extra process to first nodes if there's a remainder
         extra = if index < remainder, do: 1, else: 0
         node_limit = processes_per_node + extra
-        node_offset = offset_per_node + (if index < remainder, do: index, else: remainder)
-        
-        paginated = 
+        node_offset = offset_per_node + if index < remainder, do: index, else: remainder
+
+        paginated =
           node_processes
           |> Enum.drop(node_offset)
           |> Enum.take(node_limit)
-        
+
         if length(paginated) > 0 do
           Map.put(acc, node, paginated)
         else
@@ -1457,7 +1462,9 @@ defmodule OtpSupervisorWeb.Live.ClusterProcessesLive do
 
           # Apply pagination with fair node distribution
           processes_by_node = group_processes_by_node(searched_processes)
-          paginated_by_node = paginate_processes_fairly(processes_by_node, current_page, socket.assigns.per_page)
+
+          paginated_by_node =
+            paginate_processes_fairly(processes_by_node, current_page, socket.assigns.per_page)
 
           socket
           |> assign(:processes, formatted_result.processes)

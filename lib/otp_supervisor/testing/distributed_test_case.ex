@@ -104,17 +104,7 @@ defmodule OTPSupervisor.Testing.DistributedTestCase do
         nodes
 
       %{cluster_active: false, error: :no_cluster_manager} ->
-        raise RuntimeError, """
-        cluster_nodes/0 called but AutoClusterManager is not running!
-
-        Distributed tests tagged with @tag :distributed require a real running cluster.
-        The cluster management infrastructure is not available.
-
-        Make sure to:
-        1. Run tests with: mix test --distributed
-        2. Ensure AutoClusterManager is started before running distributed tests
-        3. Check that distributed test infrastructure is properly initialized
-        """
+        raise RuntimeError, "cluster_nodes/0 called but AutoClusterManager is not running"
 
       %{cluster_active: false, error: :cluster_manager_timeout} ->
         raise RuntimeError, """
