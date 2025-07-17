@@ -113,7 +113,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
                 </div>
               </div>
               
-              <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>ipt>
+              <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
             </div>
             
             <!-- Hidden data element for Three.js -->
