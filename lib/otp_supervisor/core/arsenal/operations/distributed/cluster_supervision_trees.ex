@@ -340,7 +340,10 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
         strategy: supervisor.strategy,
         alive: supervisor.alive,
         child_count: supervisor.child_count,
-        node: Node.self()
+        node: Node.self(),
+        # NEW: Add visualization metadata
+        level: 0,
+        type: :supervisor
       }
 
       if include_children do
@@ -376,7 +379,10 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
               type: child.type,
               restart: child.restart,
               shutdown: child.shutdown,
-              alive: child.alive
+              alive: child.alive,
+              # NEW: Add visualization metadata
+              level: current_depth + 1,
+              node: Node.self()
             }
 
             enhanced_child =

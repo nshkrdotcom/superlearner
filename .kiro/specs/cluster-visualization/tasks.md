@@ -1,6 +1,13 @@
 # Implementation Plan
 
-- [ ] 1. Enhance backend data collection for complete cluster view
+- [x] 1. Enhance backend data collection for complete cluster view
+
+
+
+
+
+
+
   - Modify ClusterSupervisionTrees operation to include visualization metadata (level, type)
   - Use existing Distributed.ProcessList Arsenal operation to get all cluster processes
   - Create data merging logic in LiveView to combine supervision trees with all processes
@@ -8,74 +15,114 @@
   - Ensure process metrics (memory, message_queue_len) are merged into final hierarchical data structure
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 2. Create ClusterVisualizationLive module with unified data structure
+- [x] 2. Create ClusterVisualizationLive module with unified data structure
+
+
+
+
+
+
+
+
+
+
   - Create new LiveView module following existing patterns from SupervisorLive
   - Implement mount/3 function with initial state and data loading
   - Add load_cluster_data/1 function that calls both ClusterSupervisionTrees AND Distributed.ProcessList operations
   - Transform data into single hierarchical structure per node with virtual "Standalone Processes" supervisor for D3.js optimization
   - _Requirements: 1.1, 5.1, 5.2_
 
-- [ ] 3. Add cluster visualization route and basic HTML structure
+- [x] 3. Add cluster visualization route and basic HTML structure
+
+
+
+
+
   - Add route to router.ex: `live "/cluster-visualization", Live.ClusterVisualizationLive`
   - Create basic render/1 function with terminal-style UI using existing patterns
   - Include TerminalStatusBar component for consistency
   - Add basic controls for auto-refresh toggle and manual refresh button
   - _Requirements: 5.1, 5.2, 3.5_
+-
 
-- [ ] 4. Install D3.js and create JavaScript hook foundation
-  - Add D3.js dependency to assets/package.json
-  - Create ClusterVisualization hook in assets/js/hooks.js
-  - Implement basic hook structure with mounted/updated/destroyed lifecycle
-  - Add hook registration to existing hooks export
-  - _Requirements: 1.1, 4.1_
+- [x] 4. Create high-density text-based cluster tree display
 
-- [ ] 5. Implement D3.js tree layout visualization rendering
-  - Create SVG container with zoom/pan capabilities using D3.js
-  - Use single virtual root structure: `{ name: "root", children: [node1_tree, node2_tree, ...] }` for unified zoom/pan behavior
-  - Use d3.hierarchy() to convert unified hierarchical data structure per node
-  - Implement d3.tree() layout for automatic positioning of supervision hierarchies
-  - Render links using d3.linkVertical() for clean tree connections
-  - Render nodes as SVG groups containing circles and text labels
-  - _Requirements: 1.1, 1.2, 4.1, 4.2, 4.3_
 
-- [ ] 6. Add visual differentiation for process types and states
-  - Implement different colors for supervisors vs workers vs standalone processes
-  - Add status indicators (green for alive, red for dead processes)
-  - Create different node sizes for supervisors vs workers
-  - Add visual labels with process names
-  - At significant zoom-out levels, hide text labels and show only colored circles/shapes for high-level cluster structure and health
-  - _Requirements: 1.3, 1.4, 1.5, 4.5_
 
-- [ ] 7. Implement interactive hover tooltips
-  - Add mouseover/mouseout event handlers to visualization elements
-  - Create tooltip display with basic process information (name, PID, type, status)
-  - Position tooltips dynamically based on mouse location
-  - Style tooltips to match terminal theme
-  - _Requirements: 2.1, 5.3_
+  - Implement ASCII tree rendering function that converts hierarchical data to indented text format
+  - Use Unicode box-drawing characters (├─, └─, │) for clean tree structure
+  - Add color coding using ANSI/terminal colors: green for supervisors, blue for workers, red for dead processes
+  - Create compact single-line format: `├─ MyWorker [#PID<0.123.0>] (worker) 2.1MB 5msgs`
+  - _Requirements: 1.1, 1.2, 1.3, 4.1_
 
-- [ ] 8. Add click-to-show-details functionality
-  - Implement click event handlers for nodes
-  - Create details panel component in HTML template
-  - Add show/hide logic for details panel
-  - Display detailed process information including memory and message queue length
+- [x] 5. Implement multi-node text layout with node headers
+
+
+
+
+
+  - Create node section headers with cluster status: `=== Node: node1@host (connected) ===`
+  - Render each node's supervision tree in separate sections
+  - Add node-level statistics: total processes, memory usage, message queue totals
+  - Implement horizontal separator lines between nodes for visual clarity
+  - _Requirements: 1.1, 1.2, 4.2, 4.3_
+
+- [x] 5.1. Add comprehensive filtering and search capabilities like /processes page
+
+
+
+
+
+  - Implement node filtering dropdown to show/hide specific nodes in visualization
+  - Add process type filtering: supervisors, workers, all types with dynamic options from data
+  - Create application filtering dropdown populated from actual cluster applications
+  - Add search functionality with debounced input for PID, process name, or module matching
+  - Implement "Clear Filters" button to reset all filters and expand all nodes
+  - Add active filter indicators showing currently applied filters
+  - Display filtered results counter: "Showing X of Y processes"
+  - Apply filters to tree rendering by filtering cluster_data before passing to ClusterTreeRenderer
+  - Add URL parameter support for bookmarkable filter states
+  - Ensure filtering works with real-time updates and maintains filter state during refreshes
+  - _Requirements: 1.3, 1.4, 1.5, 2.1, 4.2_
+
+- [ ] 6. Add interactive text-based selection and filtering
+  - Implement keyboard navigation using arrow keys to highlight processes
+  - Add process type filtering: press 's' for supervisors only, 'w' for workers only, 'a' for all
+  - Create search functionality: type to filter processes by name/PID
+  - Add status filtering: show only alive/dead processes
+  - Highlight selected process with background color change
+  - _Requirements: 1.3, 1.4, 1.5, 2.1_
+
+- [ ] 7. Create expandable/collapsible text tree sections
+  - Add expand/collapse functionality for supervision subtrees using +/- indicators
+  - Implement keyboard shortcuts: Enter to toggle, Space to expand all, Backspace to collapse all
+  - Store expansion state in LiveView assigns to persist across updates
+  - Show process count in collapsed sections: `├─ MySupervisor [+] (12 children)`
+  - _Requirements: 2.1, 4.4, 4.5_
+
+- [ ] 8. Add detailed process information panel
+  - Create side panel or bottom panel for selected process details
+  - Display comprehensive process info: PID, registered name, memory, message queue, links, monitors
+  - Add process state information: current function, stack trace if available
+  - Include process restart history and supervisor strategy info
+  - Format data in readable key-value pairs with proper alignment
   - _Requirements: 2.2, 2.3, 2.4_
 
-- [ ] 9. Implement targeted real-time updates via LiveView
+- [ ] 9. Implement real-time text updates with change highlighting
   - Add PubSub subscription for cluster state changes in mount function
-  - Create handle_info callbacks that calculate diffs using Map.diff/2 or set-based operations on old and new process lists
-  - Implement periodic refresh timer (5 seconds) following SupervisorLive pattern
-  - Add diff calculation logic to identify specific changes (process added/removed/status changed)
-  - Handle process restart scenarios where same registered name gets new PID (send process_restarted event with old_pid and new_pid)
-  - Batch rapid changes (~100ms) to avoid sending 1000s of individual events during burst scenarios
-  - Push targeted events (process_added, process_removed, status_changed, process_restarted) instead of full dataset
-  - Update JavaScript hook to handle targeted events for efficient D3.js updates
+  - Create handle_info callbacks for periodic refresh (5 seconds) following SupervisorLive pattern
+  - Implement change detection: highlight new processes in green, removed in red, changed in yellow
+  - Add change indicators in tree: `├─ MyWorker [#PID<0.123.0>] (worker) 2.1MB 5msgs [NEW]`
+  - Fade change indicators after 3 seconds using CSS transitions
+  - Batch rapid changes to avoid overwhelming the display
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 10. Add zoom and pan navigation controls
-  - Implement D3.js zoom behavior on SVG container
-  - Add mouse wheel zoom and drag pan functionality
-  - Maintain visual clarity at different zoom levels
-  - Add zoom extent limits to prevent excessive zoom in/out
+- [ ] 10. Add text-based navigation and view controls
+  - Implement scrolling for large cluster trees using CSS overflow
+  - Add view mode toggles: compact vs detailed, flat vs hierarchical
+  - Create sorting options: by name, PID, memory usage, message queue length
+  - Add refresh controls: auto-refresh toggle, manual refresh button, refresh interval selector
+  - Implement full-screen mode for maximum information density
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
 - [ ] 11. Implement loading states and error handling

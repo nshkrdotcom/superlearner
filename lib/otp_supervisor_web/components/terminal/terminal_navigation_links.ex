@@ -91,6 +91,18 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
         key: "cluster-processes"
       },
       %{
+        label: "Visualization",
+        path: "/cluster-visualization",
+        icon: "🌐",
+        key: "cluster-visualization"
+      },
+      %{
+        label: "Sandbox",
+        path: "/sandbox",
+        icon: "📦",
+        key: "sandbox"
+      },
+      %{
         label: "Arsenal",
         path: "/arsenal",
         icon: "⚡",
@@ -124,6 +136,9 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
 
       "arsenal" ->
         add_arsenal_navigation(base_links_with_active, context)
+
+      "sandbox" ->
+        add_sandbox_navigation(base_links_with_active, context)
 
       _ ->
         base_links_with_active
@@ -184,10 +199,16 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
       {"cluster-processes", "cluster-processes"} ->
         true
 
+      {"cluster-visualization", "cluster-visualization"} ->
+        true
+
       {"docs", "docs"} ->
         true
 
       {"arsenal", "arsenal"} ->
+        true
+
+      {"sandbox", "sandbox"} ->
         true
 
       _ ->
@@ -223,6 +244,12 @@ defmodule OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks do
 
   defp add_arsenal_navigation(links, _context) do
     # Arsenal page handles its own internal navigation
+    # No additional external routes needed
+    links
+  end
+
+  defp add_sandbox_navigation(links, _context) do
+    # Sandbox page handles its own internal navigation
     # No additional external routes needed
     links
   end

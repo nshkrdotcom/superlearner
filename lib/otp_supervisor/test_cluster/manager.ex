@@ -391,6 +391,30 @@ defmodule OTPSupervisor.TestCluster.Manager do
     ]);
     {:ok, _} = Application.ensure_all_started(:otp_supervisor);
     IO.puts("=== Phoenix started on port #{config.http_port} ===");
+    spawn(fn ->
+      Process.sleep(3000);
+      other_nodes = [
+        :"test_node1@127.0.0.1",
+        :"test_node2@127.0.0.1",
+        :"test_node3@127.0.0.1",
+        :"test_node4@127.0.0.1",
+        :"test_node5@127.0.0.1",
+        :"test_node6@127.0.0.1",
+        :"test_node7@127.0.0.1",
+        :"test_node8@127.0.0.1",
+        :"test_node9@127.0.0.1",
+        :"test_node10@127.0.0.1"
+      ];
+      current = Node.self();
+      nodes_to_connect = Enum.reject(other_nodes, &(&1 == current));
+      IO.puts("Attempting to connect to cluster nodes...");
+      Enum.each(nodes_to_connect, fn node ->
+        result = Node.connect(node);
+        IO.puts("  Connecting to " <> Atom.to_string(node) <> ": " <> Atom.to_string(result))
+      end);
+      connected = Node.list();
+      IO.puts("Connected to " <> Integer.to_string(length(connected)) <> " nodes: " <> inspect(connected))
+    end);
     Process.sleep(:infinity)
     """
     |> String.replace("\n", " ")

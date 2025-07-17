@@ -29,7 +29,9 @@ defmodule OtpSupervisorWeb.Router do
     live "/system", Live.SystemDashboardLive
     live "/cluster", Live.ClusterLive
     live "/cluster-processes", Live.ClusterProcessesLive
+    live "/cluster-visualization", Live.ClusterVisualizationLive
     live "/arsenal", Live.ArsenalLive
+    live "/sandbox", Live.SandboxLive
     live "/docs", Live.DocsLive
   end
 
