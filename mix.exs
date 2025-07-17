@@ -25,7 +25,7 @@ defmodule OtpSupervisor.MixProject do
   def application do
     [
       mod: {OtpSupervisor.Application, []},
-      extra_applications: [:logger, :runtime_tools, :os_mon]
+      extra_applications: [:logger, :runtime_tools, :os_mon, :erlexec]
     ]
   end
 
@@ -68,7 +68,8 @@ defmodule OtpSupervisor.MixProject do
       {:file_system, "~> 1.0"},
       {:otp_sandbox, path: "./sandbox/examples/otp_sandbox"},
       {:libcluster, "~> 3.3"},
-      {:horde, "~> 0.8.0"}
+      {:horde, "~> 0.8.0"},
+      {:erlexec, path: "./erlexec"}
     ]
   end
 

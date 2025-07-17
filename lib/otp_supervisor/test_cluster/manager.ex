@@ -19,7 +19,7 @@ defmodule OTPSupervisor.TestCluster.Manager do
   use GenServer
   require Logger
 
-  alias OTPSupervisor.TestCluster.{HealthChecker, HostnameResolver, PortManager, Diagnostics}
+  alias OTPSupervisor.TestCluster.{HealthChecker, HostnameResolver, PortManager, Diagnostics, ExecWrapper}
 
   # Dynamic test cluster configuration - no hardcoded nodes
   # Configuration is now generated dynamically using HostnameResolver and PortManager
@@ -160,10 +160,94 @@ defmodule OTPSupervisor.TestCluster.Manager do
     end
   end
 
+  # Handle erlexec output messages
+  @impl true
+  def handle_info({:stdout, os_pid, data}, state) do
+    node_name = case find_node_by_os_pid(state.nodes, os_pid) do
+      {name, _} -> name
+      nil -> Process.get({:temp_node_mapping, os_pid}, "unknown")
+    end
+    Logger.info("✅ [#{node_name}:stdout] #{String.trim(data)}")
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:stderr, os_pid, data}, state) do
+    node_name = case find_node_by_os_pid(state.nodes, os_pid) do
+      {name, _} -> name
+      nil -> Process.get({:temp_node_mapping, os_pid}, "unknown")
+    end
+    Logger.warning("⚠️ [#{node_name}:stderr] #{String.trim(data)}")
+    {:noreply, state}
+  end
+
+  # Handle erlexec DOWN messages (proper OTP monitoring)
+  @impl true
+  def handle_info({:DOWN, os_pid, :process, exec_pid, reason}, state) do
+    if node_info = find_node_by_os_pid(state.nodes, os_pid) do
+      {node_name, _node_data} = node_info
+      Logger.warning("Node #{node_name} (OS PID: #{os_pid}, Exec PID: #{inspect(exec_pid)}) exited: #{inspect(reason)}")
+      
+      # Update node status
+      updated_nodes = Map.update!(state.nodes, node_name, fn info ->
+        Map.merge(info, %{status: :exited, exit_reason: reason, stopped_at: DateTime.utc_now()})
+      end)
+      
+      {:noreply, %{state | nodes: updated_nodes}}
+    else
+      Logger.debug("Unknown process exited: OS PID #{os_pid}")
+      {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:attempt_connection, config, exec_pid, os_pid, ref, attempt}, state) when attempt <= 30 do
+    case Node.ping(config.name) do
+      :pong ->
+        # Node is ready!
+        server_info = %{
+          name: config.name,
+          http_port: config.http_port,
+          exec_pid: exec_pid,
+          os_pid: os_pid,
+          status: :running,
+          url: "http://#{config.hostname}:#{config.http_port}",
+          hostname: config.hostname,
+          started_at: DateTime.utc_now()
+        }
+        
+        Logger.info("✅ Cluster node #{config.name} connected successfully (OS PID: #{os_pid})")
+        
+        # Update the node status in state
+        updated_nodes = update_node_status(state.nodes, config.name, server_info)
+        updated_state = %{state | nodes: updated_nodes}
+        
+        {:noreply, updated_state}
+        
+      :pang ->
+        # Not ready yet, schedule next attempt using proper OTP timer
+        Process.send_after(self(), {:attempt_connection, config, exec_pid, os_pid, ref, attempt + 1}, 1000)
+        {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:attempt_connection, config, _exec_pid, os_pid, _ref, attempt}, state) when attempt > 30 do
+    Logger.error("Failed to connect to #{config.name} after #{attempt - 1} attempts")
+    :exec.stop(os_pid)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(msg, state) do
+    Logger.info("🔍 Received unexpected message: #{inspect(msg)}")
+    {:noreply, state}
+  end
+
   # Private implementation
 
   defp start_phoenix_server(config) do
-    Logger.info("Starting cluster node #{config.name} on #{config.hostname}:#{config.http_port}")
+    Logger.info("Starting cluster node #{config.name} on #{config.hostname}:#{config.http_port} using erlexec")
 
     # CRITICAL: Ensure cookie synchronization
     current_cookie = Node.get_cookie()
@@ -181,78 +265,132 @@ defmodule OTPSupervisor.TestCluster.Manager do
       Logger.info("Child nodes will use cookie: #{config.cookie}")
     end
 
-    # Start a REAL Elixir node - a separate OS process running the full application
+    # Environment setup for the child process - preserve important env vars
     env = [
       {"PHX_PORT", Integer.to_string(config.http_port)},
       {"PORT", Integer.to_string(config.http_port)},
       {"MIX_ENV", "dev"},
       {"NODE_NAME", Atom.to_string(config.name)},
       {"PHX_SERVER", "true"},
-      # CRITICAL: Pass cookie via environment to ensure it's set early
       {"ERLANG_COOKIE", Atom.to_string(config.cookie)},
-      # CRITICAL: Override the test config port to use our dynamic port
-      {"TEST_HTTP_PORT", Integer.to_string(config.http_port)}
-    ]
+      {"TEST_HTTP_PORT", Integer.to_string(config.http_port)},
+      {"ERL_CRASH_DUMP_SECONDS", "10"},
+      # Preserve PATH and other essential env vars
+      {"PATH", System.get_env("PATH")},
+      {"HOME", System.get_env("HOME")},
+      {"SHELL", System.get_env("SHELL", "/bin/bash")},
+      {"ASDF_DIR", System.get_env("ASDF_DIR")},
+      {"ASDF_DATA_DIR", System.get_env("ASDF_DATA_DIR")}
+    ] |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 
-    # Use elixir command with proper distributed Erlang flags, then run mix
-    # This is the correct way to start a distributed Mix application
-    cmd_args = [
-      "--name",
-      Atom.to_string(config.name),
-      "--cookie",
-      Atom.to_string(config.cookie),
-      "-S",
-      "mix",
-      "run",
-      "--no-halt",
-      "--eval",
-      """
-      IO.puts("Node started: \#{Node.self()}");
-      IO.puts("Cookie: \#{Node.get_cookie()}");
-      Application.put_env(:otp_supervisor, OtpSupervisorWeb.Endpoint, [
-        http: [ip: {127, 0, 0, 1}, port: #{config.http_port}],
-        server: true
-      ]);
-      {:ok, _} = Application.ensure_all_started(:otp_supervisor);
-      IO.puts("Phoenix started on port #{config.http_port}");
-      :timer.sleep(:infinity)
-      """
-    ]
+    # Use proper daemonization with setsid to ensure complete detachment
+    elixir_path = System.find_executable("elixir") || "/home/home/.asdf/shims/elixir"
+    cmd_string = "cd #{File.cwd!()} && setsid nohup #{elixir_path} --name #{config.name} --cookie #{config.cookie} -S mix run --no-halt --eval '#{build_phoenix_eval_string(config)}' > /tmp/test_#{config.name}.log 2>&1 < /dev/null &"
 
-    # Start the node as a separate OS process using Task.async
-    # Use elixir executable instead of mix to properly handle distributed flags
-    task =
-      Task.async(fn ->
-        System.cmd("elixir", cmd_args,
-          env: env,
-          cd: File.cwd!(),
-          into: IO.stream(:stdio, :line)
-        )
-      end)
-
-    # Wait for node to actually be ready instead of fixed sleep
-    Logger.debug("Waiting for node #{config.name} to start and register...")
-
-    # Test connection with retry logic - this replaces the fixed sleep
-    case wait_for_node_connection(config.name, 30, 1000) do
-      :ok ->
+    Logger.info("About to start: #{cmd_string}")
+    
+    Logger.info("🔧 Using erlexec opts: #{inspect(build_erlexec_opts(env, File.cwd!(), self()))}")
+    
+    case :exec.run(cmd_string, build_erlexec_opts(env, File.cwd!(), self())) do
+      {:ok, exec_pid, os_pid} ->
+        Logger.info("Started elixir process (OS PID: #{os_pid}, Exec PID: #{inspect(exec_pid)}) for node #{config.name}")
+        Logger.info("🎯 Manager PID: #{inspect(self())} will receive stdout/stderr for OS PID: #{os_pid}")
+        
+        # Store temporary mapping for output handling
+        Process.put({:temp_node_mapping, os_pid}, config.name)
+        
+        # Return immediately - node startup monitoring happens asynchronously
         server_info = %{
           name: config.name,
           http_port: config.http_port,
-          task: task,
-          status: :running,
+          exec_pid: exec_pid,
+          os_pid: os_pid,
+          status: :starting,
           url: "http://#{config.hostname}:#{config.http_port}",
-          hostname: config.hostname
+          hostname: config.hostname,
+          started_at: DateTime.utc_now()
         }
-
-        Logger.info("✅ Cluster node #{config.name} started successfully")
+        
+        # Start async connection monitoring
+        send(self(), {:attempt_connection, config, exec_pid, os_pid, nil, 1})
+        
         {:ok, server_info}
 
       {:error, reason} ->
-        Logger.error("Failed to connect to cluster node #{config.name} after retries: #{reason}")
-        Task.shutdown(task, :brutal_kill)
-        {:error, {:node_connection_failed, config.name}}
+        Logger.error("Failed to start cluster node #{config.name}: #{inspect(reason)}")
+        {:error, reason}
     end
+  end
+
+  # Build erlexec options using proper patterns  
+  defp build_erlexec_opts(env, cd, _output_handler) do
+    [
+      {:env, format_env_for_erlexec(env)},
+      {:cd, cd},
+      {:kill_timeout, 5}
+    ]
+  end
+
+  # Wait for node startup using proper OTP message patterns
+  defp wait_for_node_startup(config, exec_pid, os_pid) do
+    # Try connecting periodically, but rely on DOWN message for termination
+    ref = Process.monitor(exec_pid)
+    
+    # Start connection attempts
+    send(self(), {:attempt_connection, config, exec_pid, os_pid, ref, 1})
+    
+    # Wait for results
+    receive do
+      {:node_connected, server_info} ->
+        Process.demonitor(ref, [:flush])
+        {:ok, server_info}
+        
+      {:DOWN, ^ref, :process, ^exec_pid, reason} ->
+        Logger.error("Process #{os_pid} for node #{config.name} died: #{inspect(reason)}")
+        {:error, {:process_died, reason}}
+        
+    after
+      30_000 ->
+        Process.demonitor(ref, [:flush])
+        :exec.stop(os_pid)
+        Logger.error("Timeout waiting for node #{config.name}")
+        {:error, :startup_timeout}
+    end
+  end
+
+  # Format environment for erlexec
+  defp format_env_for_erlexec(env) do
+    Enum.map(env, fn
+      {key, value} when is_binary(key) and is_binary(value) ->
+        {String.to_charlist(key), String.to_charlist(value)}
+      {key, value} when is_atom(key) ->
+        {to_charlist(key), String.to_charlist(to_string(value))}
+      {key, value} ->
+        {String.to_charlist(to_string(key)), String.to_charlist(to_string(value))}
+    end)
+  end
+
+  # Build the Phoenix eval string for the child process
+  defp build_phoenix_eval_string(config) do
+    """
+    IO.puts("=== Starting cluster node ===");
+    IO.puts("Node: " <> Atom.to_string(Node.self()));
+    IO.puts("Cookie: " <> Atom.to_string(Node.get_cookie()));
+    IO.puts("Port: #{config.http_port}");
+    Application.put_env(:otp_supervisor, OtpSupervisorWeb.Endpoint, [
+      http: [ip: {127, 0, 0, 1}, port: #{config.http_port}],
+      server: true,
+      url: [host: "127.0.0.1", port: #{config.http_port}]
+    ]);
+    {:ok, _} = Application.ensure_all_started(:otp_supervisor);
+    IO.puts("=== Phoenix started on port #{config.http_port} ===");
+    Process.sleep(:infinity)
+    """ |> String.replace("\n", " ") |> String.replace(~r/\s+/, " ") |> String.trim()
+  end
+
+  # Build a simple eval string for testing connectivity first
+  defp build_simple_eval_string(config) do
+    "IO.puts(\\\"Node started: \\\" <> Atom.to_string(Node.self())); IO.puts(\\\"Cookie: \\\" <> Atom.to_string(Node.get_cookie())); IO.puts(\\\"Port: #{config.http_port}\\\"); Process.sleep(:infinity)"
   end
 
   defp start_cluster_nodes(opts) do
@@ -500,45 +638,73 @@ defmodule OTPSupervisor.TestCluster.Manager do
 
   defp stop_node(server_info) do
     try do
-      Logger.info("Stopping node #{server_info.name} on port #{server_info.http_port}")
+      Logger.info("Stopping node #{server_info.name} (port #{server_info.http_port})")
 
-      # Stop the Task that's running the Elixir node
-      if Map.has_key?(server_info, :task) do
-        Task.shutdown(server_info.task, :brutal_kill)
-      end
+      cond do
+        # New erlexec-based process with OS PID
+        Map.has_key?(server_info, :os_pid) ->
+          case :exec.stop(server_info.os_pid) do
+            :ok ->
+              Logger.info("Node #{server_info.name} (OS PID: #{server_info.os_pid}) stopped successfully")
+              
+            {:error, reason} ->
+              Logger.warning("Failed to stop node #{server_info.name}: #{inspect(reason)}")
+              # Try force kill
+              :exec.kill(server_info.os_pid, 9)
+          end
 
-      # Also kill any processes using the HTTP port directly
-      case System.cmd("lsof", ["-ti:#{server_info.http_port}"], stderr_to_stdout: true) do
-        {pids_output, 0} ->
-          pids =
-            pids_output
-            |> String.trim()
-            |> String.split("\n")
-            |> Enum.reject(&(&1 == ""))
+        # Legacy wrapper-based process (backwards compatibility)
+        Map.has_key?(server_info, :exec_info) ->
+          Logger.warning("Stopping legacy wrapper-based node #{server_info.name}")
+          ExecWrapper.stop_process(server_info.exec_info, 5000)
 
-          Enum.each(pids, fn pid ->
-            Logger.debug("Killing process #{pid} on port #{server_info.http_port}")
-            System.cmd("kill", ["-9", pid])
-          end)
+        # Legacy task-based process (backwards compatibility)
+        Map.has_key?(server_info, :task) ->
+          Logger.warning("Stopping legacy task-based node #{server_info.name}")
+          Task.shutdown(server_info.task, :brutal_kill)
+          fallback_cleanup(server_info)
 
-        {_, _} ->
-          Logger.debug("No processes found on port #{server_info.http_port} or lsof failed")
-      end
-
-      # Kill any elixir processes with the node name
-      node_name = Map.get(server_info, :name, "unknown")
-
-      case System.cmd("pkill", ["-f", "#{node_name}"], stderr_to_stdout: true) do
-        {_, 0} -> Logger.debug("Killed processes matching #{node_name}")
-        {_, 1} -> Logger.debug("No processes found matching #{node_name}")
-        {_, _} -> Logger.debug("pkill failed for #{node_name}")
+        true ->
+          Logger.warning("Unknown process type for node #{server_info.name}, attempting fallback cleanup")
+          fallback_cleanup(server_info)
       end
 
       :ok
     rescue
       error ->
-        Logger.warning("Error stopping node: #{inspect(error)}")
+        Logger.warning("Error stopping node #{server_info.name}: #{inspect(error)}")
         :ok
+    end
+  end
+
+  # Fallback cleanup for processes not managed by erlexec
+  defp fallback_cleanup(server_info) do
+    # Kill any processes using the HTTP port directly
+    case System.cmd("lsof", ["-ti:#{server_info.http_port}"], stderr_to_stdout: true) do
+      {pids_output, 0} ->
+        pids =
+          pids_output
+          |> String.trim()
+          |> String.split("\n")
+          |> Enum.reject(&(&1 == ""))
+
+        if length(pids) > 0 do
+          Logger.debug("Killing #{length(pids)} processes on port #{server_info.http_port}")
+          Enum.each(pids, fn pid ->
+            System.cmd("kill", ["-9", pid])
+          end)
+        end
+
+      {_, _} ->
+        Logger.debug("No processes found on port #{server_info.http_port}")
+    end
+
+    # Kill any elixir processes with the node name
+    node_name = to_string(server_info.name)
+    case System.cmd("pkill", ["-f", node_name], stderr_to_stdout: true) do
+      {_, 0} -> Logger.debug("Killed processes matching #{node_name}")
+      {_, 1} -> Logger.debug("No processes found matching #{node_name}")
+      {_, _} -> Logger.debug("pkill failed for #{node_name}")
     end
   end
 
@@ -828,5 +994,32 @@ defmodule OTPSupervisor.TestCluster.Manager do
         Logger.error("Failed to connect to #{node_name} after #{max_retries} attempts")
         {:error, :connection_timeout}
     end
+  end
+
+  # Helper function to update node status
+  defp update_node_status(nodes, node_name, new_info) do
+    case Enum.find(nodes, fn {_key, node} -> node.name == node_name end) do
+      {key, _old_info} ->
+        Map.put(nodes, key, new_info)
+      nil ->
+        # Add as new node if not found
+        new_key = :"node#{map_size(nodes) + 1}"
+        Map.put(nodes, new_key, new_info)
+    end
+  end
+
+  # Helper function to find node by OS PID
+  defp find_node_by_os_pid(nodes, os_pid) do
+    Enum.find(nodes, fn {_name, node_info} ->
+      cond do
+        # New erlexec structure
+        Map.get(node_info, :os_pid) == os_pid -> true
+        # Legacy wrapper structure
+        case Map.get(node_info, :exec_info) do
+          %{os_pid: ^os_pid} -> true
+          _ -> false
+        end
+      end
+    end)
   end
 end

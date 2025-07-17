@@ -219,8 +219,11 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
       # Get all supervisors on this node
       supervisors = Control.list_supervisors()
       
+      # Enrich supervisor data with application and strategy
+      enriched_supervisors = Enum.map(supervisors, &enrich_supervisor_info/1)
+      
       # Filter by application if specified
-      filtered_supervisors = filter_supervisors_by_application(supervisors, params)
+      filtered_supervisors = filter_supervisors_by_application(enriched_supervisors, params)
       
       # Build supervision trees for each supervisor
       supervision_trees = 
@@ -238,6 +241,51 @@ defmodule OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTr
       }}
     rescue
       error -> {:error, {:local_query_failed, error}}
+    end
+  end
+  
+  defp enrich_supervisor_info(supervisor) do
+    # Get application from supervisor name
+    application = guess_application_from_name(supervisor.name)
+    
+    # Try to get strategy from supervisor state
+    strategy = get_supervisor_strategy(supervisor)
+    
+    supervisor
+    |> Map.put(:application, application)
+    |> Map.put(:strategy, strategy)
+  end
+  
+  defp guess_application_from_name(name) when is_atom(name) do
+    name_str = Atom.to_string(name)
+    
+    cond do
+      String.contains?(name_str, "OTPSupervisor") -> :otp_supervisor
+      String.contains?(name_str, "Phoenix") -> :phoenix
+      String.contains?(name_str, "Elixir") -> :elixir
+      String.contains?(name_str, "Sandbox") -> :otp_sandbox
+      true -> :unknown
+    end
+  end
+  
+  defp get_supervisor_strategy(supervisor) do
+    case supervisor.pid do
+      "nil" -> :unknown
+      pid_str ->
+        # Try to convert string PID back to actual PID
+        try do
+          case Control.to_pid(pid_str) do
+            {:ok, pid} when is_pid(pid) ->
+              case :sys.get_state(pid, 100) do
+                state when is_map(state) -> 
+                  Map.get(state, :strategy, :one_for_one)
+                _ -> :one_for_one
+              end
+            _ -> :one_for_one
+          end
+        rescue
+          _ -> :one_for_one
+        end
     end
   end
 

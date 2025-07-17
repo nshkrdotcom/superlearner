@@ -1,76 +1,68 @@
 defmodule OtpSupervisorWeb.Live.SupervisorLive do
   use Phoenix.LiveView
+  import Phoenix.HTML
 
   alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
-  alias OtpSupervisorWeb.Components.Terminal.TerminalMetricWidget
   alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
-  alias OtpSupervisorWeb.Components.Layout.TerminalPanelLayout
-  alias OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget
-  alias OtpSupervisorWeb.Components.Widgets.ProcessListWidget
-  alias OtpSupervisorWeb.Components.Widgets.SandboxManagementWidget
+  alias OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTrees
+  alias OTPSupervisor.Distributed.ClusterStateManager
 
   @moduledoc """
-  OTP supervisor monitoring and control interface.
-
-  Refactored to use LiveComponents for better reusability and maintainability.
+  OTP supervisor monitoring and control interface with cluster-wide view.
+  
+  Displays supervisors from all nodes in the cluster with filtering capabilities.
   """
 
   def mount(_params, _session, socket) do
+    socket =
+      socket
+      |> assign(:page_title, "Supervisor Monitor")
+      |> assign(:current_page, "supervisor")
+      |> assign_initial_state()
+      |> load_supervisor_data()
+
     if connected?(socket) do
-      :timer.send_interval(2000, self(), :update_supervisors)
-      Phoenix.PubSub.subscribe(OtpSupervisor.PubSub, "supervisor_updates")
+      # Subscribe to cluster state changes
+      ClusterStateManager.subscribe_to_changes()
+      # Set up periodic refresh timer (5 seconds)
+      Process.send_after(self(), :refresh_supervisors, 5_000)
     end
 
-    {:ok,
-     socket
-     |> assign(:page_title, "Supervisor Monitor")
-     |> assign(:current_page, "supervisor")
-     |> assign(:selected_supervisor, nil)
-     |> assign(:show_children_panel, false)
-     |> assign(:supervisor_count, 0)
-     |> assign(:sandboxes, [])
-     |> assign(:selected_sandbox, nil)
-     |> load_supervisor_data()
-     |> load_sandbox_data()}
+    {:ok, socket}
   end
 
-  def handle_info(:update_supervisors, socket) do
-    {:noreply, update_supervisor_data(socket)}
+  def handle_info(%{type: :cluster_state_change} = _event, socket) do
+    # Cluster topology changed, refresh supervisor data
+    socket = update_supervisor_data(socket)
+    {:noreply, socket}
   end
 
-  def handle_info(:refresh_sandbox_data, socket) do
-    {:noreply, update_sandbox_data(socket)}
+  def handle_info(:refresh_supervisors, socket) do
+    socket =
+      if not socket.assigns.operation_in_progress do
+        update_supervisor_data(socket)
+      else
+        socket
+      end
+
+    # Schedule next refresh
+    Process.send_after(self(), :refresh_supervisors, 5_000)
+    {:noreply, socket}
   end
 
-  def handle_info({:supervisor_update, data}, socket) do
-    {:noreply, handle_supervisor_update(socket, data)}
+  def handle_info({:debounced_search, search_term}, socket) do
+    # Handle debounced search
+    socket =
+      socket
+      |> assign(:search_term, search_term)
+      |> assign(:search_debounce_timer, nil)
+      |> apply_filters()
+
+    {:noreply, socket}
   end
 
-  def handle_info({:supervisor_selected, supervisor_id}, socket) do
-    supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
-    children = get_supervisor_children(supervisor_id)
-
-    {:noreply,
-     socket
-     |> assign(:selected_supervisor, supervisor)
-     |> assign(:supervisor_children, children)
-     |> assign(:show_children_panel, true)}
-  end
-
-  def handle_info({:fetch_supervisor_children, supervisor_id}, socket) do
-    children = get_supervisor_children(supervisor_id)
-
-    updated_children_map =
-      Map.put(socket.assigns[:children_by_supervisor] || %{}, supervisor_id, children)
-
-    # Update the supervisor tree widget with the children
-    Phoenix.LiveView.send_update(
-      OtpSupervisorWeb.Components.Widgets.SupervisorTreeWidget,
-      id: "supervisor-tree",
-      children_by_supervisor: updated_children_map
-    )
-
-    {:noreply, assign(socket, :children_by_supervisor, updated_children_map)}
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
   end
 
   def render(assigns) do
@@ -85,579 +77,617 @@ defmodule OtpSupervisorWeb.Live.SupervisorLive do
         navigation_links={TerminalNavigationLinks.page_navigation_links("supervisor", %{})}
       />
       
-    <!-- Main Layout -->
-      <.live_component
-        module={TerminalPanelLayout}
-        id="supervisor-panel-layout"
-        layout_type={if(@show_children_panel, do: :three_panel, else: :three_panel)}
-        panels={supervisor_panels(assigns)}
-        gap="gap-4"
-        padding="p-4"
-      />
+      <!-- Main Content Area -->
+      <div class="flex-1 p-4 overflow-hidden">
+        <div class="h-full bg-gray-800 rounded border border-green-500/30 p-4 overflow-y-auto">
+          <%= if @loading do %>
+            <div class="text-center text-green-400/70 font-mono py-8">
+              <div class="animate-pulse">Loading cluster supervisors...</div>
+            </div>
+          <% else %>
+            <!-- Filter Controls -->
+            <div class="mb-4 p-3 bg-gray-900/50 rounded border border-green-500/20">
+              <!-- Search Form -->
+              <form phx-change="search_change" class="mb-4">
+                <div class="flex items-center space-x-2">
+                  <label class="text-green-400/70 font-mono text-sm">Search:</label>
+                  <input
+                    type="text"
+                    value={@search_term}
+                    placeholder="Search by name or PID..."
+                    class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-3 py-2 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none flex-1 max-w-md transition-all duration-200 placeholder:text-green-400/40"
+                    name="search"
+                    phx-debounce="300"
+                  />
+                  <%= if @search_term != "" do %>
+                    <button
+                      type="button"
+                      class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-2 py-2 rounded transition-colors"
+                      phx-click="clear_search"
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  <% end %>
+                </div>
+              </form>
+
+              <!-- Filter Form -->
+              <form phx-change="filter_change">
+                <div class="flex flex-wrap items-center gap-4">
+                  <!-- Node Filter -->
+                  <div class="flex items-center space-x-2">
+                    <label class="text-green-400/70 font-mono text-sm">Node:</label>
+                    <select
+                      class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      name="node"
+                      disabled={@operation_in_progress}
+                    >
+                      <option value="all" selected={@filters.node == :all}>All Nodes</option>
+                      <%= for node <- get_unique_nodes(@supervisors_by_node) do %>
+                        <option value={node} selected={@filters.node == node}>{node}</option>
+                      <% end %>
+                    </select>
+                  </div>
+                  
+                  <!-- Application Filter -->
+                  <div class="flex items-center space-x-2">
+                    <label class="text-green-400/70 font-mono text-sm">App:</label>
+                    <select
+                      class="bg-gray-800 border border-green-500/30 text-green-400 font-mono text-sm rounded px-2 py-1 focus:border-green-500 focus:ring-1 focus:ring-green-500/50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      name="application"
+                      disabled={@operation_in_progress}
+                    >
+                      <option value="all" selected={@filters.application == :all}>All Apps</option>
+                      <%= for app <- get_unique_applications(@supervisors) do %>
+                        <option value={app} selected={@filters.application == app}>{app}</option>
+                      <% end %>
+                    </select>
+                  </div>
+                  
+                  <!-- Clear Filters Button -->
+                  <%= if has_active_filters?(@filters) do %>
+                    <button
+                      type="button"
+                      class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      phx-click="clear_filters"
+                      disabled={@operation_in_progress}
+                    >
+                      Clear Filters
+                    </button>
+                  <% end %>
+                </div>
+              </form>
+
+              <!-- Active Filter Indicators -->
+              <%= if has_active_filters?(@filters) or @search_term != "" do %>
+                <div class="mt-3 pt-3 border-t border-green-500/20">
+                  <div class="flex items-center space-x-2 text-xs font-mono">
+                    <span class="text-green-400/70">Active:</span>
+                    <%= if @search_term != "" do %>
+                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        Search: "{@search_term}"
+                      </span>
+                    <% end %>
+                    <%= if @filters.node != :all do %>
+                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        Node: {@filters.node}
+                      </span>
+                    <% end %>
+                    <%= if @filters.application != :all do %>
+                      <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        App: {@filters.application}
+                      </span>
+                    <% end %>
+                  </div>
+                  
+                  <div class="text-green-400/70 font-mono text-sm mt-2">
+                    Showing {count_filtered_supervisors(@filtered_supervisors_by_node)} of {@total_supervisors} supervisors
+                  </div>
+                </div>
+              <% end %>
+            </div>
+            
+            <%= if map_size(@filtered_supervisors_by_node) == 0 do %>
+              <div class="text-center text-green-400/70 font-mono py-8">
+                No supervisors found
+              </div>
+            <% else %>
+              <div class="space-y-4">
+                <%= for {node, node_data} <- Enum.sort(@filtered_supervisors_by_node) do %>
+                  <div class="border border-green-500/30 rounded bg-gray-900/50">
+                    <!-- Node Header -->
+                    <div
+                      class="p-3 border-b border-green-500/20 cursor-pointer hover:bg-gray-700/30 transition-all duration-200 ease-in-out"
+                      phx-click="toggle_node"
+                      phx-value-node={node}
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                          <span class="text-green-400 font-mono text-sm transition-transform duration-200 ease-in-out">
+                            <%= if node_expanded?(assigns, node) do %>
+                              <span class="inline-block transform rotate-90">▶</span>
+                            <% else %>
+                              <span class="inline-block">▶</span>
+                            <% end %>
+                          </span>
+                          <span class="text-green-300 font-mono font-semibold">
+                            {node}
+                          </span>
+                        </div>
+                        <div class="text-green-400/70 font-mono text-sm">
+                          {Map.get(node_data, :total_supervisors, 0)} supervisors
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Node Content (Expandable) -->
+                    <%= if node_expanded?(assigns, node) do %>
+                      <div class="p-3 animate-in slide-in-from-top-2 duration-300 ease-out">
+                        <% supervisors = Map.get(node_data, :supervisors, []) %>
+                        <%= if length(supervisors) == 0 do %>
+                          <div class="text-green-400/50 font-mono text-sm italic text-center py-4">
+                            No supervisors
+                          </div>
+                        <% else %>
+                          <div class="space-y-2">
+                            <%= for supervisor <- supervisors do %>
+                              <div class="bg-gray-800/50 rounded p-3 border border-green-500/10 hover:border-green-500/30 transition-all duration-200 ease-in-out hover:shadow-lg hover:shadow-green-500/10">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm font-mono">
+                                  <div class="space-y-1">
+                                    <div class="text-green-300">
+                                      <span class="text-green-400/70">Name:</span>
+                                      <span class="font-semibold">{raw(highlight_search_term(to_string(supervisor.name), @search_term))}</span>
+                                    </div>
+                                    <div class="text-green-300">
+                                      <span class="text-green-400/70">PID:</span>
+                                      <span>{raw(highlight_search_term(format_pid(supervisor.pid), @search_term))}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div class="space-y-1">
+                                    <div class="text-green-300">
+                                      <span class="text-green-400/70">Strategy:</span>
+                                      <span>{format_strategy(supervisor.strategy)}</span>
+                                    </div>
+                                    <div class="text-green-300">
+                                      <span class="text-green-400/70">Children:</span>
+                                      <span>{supervisor.child_count}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div class="space-y-1">
+                                    <div class="text-green-300">
+                                      <span class="text-green-400/70">App:</span>
+                                      <span>{supervisor.application}</span>
+                                    </div>
+                                    <div class="text-green-300">
+                                      <span class="text-green-400/70">Status:</span>
+                                      <span class={get_status_color_class(supervisor.alive)}>
+                                        {if supervisor.alive, do: "Running", else: "Stopped"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
     </div>
     """
   end
 
   # Event handlers
 
-  def handle_event("select_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
-    supervisor = find_supervisor(supervisor_id, socket.assigns.supervisors)
-    children = get_supervisor_children(supervisor_id)
+  def handle_event("toggle_node", %{"node" => node_string}, socket) do
+    node = String.to_atom(node_string)
+    expanded_nodes = socket.assigns.expanded_nodes
 
-    {:noreply,
-     socket
-     |> assign(:selected_supervisor, supervisor)
-     |> assign(:supervisor_children, children)
-     |> assign(:show_children_panel, true)}
+    updated_expanded_nodes =
+      if MapSet.member?(expanded_nodes, node) do
+        MapSet.delete(expanded_nodes, node)
+      else
+        MapSet.put(expanded_nodes, node)
+      end
+
+    {:noreply, assign(socket, :expanded_nodes, updated_expanded_nodes)}
   end
 
-  def handle_event("restart_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
-    # Here you would call your supervisor management API
-    {:noreply, put_flash(socket, :info, "Supervisor #{supervisor_id} restarted")}
+  def handle_event("filter_change", form_params, socket) do
+    updated_filters = %{
+      node: parse_filter_value(form_params["node"] || "all"),
+      application: parse_filter_value(form_params["application"] || "all")
+    }
+
+    socket =
+      socket
+      |> assign(:filters, updated_filters)
+      |> apply_filters()
+
+    {:noreply, socket}
   end
 
-  def handle_event("stop_supervisor", %{"supervisor_id" => supervisor_id}, socket) do
-    # Here you would call your supervisor management API
-    {:noreply, put_flash(socket, :info, "Supervisor #{supervisor_id} stopped")}
+  def handle_event("clear_filters", _params, socket) do
+    default_filters = %{
+      node: :all,
+      application: :all
+    }
+    
+    # Get all nodes to expand them
+    all_nodes = get_unique_nodes(socket.assigns.supervisors_by_node)
+    expanded_nodes = MapSet.new(all_nodes)
+
+    socket =
+      socket
+      |> assign(:filters, default_filters)
+      |> assign(:expanded_nodes, expanded_nodes)
+      |> apply_filters()
+
+    {:noreply, socket}
   end
 
-  def handle_event("start_child", %{"child_id" => child_id}, socket) do
-    # Here you would call your child process management API
-    {:noreply, put_flash(socket, :info, "Child process #{child_id} started")}
+  def handle_event("search_change", %{"search" => search_term}, socket) do
+    # Cancel existing debounce timer if any
+    if socket.assigns.search_debounce_timer do
+      Process.cancel_timer(socket.assigns.search_debounce_timer)
+    end
+
+    # Set up debounced search
+    timer_ref = Process.send_after(self(), {:debounced_search, search_term}, 300)
+
+    socket =
+      socket
+      |> assign(:search_term, search_term)
+      |> assign(:search_debounce_timer, timer_ref)
+
+    {:noreply, socket}
   end
 
-  def handle_event("stop_child", %{"child_id" => child_id}, socket) do
-    # Here you would call your child process management API
-    {:noreply, put_flash(socket, :info, "Child process #{child_id} stopped")}
-  end
+  def handle_event("clear_search", _params, socket) do
+    # Clear search and apply filters
+    socket =
+      socket
+      |> assign(:search_term, "")
+      |> assign(:search_debounce_timer, nil)
+      |> apply_filters()
 
-  def handle_event("restart_child", %{"child_id" => child_id}, socket) do
-    # Here you would call your child process management API
-    {:noreply, put_flash(socket, :info, "Child process #{child_id} restarted")}
-  end
-
-  def handle_event("close_children_panel", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:selected_supervisor, nil)
-     |> assign(:show_children_panel, false)}
-  end
-
-  def handle_event("refresh_supervisors", _params, socket) do
-    {:noreply, update_supervisor_data(socket)}
+    {:noreply, socket}
   end
 
   # Private functions
 
-  defp load_supervisor_data(socket) do
-    supervisors = get_supervisors()
-
+  defp assign_initial_state(socket) do
     socket
-    |> assign(:supervisors, supervisors)
-    |> assign(:supervisor_count, length(supervisors))
-    |> assign(:supervisor_children, [])
-    |> assign(:supervisor_health, get_supervisor_health())
-    |> assign(:children_by_supervisor, %{})
+    |> assign(:supervisors, [])
+    |> assign(:supervisors_by_node, %{})
+    |> assign(:filtered_supervisors_by_node, %{})
+    |> assign(:total_supervisors, 0)
+    |> assign(:filters, %{
+      node: :all,
+      application: :all
+    })
+    |> assign(:search_term, "")
+    |> assign(:search_debounce_timer, nil)
+    |> assign(:loading, false)
+    |> assign(:refreshing, false)
+    |> assign(:operation_in_progress, false)
+    |> assign(:error_message, nil)
+    |> assign(:cluster_nodes, [])
+    |> assign(:last_updated, nil)
+    |> assign(:expanded_nodes, MapSet.new())
   end
 
-  defp load_sandbox_data(socket) do
-    sandboxes = get_sandboxes()
+  defp load_supervisor_data(socket) do
+    socket =
+      socket
+      |> assign(:loading, true)
+      |> assign(:operation_in_progress, true)
+      |> assign(:error_message, nil)
 
-    socket
-    |> assign(:sandboxes, sandboxes)
+    case get_cluster_supervisors() do
+      {:ok, result} ->
+        all_nodes = Map.keys(result.supervision_trees) |> Enum.sort()
+        expanded_nodes = MapSet.new(all_nodes)
+        
+        socket
+        |> assign(:supervisors, flatten_supervisors(result.supervision_trees))
+        |> assign(:supervisors_by_node, result.supervision_trees)
+        |> assign(:filtered_supervisors_by_node, result.supervision_trees)
+        |> assign(:total_supervisors, result.summary.total_supervisors)
+        |> assign(:cluster_nodes, result.summary.nodes_queried)
+        |> assign(:last_updated, DateTime.utc_now())
+        |> assign(:expanded_nodes, expanded_nodes)
+        |> assign(:loading, false)
+        |> assign(:operation_in_progress, false)
+
+      {:error, error_message} ->
+        require Logger
+        Logger.error("Failed to load supervisor data: #{error_message}")
+
+        socket
+        |> assign(:supervisors, [])
+        |> assign(:supervisors_by_node, %{})
+        |> assign(:filtered_supervisors_by_node, %{})
+        |> assign(:total_supervisors, 0)
+        |> assign(:cluster_nodes, [])
+        |> assign(:last_updated, nil)
+        |> assign(:loading, false)
+        |> assign(:operation_in_progress, false)
+        |> assign(:error_message, error_message)
+    end
   end
 
   defp update_supervisor_data(socket) do
-    supervisors = get_supervisors()
-
-    socket
-    |> assign(:supervisors, supervisors)
-    |> assign(:supervisor_count, length(supervisors))
-    |> assign(:supervisor_health, get_supervisor_health())
-    |> assign(:children_by_supervisor, socket.assigns[:children_by_supervisor] || %{})
-    |> maybe_update_children()
-  end
-
-  defp update_sandbox_data(socket) do
-    sandboxes = get_sandboxes()
-
-    socket
-    |> assign(:sandboxes, sandboxes)
-  end
-
-  defp maybe_update_children(socket) do
-    if socket.assigns.selected_supervisor do
-      children = get_supervisor_children(socket.assigns.selected_supervisor.id)
-      assign(socket, :supervisor_children, children)
-    else
+    if socket.assigns.operation_in_progress do
       socket
-    end
-  end
-
-  defp handle_supervisor_update(socket, %{type: :supervisor_list, data: supervisors}) do
-    socket
-    |> assign(:supervisors, supervisors)
-    |> assign(:supervisor_count, length(supervisors))
-  end
-
-  defp handle_supervisor_update(socket, %{type: :supervisor_health, data: health}) do
-    assign(socket, :supervisor_health, health)
-  end
-
-  defp handle_supervisor_update(socket, _data), do: socket
-
-  defp status_bar_metrics(assigns) do
-    [
-      %{label: "Supervisors", value: "#{assigns.supervisor_count}"},
-      %{label: "Health", value: supervisor_health_summary(assigns.supervisor_health)},
-      %{
-        label: "Selected",
-        value: if(assigns.selected_supervisor, do: assigns.selected_supervisor.name, else: "None")
-      },
-      %{label: "Children", value: "#{length(assigns.supervisor_children || [])}"}
-    ]
-  end
-
-  defp supervisor_panels(assigns) do
-    if assigns.show_children_panel do
-      [
-        # Left panel: Supervisor Tree Widget
-        %{
-          title: "Supervisor Tree",
-          component: SupervisorTreeWidget,
-          assigns: %{
-            id: "supervisor-tree",
-            supervisors: supervisor_tree_data(assigns),
-            selected_supervisor: assigns.selected_supervisor,
-            show_children: true,
-            compact_mode: false,
-            children_by_supervisor: assigns[:children_by_supervisor] || %{}
-          },
-          span: %{cols: 1, rows: 1}
-        },
-
-        # Right panel: Children ProcessListWidget
-        %{
-          title: "Children of #{assigns.selected_supervisor.name}",
-          component: ProcessListWidget,
-          assigns: %{
-            id: "children-process-list",
-            processes: supervisor_children_data(assigns),
-            selected_process: nil,
-            real_time: true,
-            show_actions: true,
-            compact_mode: true,
-            filters: %{
-              show_system_processes: true,
-              parent_filter: assigns.selected_supervisor.id
-            }
-          },
-          actions: [
-            %{type: :button, label: "Close", event: "close_children_panel"}
-          ],
-          span: %{cols: 1, rows: 1}
-        },
-
-        # Bottom panel: Sandbox Management Widget
-        %{
-          title: "Sandbox Manager",
-          component: SandboxManagementWidget,
-          assigns: %{
-            id: "sandbox-management",
-            sandboxes: assigns.sandboxes,
-            selected_sandbox: assigns.selected_sandbox,
-            show_create_form: false
-          },
-          span: %{cols: 2, rows: 1}
-        }
-      ]
     else
-      [
-        # Left panel: Supervisor Tree Widget
-        %{
-          title: "Supervisor Tree",
-          component: SupervisorTreeWidget,
-          assigns: %{
-            id: "supervisor-tree",
-            supervisors: supervisor_tree_data(assigns),
-            selected_supervisor: assigns.selected_supervisor,
-            show_children: true,
-            compact_mode: false,
-            children_by_supervisor: assigns[:children_by_supervisor] || %{}
-          },
-          span: %{cols: 1, rows: 1}
-        },
+      socket =
+        socket
+        |> assign(:refreshing, true)
+        |> assign(:operation_in_progress, true)
 
-        # Right panel: Supervisor Health Overview
-        %{
-          title: "Supervisor Health",
-          component: TerminalMetricWidget,
-          assigns: %{
-            id: "supervisor-health",
-            title: "Supervisor Health",
-            metrics: health_metrics(assigns.supervisor_health),
-            size: :medium
-          },
-          span: %{cols: 1, rows: 1}
-        },
+      case get_cluster_supervisors() do
+        {:ok, result} ->
+          socket
+          |> assign(:supervisors, flatten_supervisors(result.supervision_trees))
+          |> assign(:supervisors_by_node, result.supervision_trees)
+          |> assign(:total_supervisors, result.summary.total_supervisors)
+          |> assign(:cluster_nodes, result.summary.nodes_queried)
+          |> assign(:last_updated, DateTime.utc_now())
+          |> assign(:refreshing, false)
+          |> assign(:operation_in_progress, false)
+          |> assign(:error_message, nil)
+          |> apply_filters()
 
-        # Bottom panel: Sandbox Management Widget
-        %{
-          title: "Sandbox Manager",
-          component: SandboxManagementWidget,
-          assigns: %{
-            id: "sandbox-management",
-            sandboxes: assigns.sandboxes,
-            selected_sandbox: assigns.selected_sandbox,
-            show_create_form: false
-          },
-          span: %{cols: 2, rows: 1}
-        }
-      ]
-    end
-  end
+        {:error, error_message} ->
+          require Logger
+          Logger.error("Failed to update supervisor data: #{error_message}")
 
-  defp health_metrics(health) do
-    [
-      %{label: "Healthy", value: health.healthy, format: :number, status: :success},
-      %{label: "Warning", value: health.warning, format: :number, status: :warning},
-      %{label: "Critical", value: health.critical, format: :number, status: :error},
-      %{label: "Total", value: health.total, format: :number}
-    ]
-  end
-
-  defp supervisor_health_summary(health) do
-    cond do
-      health.critical > 0 -> "Critical"
-      health.warning > 0 -> "Warning"
-      health.healthy > 0 -> "Healthy"
-      true -> "Unknown"
-    end
-  end
-
-  # Real supervisor data functions
-
-  defp get_supervisors do
-    # Use the Arsenal API for consistency with REST endpoints
-    with {:ok, validated_params} <-
-           OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.validate_params(%{}),
-         {:ok, {supervisors, _meta}} <-
-           OTPSupervisor.Core.Arsenal.Operations.ListSupervisors.execute(validated_params) do
-      Enum.map(supervisors, &format_arsenal_supervisor_for_display/1)
-    else
-      {:error, reason} ->
-        # Log the error and fallback to Control module
-        IO.puts("Arsenal API failed: #{inspect(reason)}")
-
-        OTPSupervisor.Core.Control.list_supervisors()
-        |> Enum.map(&format_supervisor_for_display/1)
-    end
-  end
-
-  defp format_arsenal_supervisor_for_display(supervisor) do
-    # Handle both atom and string names from Arsenal
-    supervisor_name =
-      case supervisor.name do
-        name when is_atom(name) -> name
-        name when is_binary(name) -> String.to_existing_atom(name)
-        name -> name
+          socket
+          |> assign(:refreshing, false)
+          |> assign(:operation_in_progress, false)
+          |> assign(:error_message, error_message)
       end
-
-    %{
-      id: to_string(supervisor.name),
-      name: to_string(supervisor.name),
-      pid: supervisor.pid,
-      strategy: Map.get(supervisor, :strategy, get_supervisor_strategy(supervisor_name)),
-      children_count: max(Map.get(supervisor, :child_count, 0), 0),
-      status: if(supervisor.alive, do: :running, else: :stopped),
-      uptime: get_supervisor_uptime(supervisor_name),
-      memory: get_supervisor_memory(supervisor_name),
-      restart_count: get_supervisor_restart_count(supervisor_name)
-    }
+    end
   end
 
-  # Keep the old function for backward compatibility during transition
-  defp format_supervisor_for_display(supervisor) do
-    %{
-      id: to_string(supervisor.name),
-      name: to_string(supervisor.name),
-      pid: supervisor.pid,
-      strategy: get_supervisor_strategy(supervisor.name),
-      children_count: max(supervisor.child_count, 0),
-      status: if(supervisor.alive, do: :running, else: :stopped),
-      uptime: get_supervisor_uptime(supervisor.name),
-      memory: get_supervisor_memory(supervisor.name),
-      restart_count: get_supervisor_restart_count(supervisor.name)
-    }
+  defp apply_filters(socket) do
+    filters = socket.assigns.filters
+    search_term = socket.assigns.search_term
+    supervisors_by_node = socket.assigns.supervisors_by_node
+    
+    filtered_by_node = 
+      supervisors_by_node
+      |> filter_by_node(filters.node)
+      |> filter_by_application(filters.application)
+      |> filter_by_search(search_term)
+    
+    socket
+    |> assign(:filtered_supervisors_by_node, filtered_by_node)
   end
 
-  defp get_supervisor_children(supervisor_id) do
-    supervisor_name = String.to_atom(supervisor_id)
-
-    OTPSupervisor.Core.Control.get_supervisor_children(supervisor_name)
-    |> Enum.map(&format_child_for_display(&1, supervisor_id))
+  defp filter_by_node(supervisors_by_node, :all), do: supervisors_by_node
+  defp filter_by_node(supervisors_by_node, node) do
+    case Map.get(supervisors_by_node, node) do
+      nil -> %{}
+      node_data -> %{node => node_data}
+    end
   end
 
-  defp format_child_for_display(child, supervisor_id) do
-    pid_value = Map.get(child, :pid, :undefined)
-    child_id = Map.get(child, :id, "unknown")
-    child_type = Map.get(child, :type, :worker)
-
-    %{
-      id: "child_#{supervisor_id}_#{child_id}",
-      name: to_string(child_id),
-      pid: pid_value,
-      type: child_type,
-      status: if(pid_value != :undefined and pid_value != nil, do: :running, else: :stopped),
-      memory: get_process_memory(pid_value),
-      restart_count: Map.get(child, :restart_count, 0),
-      supervisor_id: supervisor_id
-    }
+  defp filter_by_application(supervisors_by_node, :all), do: supervisors_by_node
+  defp filter_by_application(supervisors_by_node, app) do
+    supervisors_by_node
+    |> Enum.map(fn {node, node_data} ->
+      filtered_supervisors = 
+        Enum.filter(node_data.supervisors, fn supervisor ->
+          supervisor.application == app
+        end)
+      
+      updated_node_data = 
+        node_data
+        |> Map.put(:supervisors, filtered_supervisors)
+        |> Map.put(:total_supervisors, length(filtered_supervisors))
+      
+      {node, updated_node_data}
+    end)
+    |> Enum.filter(fn {_node, node_data} -> 
+      length(node_data.supervisors) > 0 
+    end)
+    |> Enum.into(%{})
   end
 
-  defp get_supervisor_health do
-    supervisors = get_supervisors()
-
-    healthy = Enum.count(supervisors, &(&1.status == :running))
-    stopped = Enum.count(supervisors, &(&1.status == :stopped))
-    error = Enum.count(supervisors, &(&1.status == :error))
-
-    %{
-      healthy: healthy,
-      warning: stopped,
-      critical: error,
-      total: healthy + stopped + error
-    }
+  defp filter_by_search(supervisors_by_node, ""), do: supervisors_by_node
+  defp filter_by_search(supervisors_by_node, search_term) do
+    normalized_search = String.downcase(String.trim(search_term))
+    
+    supervisors_by_node
+    |> Enum.map(fn {node, node_data} ->
+      filtered_supervisors = 
+        Enum.filter(node_data.supervisors, fn supervisor ->
+          supervisor_matches_search?(supervisor, normalized_search)
+        end)
+      
+      updated_node_data = 
+        node_data
+        |> Map.put(:supervisors, filtered_supervisors)
+        |> Map.put(:total_supervisors, length(filtered_supervisors))
+      
+      {node, updated_node_data}
+    end)
+    |> Enum.filter(fn {_node, node_data} -> 
+      length(node_data.supervisors) > 0 
+    end)
+    |> Enum.into(%{})
   end
 
-  defp find_supervisor(supervisor_id, supervisors) do
-    Enum.find(supervisors, &(&1.id == supervisor_id))
-  end
-
-  # New data transformation functions for specialized widgets
-
-  defp supervisor_tree_data(assigns) do
-    Enum.map(assigns.supervisors, fn supervisor ->
-      %{
-        id: supervisor.id,
-        name: supervisor.name,
-        pid: supervisor.pid,
-        strategy: supervisor.strategy,
-        children_count: supervisor.children_count,
-        status: supervisor.status,
-        uptime: supervisor.uptime,
-        memory: supervisor.memory,
-        restart_count: supervisor.restart_count,
-        # Children are loaded dynamically when expanded
-        children: []
-      }
+  defp supervisor_matches_search?(supervisor, search_term) do
+    searchable_fields = [
+      to_string(supervisor.name),
+      format_pid(supervisor.pid)
+    ]
+    
+    Enum.any?(searchable_fields, fn field ->
+      field
+      |> String.downcase()
+      |> String.contains?(search_term)
     end)
   end
 
-  defp supervisor_children_data(assigns) do
-    if assigns.supervisor_children do
-      Enum.map(assigns.supervisor_children, fn child ->
-        %{
-          id: child.id,
-          pid: child.pid,
-          name: child.name,
-          status: child.status,
-          memory: child.memory,
-          cpu_usage: :rand.uniform(50),
-          uptime: :rand.uniform(3600),
-          parent: assigns.selected_supervisor.name,
-          parent_pid: assigns.selected_supervisor.pid,
-          strategy: assigns.selected_supervisor.strategy,
-          children: [],
-          priority: :normal,
-          command: "/usr/bin/#{child.name}",
-          user: "system",
-          type: child.type,
-          restart_count: child.restart_count
-        }
+  defp status_bar_metrics(assigns) do
+    [
+      %{label: "Total Supervisors", value: format_number(assigns.total_supervisors)},
+      %{label: "Nodes", value: format_number(length(assigns.cluster_nodes))},
+      %{label: "Filtered", value: filtered_count_display(assigns)},
+      %{label: "Status", value: get_status_indicator(assigns)}
+    ]
+  end
+
+  defp format_number(num) when is_integer(num) do
+    num
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
+
+  defp format_number(_), do: "0"
+
+  defp filtered_count_display(assigns) do
+    filtered_count = 
+      assigns.filtered_supervisors_by_node
+      |> Enum.reduce(0, fn {_node, node_data}, acc ->
+        acc + node_data.total_supervisors
       end)
+    
+    if has_active_filters?(assigns.filters) do
+      "#{filtered_count}"
     else
-      []
+      "#{assigns.total_supervisors}"
     end
   end
 
-  # Helper functions for real supervisor data
-
-  defp get_supervisor_strategy(supervisor_name) do
-    try do
-      case Process.whereis(supervisor_name) do
-        nil ->
-          :unknown
-
-        pid ->
-          case :sys.get_state(pid, 1000) do
-            state when is_map(state) -> Map.get(state, :strategy, :one_for_one)
-            _ -> :one_for_one
-          end
-      end
-    rescue
-      _ -> :one_for_one
-    end
-  end
-
-  defp get_supervisor_uptime(supervisor_name) do
-    try do
-      case Process.whereis(supervisor_name) do
-        nil ->
-          0
-
-        pid ->
-          case Process.info(pid, :current_function) do
-            nil -> 0
-            # TODO: Calculate real uptime
-            _ -> :rand.uniform(86400)
-          end
-      end
-    rescue
-      _ -> 0
-    end
-  end
-
-  defp get_supervisor_memory(supervisor_name) do
-    try do
-      case Process.whereis(supervisor_name) do
-        nil ->
-          0
-
-        pid ->
-          case Process.info(pid, :memory) do
-            {:memory, memory} -> memory
-            _ -> 0
-          end
-      end
-    rescue
-      _ -> 0
-    end
-  end
-
-  defp get_supervisor_restart_count(supervisor_name) do
-    try do
-      case OTPSupervisor.Core.Control.get_restart_history(supervisor_name) do
-        {:ok, history} -> length(history)
-        _ -> 0
-      end
-    rescue
-      _ -> 0
-    end
-  end
-
-  defp get_process_memory(pid) when is_pid(pid) do
-    try do
-      case Process.info(pid, :memory) do
-        {:memory, memory} -> memory
-        _ -> 0
-      end
-    rescue
-      _ -> 0
-    end
-  end
-
-  defp get_process_memory(pid_string) when is_binary(pid_string) do
-    case OTPSupervisor.Core.Control.to_pid(pid_string) do
-      {:ok, pid} -> get_process_memory(pid)
-      _ -> 0
-    end
-  end
-
-  defp get_process_memory(_), do: 0
-
-  # Format functions for compatibility with existing tests
-  def format_bytes(bytes) when is_integer(bytes) do
+  defp get_status_indicator(assigns) do
     cond do
-      bytes >= 1_073_741_824 -> "#{Float.round(bytes / 1_073_741_824, 2)} GB"
-      bytes >= 1_048_576 -> "#{Float.round(bytes / 1_048_576, 2)} MB"
-      bytes >= 1024 -> "#{Float.round(bytes / 1024, 2)} KB"
-      true -> "#{bytes} B"
+      assigns.loading -> "⟳ Loading..."
+      assigns.refreshing -> "⟳ Refreshing"
+      assigns.operation_in_progress -> "⟳ Processing"
+      assigns.error_message -> "✗ Error"
+      true -> "✓ Ready"
     end
   end
 
-  def format_bytes(_), do: "N/A"
+  # Helper functions
 
-  def format_key(key) when is_atom(key) do
-    key
-    |> Atom.to_string()
-    |> String.split("_")
-    |> Enum.map(&String.capitalize/1)
-    |> Enum.join(" ")
+  defp node_expanded?(assigns, node) do
+    MapSet.member?(assigns.expanded_nodes, node)
   end
 
-  def format_value(value) when is_integer(value), do: to_string(value)
-  def format_value(value) when is_atom(value), do: inspect(value)
-
-  def format_value({m, f, a}) when is_atom(m) and is_atom(f) and is_integer(a) do
-    "#{m}.#{f}/#{a}"
+  defp has_active_filters?(filters) do
+    filters.node != :all or filters.application != :all
   end
 
-  def format_value(value), do: inspect(value)
+  defp count_filtered_supervisors(supervisors_by_node) do
+    supervisors_by_node
+    |> Enum.reduce(0, fn {_node, node_data}, acc ->
+      acc + Map.get(node_data, :total_supervisors, 0)
+    end)
+  end
 
-  # Sandbox data functions
+  defp parse_filter_value(""), do: :all
+  defp parse_filter_value("all"), do: :all
 
-  defp get_sandboxes do
+  defp parse_filter_value(value) when is_binary(value) do
     try do
-      # Use Arsenal operation to get sandboxes - validate params first
-      params = %{
-        "status" => nil,
-        "page" => 1,
-        "per_page" => 100
-      }
-
-      case OTPSupervisor.Core.Arsenal.Operations.ListSandboxes.validate_params(params) do
-        {:ok, validated_params} ->
-          case OTPSupervisor.Core.Arsenal.Operations.ListSandboxes.execute(validated_params) do
-            {:ok, {sandboxes, _meta}} ->
-              # Format for display
-              Enum.map(sandboxes, &format_sandbox_for_display/1)
-
-            {:error, _reason} ->
-              # Fallback to direct SandboxManager call
-              OTPSupervisor.Core.SandboxManager.list_sandboxes()
-              |> Enum.map(&format_sandbox_for_display/1)
-          end
-
-        {:error, _reason} ->
-          # Fallback to direct SandboxManager call
-          OTPSupervisor.Core.SandboxManager.list_sandboxes()
-          |> Enum.map(&format_sandbox_for_display/1)
-      end
+      String.to_existing_atom(value)
     rescue
-      _ ->
-        # Fallback to direct SandboxManager call
-        try do
-          OTPSupervisor.Core.SandboxManager.list_sandboxes()
-          |> Enum.map(&format_sandbox_for_display/1)
-        rescue
-          _ -> []
-        end
+      ArgumentError -> String.to_atom(value)
     end
   end
 
-  defp format_sandbox_for_display(sandbox) do
-    status = if Process.alive?(sandbox.app_pid), do: "running", else: "stopped"
+  defp parse_filter_value(value), do: value
 
-    %{
-      id: sandbox.id,
-      app_name: sandbox.app_name,
-      supervisor_module: format_sandbox_module_name(sandbox.supervisor_module),
-      app_pid: inspect(sandbox.app_pid),
-      supervisor_pid: inspect(sandbox.supervisor_pid),
-      status: status,
-      created_at: sandbox.created_at,
-      restart_count: sandbox.restart_count,
-      opts: sandbox.opts
+  defp get_unique_nodes(supervisors_by_node) do
+    supervisors_by_node
+    |> Map.keys()
+    |> Enum.sort()
+  end
+
+  defp get_unique_applications(supervisors) do
+    supervisors
+    |> Enum.map(& &1.application)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp format_pid(pid) when is_pid(pid) do
+    pid |> :erlang.pid_to_list() |> to_string()
+  end
+  defp format_pid(pid) when is_binary(pid), do: pid
+  defp format_pid(_), do: "unknown"
+
+  defp format_strategy(strategy) when is_atom(strategy) do
+    case strategy do
+      :one_for_one -> "One for One"
+      :one_for_all -> "One for All"
+      :rest_for_one -> "Rest for One"
+      :simple_one_for_one -> "Simple One for One"
+      _ -> Atom.to_string(strategy)
+    end
+  end
+  defp format_strategy(_), do: "Unknown"
+
+  defp get_status_color_class(true), do: "text-green-400"
+  defp get_status_color_class(false), do: "text-red-400"
+  defp get_status_color_class(_), do: "text-gray-400"
+
+  defp highlight_search_term(text, ""), do: text
+  defp highlight_search_term(text, search_term) when is_binary(text) and is_binary(search_term) do
+    normalized_search = String.downcase(String.trim(search_term))
+    
+    if String.length(normalized_search) == 0 do
+      text
+    else
+      # Case-insensitive highlighting
+      regex = ~r/#{Regex.escape(normalized_search)}/i
+      
+      String.replace(text, regex, fn match ->
+        "<span class=\"bg-yellow-400/30 text-yellow-200\">#{match}</span>"
+      end)
+    end
+  end
+  defp highlight_search_term(text, _search_term), do: text
+
+  # Data fetching functions
+
+  defp get_cluster_supervisors do
+    params = %{
+      "include_children" => false,
+      "include_process_details" => false
     }
+
+    case ClusterSupervisionTrees.execute(params) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> {:error, format_error(reason)}
+    end
   end
 
-  defp format_sandbox_module_name(module) when is_atom(module) do
-    module
-    |> Atom.to_string()
-    |> String.split(".")
-    |> List.last()
+  defp flatten_supervisors(supervision_trees) do
+    supervision_trees
+    |> Enum.flat_map(fn {_node, node_data} ->
+      node_data.supervisors
+    end)
   end
 
-  defp format_sandbox_module_name(module), do: inspect(module)
+  defp format_error(reason) when is_binary(reason), do: reason
+  defp format_error(reason), do: inspect(reason)
+
 end

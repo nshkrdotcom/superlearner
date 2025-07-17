@@ -106,3 +106,5 @@
 **/temp/
 
 repomix*.xml
+
+erlexec/
