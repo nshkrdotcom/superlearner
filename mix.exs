@@ -69,7 +69,9 @@ defmodule OtpSupervisor.MixProject do
       {:otp_sandbox, path: "./sandbox/examples/otp_sandbox"},
       {:libcluster, "~> 3.3"},
       {:horde, "~> 0.8.0"},
-      {:erlexec, path: "./erlexec"}
+      {:erlexec, "~> 2.2.1"},
+      # Override cowlib for OTP 28 compatibility
+      {:cowlib, "~> 2.13.0", override: true}
     ]
   end
 
