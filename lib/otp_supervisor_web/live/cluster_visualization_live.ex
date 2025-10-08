@@ -5,8 +5,6 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
 
   alias OtpSupervisorWeb.Components.Terminal.TerminalStatusBar
   alias OtpSupervisorWeb.Components.Terminal.TerminalNavigationLinks
-  alias OTPSupervisor.Core.Arsenal.Operations.Distributed.ClusterSupervisionTrees
-  alias OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList
 
   @moduledoc """
   Cluster visualization interface with interactive 3D display.
@@ -70,7 +68,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
         navigation_links={TerminalNavigationLinks.page_navigation_links("cluster-visualization", %{})}
       />
       
-      <!-- Main Content Area -->
+    <!-- Main Content Area -->
       <div class="flex-1 p-4 overflow-hidden">
         <div class="h-full bg-gray-800 rounded border border-green-500/30 p-4 flex flex-col">
           <!-- Controls Panel -->
@@ -100,28 +98,42 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
               </div>
             </form>
             
-            <!-- Three.js 3D Visualization -->
-            <div id="cluster-3d-viz" class="mb-4 bg-gray-900/70 rounded border border-green-500/20 relative" style="height: 500px;" phx-update="ignore">
+    <!-- Three.js 3D Visualization -->
+            <div
+              id="cluster-3d-viz"
+              class="mb-4 bg-gray-900/70 rounded border border-green-500/20 relative"
+              style="height: 500px;"
+              phx-update="ignore"
+            >
               <!-- Details Panel -->
-              <div id="node-details-panel" class="absolute top-4 left-4 w-80 bg-gray-800/95 border border-green-500/30 rounded p-4 font-mono text-sm text-green-400 hidden z-10">
+              <div
+                id="node-details-panel"
+                class="absolute top-4 left-4 w-80 bg-gray-800/95 border border-green-500/30 rounded p-4 font-mono text-sm text-green-400 hidden z-10"
+              >
                 <div class="flex justify-between items-center mb-3">
                   <h3 id="details-title" class="text-green-300 font-bold text-base">Node Details</h3>
-                  <button id="close-details" class="text-green-400 hover:text-green-300 text-lg leading-none">&times;</button>
+                  <button
+                    id="close-details"
+                    class="text-green-400 hover:text-green-300 text-lg leading-none"
+                  >
+                    &times;
+                  </button>
                 </div>
                 <div id="details-content" class="space-y-2">
                   <!-- Content will be populated by JavaScript -->
                 </div>
               </div>
-              
-              <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+              <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+              </script>
             </div>
             
-            <!-- Hidden data element for Three.js -->
+    <!-- Hidden data element for Three.js -->
             <div id="cluster-data-json" style="display: none;">
-              <%= raw(Jason.encode!(@filtered_cluster_data)) %>
+              {raw(Jason.encode!(@filtered_cluster_data))}
             </div>
             
-            <!-- Filter Form -->
+    <!-- Filter Form -->
             <form phx-change="filter_change" class="mb-4">
               <div class="flex flex-wrap items-center gap-4">
                 <div class="flex items-center space-x-2">
@@ -133,14 +145,14 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
                   >
                     <option value="all" selected={@filters.node == :all}>All Nodes</option>
                     <%= for node <- get_unique_nodes_from_cluster_data(@cluster_data) do %>
-                      <option value={node} selected={@filters.node == node}><%= node %></option>
+                      <option value={node} selected={@filters.node == node}>{node}</option>
                     <% end %>
                   </select>
                 </div>
               </div>
             </form>
             
-            <!-- Refresh Controls -->
+    <!-- Refresh Controls -->
             <div class="flex items-center justify-between pt-3 border-t border-green-500/20">
               <div class="flex items-center space-x-4">
                 <div class="flex items-center space-x-2">
@@ -165,7 +177,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
                     <% end %>
                   </button>
                 </div>
-                
+
                 <button
                   type="button"
                   class="bg-gray-700 hover:bg-gray-600 border border-green-500/30 hover:border-green-500/50 text-green-400 font-mono text-sm px-3 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -182,7 +194,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
             </div>
           </div>
           
-          <!-- Visualization Container -->
+    <!-- Visualization Container -->
           <div class="flex-1 bg-gray-900/30 rounded border border-green-500/20 relative overflow-hidden">
             <%= if @loading do %>
               <div class="absolute inset-0 flex items-center justify-center">
@@ -196,7 +208,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
                 <div class="absolute inset-0 flex items-center justify-center">
                   <div class="text-center text-red-400 font-mono p-6 bg-red-500/10 rounded border border-red-500/30">
                     <div class="text-lg mb-2">✗ Error Loading Data</div>
-                    <div class="text-sm mb-4"><%= @error_message %></div>
+                    <div class="text-sm mb-4">{@error_message}</div>
                     <button
                       type="button"
                       class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 font-mono text-sm px-3 py-2 rounded transition-colors"
@@ -303,7 +315,9 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualizationLive do
   end
 
   defp get_unique_nodes_from_cluster_data(cluster_data) do
-    OtpSupervisorWeb.Live.ClusterVisualization.Filters.get_unique_nodes_from_cluster_data(cluster_data)
+    OtpSupervisorWeb.Live.ClusterVisualization.Filters.get_unique_nodes_from_cluster_data(
+      cluster_data
+    )
   end
 
   defp parse_filter_value(value) do
