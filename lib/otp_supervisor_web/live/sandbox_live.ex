@@ -37,50 +37,50 @@ defmodule OtpSupervisorWeb.Live.SandboxLive do
     <!-- Info Panel -->
             <div class="bg-gray-900 border border-green-500/30 rounded p-4 h-fit">
               <h3 class="text-sm font-bold text-green-300 mb-3">Quick Info</h3>
-              
+
               <div class="space-y-4 text-xs">
                 <div>
                   <h4 class="text-green-400 font-semibold mb-1">What are Sandboxes?</h4>
-                  
+
                   <p class="text-green-400/60">
                     Sandboxes are isolated OTP applications that run supervisor trees
                     independently from the main application.
                   </p>
                 </div>
-                
+
                 <div>
                   <h4 class="text-green-400 font-semibold mb-1">Available Supervisors</h4>
-                  
+
                   <ul class="text-green-400/60 space-y-1">
                     <li>• TestDemoSupervisor - Simple demo with counter & printer workers</li>
-                    
+
                     <li>• DemoSupervisor - Production example supervisor</li>
                   </ul>
                 </div>
-                
+
                 <div>
                   <h4 class="text-green-400 font-semibold mb-1">Strategies</h4>
-                  
+
                   <ul class="text-green-400/60 space-y-1">
                     <li>
                       • <span class="text-green-400">one_for_one</span> - Only restart failed child
                     </li>
-                    
+
                     <li>• <span class="text-green-400">one_for_all</span> - Restart all children</li>
-                    
+
                     <li>
                       • <span class="text-green-400">rest_for_one</span>
                       - Restart failed child and younger siblings
                     </li>
                   </ul>
                 </div>
-                
+
                 <div>
                   <h4 class="text-green-400 font-semibold mb-1">Stats</h4>
-                  
+
                   <div class="text-green-400/60">
                     <p>Total Sandboxes: <span class="text-green-400">{length(@sandboxes)}</span></p>
-                    
+
                     <p>
                       Active: <span class="text-green-400">{count_active_sandboxes(@sandboxes)}</span>
                     </p>

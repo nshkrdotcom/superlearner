@@ -7,10 +7,11 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.DataLoader do
   alias OTPSupervisor.Core.Arsenal.Operations.Distributed.ProcessList
 
   def load_cluster_data(socket) do
-    socket = Phoenix.Component.assign(socket, %{
-      loading: true,
-      error_message: nil
-    })
+    socket =
+      Phoenix.Component.assign(socket, %{
+        loading: true,
+        error_message: nil
+      })
 
     case fetch_cluster_data() do
       {:ok, unified_data} ->
@@ -73,7 +74,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.DataLoader do
       |> Enum.map(fn {node, node_data} ->
         all_processes = Map.get(processes_by_node, node, [])
         processes_by_app = group_processes_by_application(all_processes)
-        
+
         unified_node_data = %{
           name: to_string(node),
           type: :cluster_node,
@@ -82,7 +83,8 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.DataLoader do
             applications: Map.keys(processes_by_app),
             memory_usage: calculate_node_memory(all_processes)
           },
-          children: build_enhanced_node_structure(node_data.supervisors, processes_by_app, all_processes)
+          children:
+            build_enhanced_node_structure(node_data.supervisors, processes_by_app, all_processes)
         }
 
         {node, unified_node_data}
@@ -106,7 +108,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.DataLoader do
 
   defp group_processes_by_application(processes) do
     processes
-    |> Enum.group_by(fn process -> 
+    |> Enum.group_by(fn process ->
       Map.get(process, :application, :unknown)
     end)
   end
@@ -186,23 +188,25 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.DataLoader do
         base_supervisor
 
       children ->
-        enhanced_children = children
-        |> Enum.map(fn child ->
-          if child.type == :supervisor do
-            build_supervisor_tree(child, all_processes)
-          else
-            enhance_worker_process(child, all_processes)
-          end
-        end)
+        enhanced_children =
+          children
+          |> Enum.map(fn child ->
+            if child.type == :supervisor do
+              build_supervisor_tree(child, all_processes)
+            else
+              enhance_worker_process(child, all_processes)
+            end
+          end)
 
         Map.put(base_supervisor, :children, enhanced_children)
     end
   end
 
   defp enhance_worker_process(worker, all_processes) do
-    process_details = Enum.find(all_processes, fn p -> 
-      p.pid == worker.pid 
-    end)
+    process_details =
+      Enum.find(all_processes, fn p ->
+        p.pid == worker.pid
+      end)
 
     base_worker = %{
       name: worker.name,
@@ -238,20 +242,25 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.DataLoader do
   end
 
   defp determine_otp_behavior(process) when is_nil(process), do: :unknown
+
   defp determine_otp_behavior(process) do
     case Map.get(process, :behavior) || Map.get(process, :module) do
-      nil -> :gen_server
+      nil ->
+        :gen_server
+
       behavior when is_atom(behavior) ->
         case to_string(behavior) do
           "gen_server" -> :gen_server
-          "gen_statem" -> :gen_statem  
+          "gen_statem" -> :gen_statem
           "gen_event" -> :gen_event
           "supervisor" -> :supervisor
           "task" -> :task
           "agent" -> :agent
           _ -> :gen_server
         end
-      _ -> :gen_server
+
+      _ ->
+        :gen_server
     end
   end
 

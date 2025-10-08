@@ -4,12 +4,13 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.Filters do
   """
 
   def apply_filters_and_search(socket) do
-    filtered_data = filter_cluster_data(
-      socket.assigns.cluster_data, 
-      socket.assigns.filters, 
-      socket.assigns.search_term
-    )
-    
+    filtered_data =
+      filter_cluster_data(
+        socket.assigns.cluster_data,
+        socket.assigns.filters,
+        socket.assigns.search_term
+      )
+
     Phoenix.Component.assign(socket, %{
       filtered_cluster_data: filtered_data,
       filtered_process_count: count_filtered_processes(filtered_data)
@@ -44,6 +45,7 @@ defmodule OtpSupervisorWeb.Live.ClusterVisualization.Filters do
 
   defp count_processes_recursive(item) do
     base_count = 1
+
     case Map.get(item, :children) do
       nil -> base_count
       children -> base_count + Enum.reduce(children, 0, &(&2 + count_processes_recursive(&1)))
